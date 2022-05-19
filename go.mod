@@ -3,7 +3,7 @@ module github.com/tivo/terraform-provider-splunk-itsi
 go 1.17
 
 require (
-	github.com/akamensky/argparse v1.2.2
+	github.com/akamensky/argparse v1.3.1
 	github.com/hashicorp/go-cty v1.4.1-0.20200414143053-d3edf31b6320
 	github.com/hashicorp/go-uuid v1.0.3
 	github.com/hashicorp/golang-lru v0.5.5-0.20210104140557-80c98217689d
