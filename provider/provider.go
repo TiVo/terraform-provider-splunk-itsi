@@ -9,7 +9,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/lestrrat-go/backoff/v2"
 	"github.com/tivo/terraform-provider-splunk-itsi/models"
-	"github.com/tivo/terraform-provider-splunk-itsi/provider/resources"
 )
 
 func init() {
@@ -39,7 +38,8 @@ func Provider() *schema.Provider {
 			},
 			"port": {
 				Type:     schema.TypeInt,
-				Required: true,
+				Optional: true,
+				Default:  8089,
 			},
 			"access_token": {
 				Type:        schema.TypeString,
@@ -68,19 +68,19 @@ func Provider() *schema.Provider {
 			},
 		},
 		DataSourcesMap: map[string]*schema.Resource{
-			"itsi_splunk_lookup":          resources.DatasourceSplunkLookup(),
-			"itsi_splunk_search":          resources.DatasourceSplunkSearch(),
-			"itsi_entity_type":            resources.DatasourceEntityType(),
-			"itsi_kpi_threshold_template": resources.DatasourceKPIThresholdTemplate(),
+			"itsi_splunk_lookup":          DatasourceSplunkLookup(),
+			"itsi_splunk_search":          DatasourceSplunkSearch(),
+			"itsi_entity_type":            DatasourceEntityType(),
+			"itsi_kpi_threshold_template": DatasourceKPIThresholdTemplate(),
 		},
 		ResourcesMap: map[string]*schema.Resource{
-			"itsi_kpi_threshold_template":    resources.ResourceKPIThresholdTemplate(),
-			"itsi_kpi_base_search":           resources.ResourceKPIBaseSearch(),
-			"itsi_entity":                    resources.ResourceEntity(),
-			"itsi_service":                   resources.ResourceService(),
-			"itsi_splunk_collection":         resources.ResourceCollection(),
-			"itsi_splunk_collection_entry":   resources.ResourceCollectionEntry(),
-			"itsi_splunk_collection_entries": resources.ResourceCollectionEntries(),
+			"itsi_kpi_threshold_template":    ResourceKPIThresholdTemplate(),
+			"itsi_kpi_base_search":           ResourceKPIBaseSearch(),
+			"itsi_entity":                    ResourceEntity(),
+			"itsi_service":                   ResourceService(),
+			"itsi_splunk_collection":         ResourceCollection(),
+			"itsi_splunk_collection_entry":   ResourceCollectionEntry(),
+			"itsi_splunk_collection_entries": ResourceCollectionEntries(),
 		},
 	}
 }
@@ -103,7 +103,7 @@ func providerConfigure(c context.Context, d *schema.ResourceData) (interface{}, 
 
 	client.Concurrency = 10
 	models.InitItsiApiLimiter(client.Concurrency)
-	resources.InitSplunkSearchLimiter(client.Concurrency)
+	InitSplunkSearchLimiter(client.Concurrency)
 	if os.Getenv("TF_LOG") == "true" {
 		models.Verbose = true
 	}

@@ -3,12 +3,12 @@
 page_title: "itsi_splunk_collection Resource - terraform-provider-splunk-itsi"
 subcategory: ""
 description: |-
-  
+  Manages a KV store collection resource in Splunk.
 ---
 
 # itsi_splunk_collection (Resource)
 
-
+Manages a KV store collection resource in Splunk.
 
 ## Example Usage
 
@@ -39,4 +39,12 @@ resource "itsi_splunk_collection" "test_collection" {
 
 - `id` (String) The ID of this resource.
 
+## Import
 
+Import is supported using the following syntax:
+
+```shell
+terraform import itsi_service.example {{id}}
+#OR
+terraform import itsi_service.example {{title}}
+```

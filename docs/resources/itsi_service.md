@@ -3,12 +3,12 @@
 page_title: "itsi_service Resource - terraform-provider-splunk-itsi"
 subcategory: ""
 description: |-
-  
+  Manages a Service within ITSI.
 ---
 
 # itsi_service (Resource)
 
-
+Manages a Service within ITSI.
 
 ## Example Usage
 
@@ -235,4 +235,12 @@ Required:
 - `kpis` (Set of String) A set of _key ids for each KPI in service identified by serviceid, which this service will depend on.
 - `service` (String) _key value of service that this service depends on.
 
+## Import
 
+Import is supported using the following syntax:
+
+```shell
+terraform import itsi_service.example {{id}}
+#OR
+terraform import itsi_service.example {{title}}
+```

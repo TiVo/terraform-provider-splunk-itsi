@@ -1,0 +1,1 @@
+terraform import itsi_entity.example {{id}}

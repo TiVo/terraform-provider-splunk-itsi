@@ -3,12 +3,12 @@
 page_title: "itsi_entity Resource - terraform-provider-splunk-itsi"
 subcategory: ""
 description: |-
-  
+  Manages an Entity object within ITSI.
 ---
 
 # itsi_entity (Resource)
 
-
+Manages an Entity object within ITSI.
 
 ## Example Usage
 
@@ -49,4 +49,10 @@ resource "itsi_entity" "host_entity" {
 
 - `id` (String) The ID of this resource.
 
+## Import
 
+Import is supported using the following syntax:
+
+```shell
+terraform import itsi_entity.example {{id}}
+```

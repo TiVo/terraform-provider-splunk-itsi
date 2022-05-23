@@ -1,4 +1,4 @@
-package resources
+package provider
 
 import (
 	"bytes"
@@ -50,6 +50,7 @@ func entityBase(clientConfig models.ClientConfig, key string, title string) *mod
 
 func ResourceEntity() *schema.Resource {
 	return &schema.Resource{
+		Description:   "Manages an Entity object within ITSI.",
 		CreateContext: entityCreate,
 		ReadContext:   entityRead,
 		UpdateContext: entityUpdate,

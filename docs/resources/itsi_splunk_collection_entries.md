@@ -3,12 +3,12 @@
 page_title: "itsi_splunk_collection_entries Resource - terraform-provider-splunk-itsi"
 subcategory: ""
 description: |-
-  
+  Manages KV store collection records.
 ---
 
 # itsi_splunk_collection_entries (Resource)
 
-
+Manages KV store collection records.
 
 ## Example Usage
 

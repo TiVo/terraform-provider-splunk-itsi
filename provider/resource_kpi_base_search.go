@@ -1,4 +1,4 @@
-package resources
+package provider
 
 import (
 	"bytes"
@@ -58,6 +58,7 @@ func kpiBaseSearchBase(clientConfig models.ClientConfig, key string, title strin
 
 func ResourceKPIBaseSearch() *schema.Resource {
 	return &schema.Resource{
+		Description:   "Manages a KPI Base search within ITSI.",
 		CreateContext: kpiBaseSearchCreate,
 		ReadContext:   kpiBaseSearchRead,
 		UpdateContext: kpiBaseSearchUpdate,

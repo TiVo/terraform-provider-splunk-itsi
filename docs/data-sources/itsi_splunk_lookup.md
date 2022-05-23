@@ -3,12 +3,12 @@
 page_title: "itsi_splunk_lookup Data Source - terraform-provider-splunk-itsi"
 subcategory: ""
 description: |-
-  
+  Use this data source to retrieve the contents of a Splunk lookup table.
 ---
 
 # itsi_splunk_lookup (Data Source)
 
-
+Use this data source to retrieve the contents of a Splunk lookup table.
 
 ## Example Usage
 
@@ -32,11 +32,11 @@ output "splunk_lookup_data" {
 ### Optional
 
 - `splunk_app` (String) The Splunk app in which the searh query should be performed.
-- `splunk_user` (String) The Splunk user in the context of which the search query should be performed
+- `splunk_user` (String) The Splunk user in the context of which the search query should be performed.
 
 ### Read-Only
 
-- `data` (List of Map of String) Lookup data
+- `data` (List of Map of String) Lookup data.
 - `id` (String) The ID of this resource.
 
 

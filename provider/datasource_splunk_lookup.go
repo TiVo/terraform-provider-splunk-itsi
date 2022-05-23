@@ -1,4 +1,4 @@
-package resources
+package provider
 
 import (
 	"context"
@@ -10,8 +10,8 @@ import (
 
 func DatasourceSplunkLookup() *schema.Resource {
 	return &schema.Resource{
+		Description: "Use this data source to retrieve the contents of a Splunk lookup table.",
 		ReadContext: splunkLookupRead,
-
 		Schema: map[string]*schema.Schema{
 			"name": {
 				Type:        schema.TypeString,
@@ -22,7 +22,7 @@ func DatasourceSplunkLookup() *schema.Resource {
 				Type:        schema.TypeString,
 				Optional:    true,
 				Default:     "nobody",
-				Description: "The Splunk user in the context of which the search query should be performed",
+				Description: "The Splunk user in the context of which the search query should be performed.",
 			},
 			"splunk_app": {
 				Type:        schema.TypeString,
@@ -36,7 +36,7 @@ func DatasourceSplunkLookup() *schema.Resource {
 				Elem: &schema.Schema{
 					Type: schema.TypeMap,
 				},
-				Description: "Lookup data",
+				Description: "Lookup data.",
 			},
 		},
 	}

@@ -3,12 +3,12 @@
 page_title: "itsi_kpi_threshold_template Data Source - terraform-provider-splunk-itsi"
 subcategory: ""
 description: |-
-  
+  Use this data source to get the ID of an available KPI threshold template.
 ---
 
 # itsi_kpi_threshold_template (Data Source)
 
-
+Use this data source to get the ID of an available KPI threshold template.
 
 ## Example Usage
 
