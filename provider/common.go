@@ -96,13 +96,8 @@ func (rt *resourceTemplate) escape(name string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	name = reg.ReplaceAllString(name, "-")
-	if strings.HasSuffix(name, "-") {
-		name = name[:len(name)-1]
-	}
-	if strings.HasPrefix(name, "-") {
-		name = name[1:]
-	}
+	name = reg.ReplaceAllString(name, "_")
+	name = strings.Trim(name, "_")
 	return name, nil
 }
 
