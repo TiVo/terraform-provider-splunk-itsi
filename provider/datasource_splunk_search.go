@@ -1,4 +1,4 @@
-package resources
+package provider
 
 import (
 	"context"
@@ -29,6 +29,7 @@ func InitSplunkSearchLimiter(concurrency int) {
 
 func DatasourceSplunkSearch() *schema.Resource {
 	return &schema.Resource{
+		Description: "Use this data source to retrieve the results of a Splunk search.",
 		ReadContext: splunkSearchRead,
 		Timeouts: &schema.ResourceTimeout{
 			Read: schema.DefaultTimeout(20 * time.Minute),

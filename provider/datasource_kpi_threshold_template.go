@@ -1,4 +1,4 @@
-package resources
+package provider
 
 import (
 	"context"
@@ -11,6 +11,7 @@ import (
 
 func DatasourceKPIThresholdTemplate() *schema.Resource {
 	return &schema.Resource{
+		Description: "Use this data source to get the ID of an available KPI threshold template.",
 		ReadContext: DatasourceKPIThresholdTemplateRead,
 		Schema: map[string]*schema.Schema{
 			"title": {

@@ -1,4 +1,4 @@
-package resources
+package provider
 
 import (
 	"context"
@@ -31,6 +31,7 @@ func validateFieldTypes() schema.SchemaValidateFunc {
 
 func ResourceCollection() *schema.Resource {
 	return &schema.Resource{
+		Description:   "Manages a KV store collection resource in Splunk.",
 		CreateContext: collectionCreate,
 		ReadContext:   collectionRead,
 		UpdateContext: collectionUpdate,
@@ -71,6 +72,7 @@ func ResourceCollection() *schema.Resource {
 
 func ResourceCollectionEntry() *schema.Resource {
 	return &schema.Resource{
+		Description:   "Manages a KV store collection record.",
 		CreateContext: collectionEntryCreate,
 		ReadContext:   collectionEntryRead,
 		UpdateContext: collectionEntryUpdate,
@@ -104,6 +106,7 @@ func ResourceCollectionEntry() *schema.Resource {
 
 func ResourceCollectionEntries() *schema.Resource {
 	return &schema.Resource{
+		Description:   "Manages KV store collection records.",
 		CreateContext: collectionEntriesCreate,
 		ReadContext:   collectionEntriesRead,
 		UpdateContext: collectionEntriesUpdate,

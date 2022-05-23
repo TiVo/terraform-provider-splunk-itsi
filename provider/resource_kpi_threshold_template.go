@@ -1,4 +1,4 @@
-package resources
+package provider
 
 import (
 	"bytes"
@@ -49,6 +49,7 @@ func kpiThresholdTemplateBase(clientConfig models.ClientConfig, key string, titl
 
 func ResourceKPIThresholdTemplate() *schema.Resource {
 	return &schema.Resource{
+		Description:   "Manages a KPI threshold template.",
 		CreateContext: kpiThresholdTemplateCreate,
 		ReadContext:   kpiThresholdTemplateRead,
 		UpdateContext: kpiThresholdTemplateUpdate,

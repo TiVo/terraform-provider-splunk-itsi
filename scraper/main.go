@@ -15,7 +15,7 @@ import (
 	"github.com/akamensky/argparse"
 	"github.com/lestrrat-go/backoff/v2"
 	"github.com/tivo/terraform-provider-splunk-itsi/models"
-	"github.com/tivo/terraform-provider-splunk-itsi/provider/resources"
+	"github.com/tivo/terraform-provider-splunk-itsi/provider"
 
 	"gopkg.in/yaml.v3"
 )
@@ -43,7 +43,7 @@ func main() {
 		log.Fatal(parser.Usage(err))
 	}
 	models.InitItsiApiLimiter(10)
-	resources.InitSplunkSearchLimiter(10)
+	provider.InitSplunkSearchLimiter(10)
 
 	models.Verbose = (*verbose == "true")
 	models.Cache = models.NewCache(1000)
@@ -82,7 +82,7 @@ func main() {
 	var wg sync.WaitGroup
 	logsCh := make(chan Logs, len(*objs))
 	for _, objType := range *objs {
-		if formatter, ok := resources.Formatters[objType]; ok || !strings.HasPrefix(*format, "tf") {
+		if formatter, ok := provider.Formatters[objType]; ok || !strings.HasPrefix(*format, "tf") {
 			wg.Add(1)
 			go dump(clientConfig, objType, *format, formatter, logsCh, &wg)
 		} else {
@@ -122,7 +122,7 @@ type Logs struct {
 	Errors     []error
 }
 
-func dump(clientConfig models.ClientConfig, objectType, format string, formatter resources.TFFormatter, logsCh chan Logs, wg *sync.WaitGroup) {
+func dump(clientConfig models.ClientConfig, objectType, format string, formatter provider.TFFormatter, logsCh chan Logs, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	base := models.NewBase(clientConfig, "", "", objectType)
@@ -172,7 +172,7 @@ func dump(clientConfig models.ClientConfig, objectType, format string, formatter
 	}
 }
 
-func auditLog(items []*models.Base, objectType, format string, formatter resources.TFFormatter) *[]error {
+func auditLog(items []*models.Base, objectType, format string, formatter provider.TFFormatter) *[]error {
 	folder := fmt.Sprintf("%s/%s", outputBasePath, format)
 	err := os.MkdirAll(folder, os.ModePerm)
 	if err != nil {
@@ -232,7 +232,7 @@ func auditLog(items []*models.Base, objectType, format string, formatter resourc
 		}
 		var objects []json.RawMessage
 		for _, item := range items {
-			out, err := resources.JSONify(item, formatter)
+			out, err := provider.JSONify(item, formatter)
 			if err != nil {
 				errors = append(errors, err)
 				continue

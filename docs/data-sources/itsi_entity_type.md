@@ -3,12 +3,12 @@
 page_title: "itsi_entity_type Data Source - terraform-provider-splunk-itsi"
 subcategory: ""
 description: |-
-  
+  Use this data source to get the ID of an available entity type.
 ---
 
 # itsi_entity_type (Data Source)
 
-
+Use this data source to get the ID of an available entity type.
 
 ## Example Usage
 

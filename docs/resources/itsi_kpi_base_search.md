@@ -3,12 +3,12 @@
 page_title: "itsi_kpi_base_search Resource - terraform-provider-splunk-itsi"
 subcategory: ""
 description: |-
-  
+  Manages a KPI Base search within ITSI.
 ---
 
 # itsi_kpi_base_search (Resource)
 
-
+Manages a KPI Base search within ITSI.
 
 ## Example Usage
 
@@ -98,4 +98,12 @@ Read-Only:
 
 - `id` (String) generated metric _key
 
+## Import
 
+Import is supported using the following syntax:
+
+```shell
+terraform import itsi_kpi_base_search.example {{id}}
+#OR
+terraform import itsi_kpi_base_search.example {{title}}
+```

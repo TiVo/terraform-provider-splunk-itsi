@@ -33,12 +33,12 @@ provider "itsi" {
 ### Required
 
 - `host` (String)
-- `port` (Number)
 
 ### Optional
 
 - `access_token` (String) Bearer token used to authenticate HTTP requests to Splunk API
 - `insecure` (Boolean) Whether the API should be accessed without verifying the TLS certificate.
 - `password` (String)
+- `port` (Number)
 - `timeout` (Number) HTTP timeout in seconds for CRUD requests to Splunk/ITSI API. 0 means no timeout. (Terraform resource timeouts still apply)
 - `user` (String)

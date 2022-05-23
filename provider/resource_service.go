@@ -1,4 +1,4 @@
-package resources
+package provider
 
 import (
 	"bytes"
@@ -255,6 +255,7 @@ func ResourceService() *schema.Resource {
 	}
 
 	return &schema.Resource{
+		Description:   "Manages a Service within ITSI.",
 		CreateContext: serviceCreate,
 		ReadContext:   serviceRead,
 		UpdateContext: serviceUpdate,

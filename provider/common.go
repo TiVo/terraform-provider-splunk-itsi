@@ -1,4 +1,4 @@
-package resources
+package provider
 
 import (
 	"encoding/json"

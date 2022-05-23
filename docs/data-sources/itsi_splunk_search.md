@@ -3,12 +3,12 @@
 page_title: "itsi_splunk_search Data Source - terraform-provider-splunk-itsi"
 subcategory: ""
 description: |-
-  
+  Use this data source to retrieve the results of a Splunk search.
 ---
 
 # itsi_splunk_search (Data Source)
 
-
+Use this data source to retrieve the results of a Splunk search.
 
 ## Example Usage
 
