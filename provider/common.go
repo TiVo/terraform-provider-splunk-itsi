@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 	"text/template"
+	"unicode"
 
 	"fmt"
 
@@ -98,6 +99,9 @@ func (rt *resourceTemplate) escape(name string) (string, error) {
 	}
 	name = reg.ReplaceAllString(name, "_")
 	name = strings.Trim(name, "_")
+	if unicode.IsDigit(rune(name[0])) {
+		name = fmt.Sprintf("_%s", name)
+	}
 	return name, nil
 }
 
@@ -132,6 +136,9 @@ func (rt *resourceTemplate) display(index string, element interface{}, sc *schem
 	if sc.Optional && sc.Default != nil && sc.Default == element {
 		return ""
 	}
+	if sc.Optional && sc.Default == nil && element == "" {
+		return ""
+	}
 	whitespaces := strings.Repeat("    ", ndepth)
 	suffix := whitespaces
 	mapSuffix := whitespaces
@@ -144,6 +151,9 @@ func (rt *resourceTemplate) display(index string, element interface{}, sc *schem
 	switch v.Kind() {
 
 	case reflect.String:
+		if sc.Optional && sc.Default != nil && v.String() == "" {
+			return ""
+		}
 		if strings.Contains(v.String(), "\n") {
 			split := strings.Split(v.String(), "\n")
 			for i := 0; i < len(split); i++ {
