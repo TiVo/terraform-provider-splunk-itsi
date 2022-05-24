@@ -2,6 +2,7 @@ package provider
 
 import (
 	"fmt"
+
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
 )
@@ -143,12 +144,12 @@ func getKpiThresholdSettingsSchema() map[string]*schema.Schema {
 		},
 		"gauge_max": {
 			Type:        schema.TypeFloat,
-			Required:    true,
+			Optional:    true,
 			Description: "Maximum value for the threshold gauge specified by user",
 		},
 		"gauge_min": {
 			Type:        schema.TypeFloat,
-			Required:    true,
+			Optional:    true,
 			Description: "Minimum value for the threshold gauge specified by user.",
 		},
 		"is_max_static": {

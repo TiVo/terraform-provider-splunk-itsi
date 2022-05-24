@@ -162,14 +162,14 @@ Required:
 
 Required:
 
-- `gauge_max` (Number) Maximum value for the threshold gauge specified by user
-- `gauge_min` (Number) Minimum value for the threshold gauge specified by user.
 - `render_boundary_max` (Number) Upper bound value to use to render the graph for the thresholds.
 - `render_boundary_min` (Number) Lower bound value to use to render the graph for the thresholds.
 
 Optional:
 
 - `base_severity_label` (String)
+- `gauge_max` (Number) Maximum value for the threshold gauge specified by user
+- `gauge_min` (Number) Minimum value for the threshold gauge specified by user.
 - `is_max_static` (Boolean) True when maximum threshold value is a static value, false otherwise.
 - `is_min_static` (Boolean) True when min threshold value is a static value, false otherwise.
 - `metric_field` (String) Thresholding field from the search.
@@ -196,14 +196,14 @@ Optional:
 
 Required:
 
-- `gauge_max` (Number) Maximum value for the threshold gauge specified by user
-- `gauge_min` (Number) Minimum value for the threshold gauge specified by user.
 - `render_boundary_max` (Number) Upper bound value to use to render the graph for the thresholds.
 - `render_boundary_min` (Number) Lower bound value to use to render the graph for the thresholds.
 
 Optional:
 
 - `base_severity_label` (String)
+- `gauge_max` (Number) Maximum value for the threshold gauge specified by user
+- `gauge_min` (Number) Minimum value for the threshold gauge specified by user.
 - `is_max_static` (Boolean) True when maximum threshold value is a static value, false otherwise.
 - `is_min_static` (Boolean) True when min threshold value is a static value, false otherwise.
 - `metric_field` (String) Thresholding field from the search.

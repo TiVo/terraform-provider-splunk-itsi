@@ -236,11 +236,14 @@ resource "itsi_kpi_threshold_template" "static" {
 
 - `adaptive_thresholding_training_window` (String)
 - `adaptive_thresholds_is_enabled` (Boolean)
-- `description` (String)
 - `sec_grp` (String)
 - `time_variate_thresholds` (Boolean)
 - `time_variate_thresholds_specification` (Block Set, Min: 1) (see [below for nested schema](#nestedblock--time_variate_thresholds_specification))
 - `title` (String)
+
+### Optional
+
+- `description` (String)
 
 ### Read-Only
 
@@ -273,14 +276,14 @@ Optional:
 
 Required:
 
-- `gauge_max` (Number) Maximum value for the threshold gauge specified by user
-- `gauge_min` (Number) Minimum value for the threshold gauge specified by user.
 - `render_boundary_max` (Number) Upper bound value to use to render the graph for the thresholds.
 - `render_boundary_min` (Number) Lower bound value to use to render the graph for the thresholds.
 
 Optional:
 
 - `base_severity_label` (String)
+- `gauge_max` (Number) Maximum value for the threshold gauge specified by user
+- `gauge_min` (Number) Minimum value for the threshold gauge specified by user.
 - `is_max_static` (Boolean) True when maximum threshold value is a static value, false otherwise.
 - `is_min_static` (Boolean) True when min threshold value is a static value, false otherwise.
 - `metric_field` (String) Thresholding field from the search.
@@ -307,14 +310,14 @@ Optional:
 
 Required:
 
-- `gauge_max` (Number) Maximum value for the threshold gauge specified by user
-- `gauge_min` (Number) Minimum value for the threshold gauge specified by user.
 - `render_boundary_max` (Number) Upper bound value to use to render the graph for the thresholds.
 - `render_boundary_min` (Number) Lower bound value to use to render the graph for the thresholds.
 
 Optional:
 
 - `base_severity_label` (String)
+- `gauge_max` (Number) Maximum value for the threshold gauge specified by user
+- `gauge_min` (Number) Minimum value for the threshold gauge specified by user.
 - `is_max_static` (Boolean) True when maximum threshold value is a static value, false otherwise.
 - `is_min_static` (Boolean) True when min threshold value is a static value, false otherwise.
 - `metric_field` (String) Thresholding field from the search.

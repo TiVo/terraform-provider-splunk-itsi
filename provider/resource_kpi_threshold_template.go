@@ -65,7 +65,7 @@ func ResourceKPIThresholdTemplate() *schema.Resource {
 			},
 			"description": {
 				Type:     schema.TypeString,
-				Required: true,
+				Optional: true,
 			},
 			"adaptive_thresholds_is_enabled": {
 				Type:     schema.TypeBool,
