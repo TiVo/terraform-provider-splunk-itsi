@@ -130,7 +130,6 @@ func ResourceCollectionEntries() *schema.Resource {
 			"generation": {
 				Type:        schema.TypeInt,
 				Computed:    true,
-				Default:     0,
 				Description: "Computed latest generation of changes",
 			},
 			"scope": {
