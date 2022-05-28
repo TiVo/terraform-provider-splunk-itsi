@@ -135,6 +135,7 @@ func ResourceCollectionEntries() *schema.Resource {
 			"scope": {
 				Type:        schema.TypeString,
 				Optional:    true,
+				Default:     "default_scope",
 				Description: "Scope of ownership of this collection entry",
 			},
 			"data": {
@@ -210,22 +211,6 @@ func unpackRow(in []interface{}) (out map[string]interface{}) {
 	return
 }
 
-func orDefault(v interface{}, def interface{}) interface{} {
-	if v != nil {
-		return v
-	} else {
-		return def
-	}
-}
-
-func orDefaultString(v string, def string) string {
-	if v != "" {
-		return v
-	} else {
-		return def
-	}
-}
-
 // ----------------------------------------------------------------------
 
 func getCollectionName(d *schema.ResourceData) string {
@@ -298,8 +283,8 @@ func collectionEntries(ctx context.Context, d *schema.ResourceData, object_type 
 	data := make(map[string]interface{})
 	data["collection_name"] = d.Get("collection_name").(string)
 	data["preserve_keys"] = d.Get("preserve_keys").(bool)
-	data["generation"] = orDefault(d.Get("generation").(int), 0)
-	data["scope"] = orDefaultString(d.Get("scope").(string), "default_scope")
+	data["generation"] = d.Get("generation").(int)
+	data["scope"] = d.Get("scope").(string)
 	c.Data = data
 
 	tflog.Trace(ctx, "RSRC COLLECTION:     api model ("+object_type+")",
@@ -317,9 +302,9 @@ func collectionEntriesDataBody(ctx context.Context, d *schema.ResourceData, obje
 	data := make(map[string]interface{})
 	data["collection_name"] = d.Get("collection_name").(string)
 	data["preserve_keys"] = d.Get("preserve_keys").(bool)
-	gen := orDefault(d.Get("generation"), 0).(int)
+	gen := d.Get("generation").(int)
 	data["generation"] = gen
-	scope := orDefaultString(d.Get("scope").(string), "default_scope")
+	scope := d.Get("scope").(string)
 	data["scope"] = scope
 
 	dataRes := d.Get("data").([]interface{})
@@ -483,7 +468,7 @@ func collectionApiEntriesSave(ctx context.Context, d *schema.ResourceData, m int
 	//   storage/collections/data/{collection}/batch_save -- POST (body: <row data>)
 
 	// Increment the generation counter...
-	gen := orDefault(d.Get("generation"), 0).(int) + 1
+	gen := d.Get("generation").(int) + 1
 	if err := d.Set("generation", gen); err != nil {
 		return nil, err
 	}
