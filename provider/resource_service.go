@@ -50,6 +50,11 @@ func serviceTFFormat(b *models.Base) (string, error) {
 	return cleanerRegex.ReplaceAllString(tpl.String(), ""), nil
 }
 
+// testOverridable
+var GenerateUUID = func(internalIdentifier string) (string, error) {
+	return uuid.GenerateUUID()
+}
+
 func serviceBase(clientConfig models.ClientConfig, key string, title string) *models.Base {
 	base := models.NewBase(clientConfig, key, title, "service")
 	return base
@@ -440,7 +445,7 @@ func service(ctx context.Context, d *schema.ResourceData, clientConfig models.Cl
 			if existingKpiId, ok := kpiOldKeys[internalIdentifier]; ok {
 				kpiData["id"] = existingKpiId
 			} else {
-				kpiData["id"], _ = uuid.GenerateUUID()
+				kpiData["id"], _ = GenerateUUID(internalIdentifier)
 			}
 		}
 		err := d.Set("kpi", kpisNew)

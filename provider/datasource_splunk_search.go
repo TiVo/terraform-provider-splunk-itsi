@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"sort"
 	"strconv"
 	"strings"
@@ -21,7 +22,11 @@ import (
 )
 
 var splunkSearchLimiter *util.Limiter
-var splunkSearchClients models.HttpClients
+var splunkSearchClients models.IHttpClients
+
+func init() {
+	splunkSearchClients = models.InitHttpClients()
+}
 
 func InitSplunkSearchLimiter(concurrency int) {
 	splunkSearchLimiter = util.NewLimiter(concurrency)
@@ -271,7 +276,7 @@ func (sr *SplunkRequest) Search(ctx context.Context, s SplunkSearch) (results []
 		SplunkApp:   s.App,
 		SplunkUser:  s.User,
 
-		HttpClient: splunkSearchClients.Get(client),
+		HttpClient: splunkSearchClients.Get(client).(*http.Client),
 	}
 
 	params := map[string]string{

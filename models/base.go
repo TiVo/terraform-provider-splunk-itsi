@@ -50,6 +50,14 @@ type Base struct {
 	Fields  []string
 }
 
+func init() {
+	clients = InitHttpClients()
+	err := yaml.Unmarshal([]byte(metadataConfig), &RestConfigs)
+	if err != nil {
+		log.Fatalf("Unmarshal: %v", err)
+	}
+}
+
 func NewBase(clientConfig ClientConfig, key, id, objectType string) *Base {
 	if _, ok := RestConfigs[objectType]; !ok {
 		panic(fmt.Sprintf("invalid objectype %s!", objectType))
