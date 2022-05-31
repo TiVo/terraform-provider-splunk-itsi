@@ -359,6 +359,103 @@ func TestCacheHit(t *testing.T) {
 	}
 }
 
+type TestSharedDependenciesConcurrentTestCase struct {
+	Description         string
+	Config              string
+	BaseSearchId        string `yaml:"base_search_id"`
+	BaseSearch          string `yaml:"base_search"`
+	ThresholdTemplateId string `yaml:"threshold_template_id"`
+	ThresholdTemplate   string `yaml:"threshold_template"`
+}
+
+func TestSharedDependenciesConcurrentCallCheck(t *testing.T) {
+	providerFactories := map[string]func() (*schema.Provider, error){
+		"test": func() (*schema.Provider, error) { return testServiceProvider(), nil },
+	}
+
+	GenerateUUID = func(internalID string) (string, error) {
+		return internalID, nil
+	}
+
+	mock_models.InitItsiApiLimiter(10)
+	defer mock_models.InitItsiApiLimiter(1)
+
+	var resourceSharedDependenciesConcurrentProvider []TestSharedDependenciesConcurrentTestCase
+	parseYaml(t, "concurrent_cache_hit_data_provider.yaml", &resourceSharedDependenciesConcurrentProvider)
+	for _, test := range resourceSharedDependenciesConcurrentProvider {
+		t.Log("=== RUNNING ", t.Name(), ": TEST CASE ", test.Description)
+		mockAnswers := map[string]string{}
+
+		actualThresholdTemplateApiCalls := 0
+		actualKpiBaseSearchApiCalls := 0
+
+		resource.UnitTest(t, resource.TestCase{
+			ProviderFactories: providerFactories,
+			Steps: []resource.TestStep{
+				{
+					Config: test.Config,
+					PreConfig: func() {
+						mock_models.Do = func(req *http.Request) (*http.Response, error) {
+							var response io.ReadCloser
+							var err error = nil
+							var path string = strings.TrimPrefix(req.URL.Path, _PATH_PREFIX)
+							switch method, body := req.Method, req.Body; {
+							case method == "DELETE":
+								assert.Contains(t, path, _SERVICE, "Unexpected  API call: ", method, path)
+								response = ioutil.NopCloser(bytes.NewReader([]byte("{success}")))
+							case method == "POST" && path == _SERVICE:
+
+								// Intention of this test is to check only amount of dependency calls which are concurrent.
+								// So here the future mocked GET answers is populated from POST, just to emulate successful flow.
+								var postBodyJsonInterface map[string]interface{}
+								buf := new(bytes.Buffer)
+								buf.ReadFrom(body)
+								postServiceBody := buf.String()
+
+								if err = json.Unmarshal([]byte(postServiceBody), &postBodyJsonInterface); err != nil {
+									return nil, err
+								}
+
+								// mock that service-returned _key == title
+								serviceIdToSet, _ := postBodyJsonInterface["title"].(string)
+								postBodyJsonInterface["_key"] = serviceIdToSet
+
+								postBodyJsonBytes, _ := json.Marshal(postBodyJsonInterface)
+								mockAnswers[_SERVICE+"/"+serviceIdToSet] = string(postBodyJsonBytes)
+
+								mockedPostServerAnswer := fmt.Sprintf("{\"_key\" : \"%s\"}", serviceIdToSet)
+								response = ioutil.NopCloser(bytes.NewReader([]byte(mockedPostServerAnswer)))
+
+							case method == "GET" && mockAnswers[path] != "":
+								response = ioutil.NopCloser(bytes.NewReader([]byte(mockAnswers[path])))
+
+							case method == "GET" && path == _KPI_BASE_SEARCH+"/"+test.BaseSearchId:
+								actualKpiBaseSearchApiCalls++
+								assert.Equal(t, 1, actualKpiBaseSearchApiCalls, "Extra kpi base search call")
+
+								response = ioutil.NopCloser(bytes.NewReader([]byte(test.BaseSearch)))
+							case method == "GET" && path == _KPI_THRESHOLD_TEMPLATE+"/"+test.ThresholdTemplateId:
+								actualThresholdTemplateApiCalls++
+								assert.Equal(t, 1, actualThresholdTemplateApiCalls, "Extra threshold_template search call")
+
+								response = ioutil.NopCloser(bytes.NewReader([]byte(test.ThresholdTemplate)))
+
+							default:
+								err = errors.New(fmt.Sprintf("Unexpected [%s] Call: %s %s", method, path, body))
+							}
+							return &http.Response{
+								StatusCode: 200,
+								Body:       response,
+							}, err
+						}
+					},
+				},
+			},
+		})
+		mock_models.TearDown()
+	}
+}
+
 func parseYaml(t *testing.T, fileName string, testStruct interface{}) {
 	t.Helper()
 
