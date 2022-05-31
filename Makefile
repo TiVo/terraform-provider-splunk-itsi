@@ -33,7 +33,7 @@ scraper:
 	go build -o ./bin/scraper github.com/tivo/terraform-provider-splunk-itsi/scraper
 
 test: fmt
-	go test -v -cover github.com/tivo/terraform-provider-splunk-itsi/...
+	go test -v -cover github.com/tivo/terraform-provider-splunk-itsi/... -tags test_setup
 
 docs: fmt
 	go generate ./...

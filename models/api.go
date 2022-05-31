@@ -4,7 +4,7 @@ import (
 	"github.com/tivo/terraform-provider-splunk-itsi/provider/util"
 )
 
-var clients HttpClients
+var clients IHttpClients
 
 var itsiLimiter *util.Limiter
 
