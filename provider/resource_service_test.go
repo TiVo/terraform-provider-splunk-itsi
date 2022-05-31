@@ -274,6 +274,91 @@ func TestServiceCreatePopulateComputed(t *testing.T) {
 	})
 }
 
+type TestCacheHitTestCase struct {
+	Description               string
+	Config                    string `yaml:"config"`
+	CachedBaseSearchId        string `yaml:"cached_base_search_id"`
+	CachedBaseSearch          string `yaml:"cached_base_search"`
+	CachedThresholdTemplateId string `yaml:"cached_threshold_template_id"`
+	CachedThresholdTemplate   string `yaml:"cached_threshold_template"`
+	InputGetBody              string `yaml:"input_service_get_body"`
+	ServiceIdToSet            string `yaml:"service_id_to_set"`
+}
+
+func TestCacheHit(t *testing.T) {
+	providerFactories := map[string]func() (*schema.Provider, error){
+		"test": func() (*schema.Provider, error) { return testServiceProvider(), nil },
+	}
+
+	GenerateUUID = func(internalID string) (string, error) {
+		return internalID, nil
+	}
+
+	var resourceCacheHitDataProvider []TestCacheHitTestCase
+	parseYaml(t, "cache_hit_data_provider.yaml", &resourceCacheHitDataProvider)
+
+	for _, test := range resourceCacheHitDataProvider {
+		t.Log("=== RUNNING ", t.Name(), ": TEST CASE ", test.Description)
+		serviceIdToSet := test.ServiceIdToSet
+
+		// set up cached objects
+		kpiThresholdTemplateBase := mock_models.NewBase(mock_models.ClientConfigStub,
+			test.CachedThresholdTemplateId, "test_kpi_threshold_template", "kpi_threshold_template")
+		mock_models.Do = func(req *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: 200,
+				Body:       ioutil.NopCloser(bytes.NewReader([]byte(test.CachedThresholdTemplate))),
+			}, nil
+		}
+		kpiThresholdTemplateBase.Read(mock_models.ContextStub)
+
+		kpiBaseSearchBase := mock_models.NewBase(mock_models.ClientConfigStub,
+			test.CachedBaseSearchId, "test_kpi_base_search", "kpi_base_search")
+		mock_models.Do = func(req *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: 200,
+				Body:       ioutil.NopCloser(bytes.NewReader([]byte(test.CachedBaseSearch))),
+			}, nil
+		}
+		kpiBaseSearchBase.Read(mock_models.ContextStub)
+
+		resource.UnitTest(t, resource.TestCase{
+			ProviderFactories: providerFactories,
+			Steps: []resource.TestStep{
+				{
+					Config: test.Config,
+					PreConfig: func() {
+						mock_models.Do = func(req *http.Request) (*http.Response, error) {
+							// verified that no threshold_template or kpi_base_search requested
+							var response io.ReadCloser
+							var err error = nil
+							var path string = strings.TrimPrefix(req.URL.Path, _PATH_PREFIX)
+
+							switch method, body := req.Method, req.Body; {
+							case method == "DELETE" && path == _SERVICE+"/"+serviceIdToSet:
+								response = ioutil.NopCloser(bytes.NewReader([]byte("{success}")))
+							case method == "POST" && path == _SERVICE:
+								mock_answer := fmt.Sprintf("{\"_key\" : \"%s\"}", serviceIdToSet)
+								response = ioutil.NopCloser(bytes.NewReader([]byte(mock_answer)))
+
+							case method == "GET" && path == _SERVICE+"/"+serviceIdToSet:
+								response = ioutil.NopCloser(bytes.NewReader([]byte(test.InputGetBody)))
+							default:
+								err = errors.New(fmt.Sprintf("Unexpected [%s] Call: %s %s", method, path, body))
+							}
+							return &http.Response{
+								StatusCode: 200,
+								Body:       response,
+							}, err
+						}
+					},
+				},
+			},
+		})
+		mock_models.TearDown()
+	}
+}
+
 func parseYaml(t *testing.T, fileName string, testStruct interface{}) {
 	t.Helper()
 
