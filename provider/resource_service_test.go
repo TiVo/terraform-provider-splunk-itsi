@@ -274,6 +274,122 @@ func TestServiceCreatePopulateComputed(t *testing.T) {
 	})
 }
 
+type TestServiceUpdateDataProvider struct {
+	Description                  string
+	ResourceName                 string            `yaml:"resource_name"`
+	CreateConfig                 string            `yaml:"create_config"`
+	UpdateConfig                 string            `yaml:"update_config"`
+	InputDependenciesResponses   map[string]string `yaml:"input_dependencies_responses"`
+	InputGetServiceBody          string            `yaml:"input_get_service_body"`
+	ExpectedUpdateServicePutBody string            `yaml:"expected_put_service_body"`
+	ServiceIdToSet               string            `yaml:"service_id_to_set"`
+}
+
+func TestServiceUpdate(t *testing.T) {
+	providerFactories := map[string]func() (*schema.Provider, error){
+		"test": func() (*schema.Provider, error) { return testServiceProvider(), nil },
+	}
+
+	GenerateUUID = func(internalID string) (string, error) {
+		return internalID, nil
+	}
+
+	var resourceUpdateDataProvider []TestServiceUpdateDataProvider
+	parseYaml(t, "update_data_provider.yaml", &resourceUpdateDataProvider)
+
+	for _, test := range resourceUpdateDataProvider {
+		t.Log("=== RUNNING ", t.Name(), ": TEST CASE ", test.Description)
+
+		resource.UnitTest(t, resource.TestCase{
+			ProviderFactories: providerFactories,
+			Steps: []resource.TestStep{
+				{
+					Config: test.CreateConfig,
+					PreConfig: func() {
+						mock_models.Do = func(req *http.Request) (*http.Response, error) {
+							var err error = nil
+							var response io.ReadCloser
+
+							path := strings.TrimPrefix(req.URL.Path, _PATH_PREFIX)
+							inputDependencyBody, isDependency := test.InputDependenciesResponses[path]
+
+							switch method, body := req.Method, req.Body; {
+							case isDependency:
+								assert.Exactly(t, "GET", method, "dependency expected to be readonly")
+								response = ioutil.NopCloser(bytes.NewReader([]byte(inputDependencyBody)))
+
+							case method == "GET" && path == _SERVICE+"/"+test.ServiceIdToSet:
+								response = ioutil.NopCloser(bytes.NewReader([]byte(test.InputGetServiceBody)))
+
+							case method == "POST":
+								mock_answer := fmt.Sprintf("{\"_key\" : \"%s\"}", test.ServiceIdToSet)
+								response = ioutil.NopCloser(bytes.NewReader([]byte(mock_answer)))
+
+							case method == "DELETE" && strings.Contains(path, _SERVICE+"/"+test.ServiceIdToSet):
+								response = ioutil.NopCloser(bytes.NewReader([]byte("{success}")))
+
+							default:
+								err = errors.New(fmt.Sprintf("Unexpected [%s] Call: %s %s", method, path, body))
+							}
+							return &http.Response{
+								StatusCode: 200,
+								Body:       response,
+							}, err
+						}
+					},
+				},
+				{
+					Config: test.UpdateConfig,
+					PreConfig: func() {
+						inputCreatedServiceBody := test.InputGetServiceBody
+						mock_models.Do = func(req *http.Request) (*http.Response, error) {
+							var err error = nil
+							var response io.ReadCloser
+
+							path := strings.TrimPrefix(req.URL.Path, _PATH_PREFIX)
+							inputDependencyBody, isDependency := test.InputDependenciesResponses[path]
+
+							switch method, body := req.Method, req.Body; {
+							case isDependency:
+								assert.Exactly(t, "GET", method, "dependency expected to be readonly")
+								response = ioutil.NopCloser(bytes.NewReader([]byte(inputDependencyBody)))
+
+							case method == "GET" && path == _SERVICE+"/"+test.ServiceIdToSet:
+								response = ioutil.NopCloser(bytes.NewReader([]byte(inputCreatedServiceBody)))
+
+							case method == "DELETE" && strings.Contains(path, _SERVICE+"/"+test.ServiceIdToSet):
+								response = ioutil.NopCloser(bytes.NewReader([]byte("{success}")))
+
+							case method == "POST" && path == _SERVICE:
+								mock_answer := fmt.Sprintf("{\"_key\" : \"%s\"}", test.ServiceIdToSet)
+								response = ioutil.NopCloser(bytes.NewReader([]byte(mock_answer)))
+
+							case method == "PUT" && path == _SERVICE+"/"+test.ServiceIdToSet:
+								mock_answer := fmt.Sprintf("{\"_key\" : \"%s\"}", test.ServiceIdToSet)
+								response = ioutil.NopCloser(bytes.NewReader([]byte(mock_answer)))
+
+								actualServiceBody := new(bytes.Buffer)
+								actualServiceBody.ReadFrom(body)
+
+								assertServiceResourceJSONEq(t, test.ExpectedUpdateServicePutBody,
+									actualServiceBody.String(), "expected body mismatched")
+								inputCreatedServiceBody = actualServiceBody.String()
+							default:
+								err = errors.New(fmt.Sprintf("Unexpected [%s] Call: %s %s", method, path, body))
+							}
+							return &http.Response{
+								StatusCode: 200,
+								Body:       response,
+							}, err
+						}
+					},
+				},
+			},
+		})
+		mock_models.TearDown()
+	}
+}
+
 type TestCacheHitTestCase struct {
 	Description               string
 	Config                    string `yaml:"config"`
