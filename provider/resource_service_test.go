@@ -11,9 +11,12 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
 	"github.com/lestrrat-go/backoff/v2"
+	"gopkg.in/yaml.v3"
 	"io"
 	"io/ioutil"
 	"net/http"
+	"os"
+	"regexp"
 	"runtime/debug"
 	"sort"
 	"strings"
@@ -29,6 +32,8 @@ var _SERVICE = "service"
 var _SERVICE_RESOURCE_LABEL = "test_service_resource"
 var _PATH_PREFIX = "/servicesNS/nobody/SA-ITOA/itoa_interface/"
 
+var _DATA_FOLDER = "unit_test_data/resource_service/"
+
 func testServiceProvider() *schema.Provider {
 	return &schema.Provider{
 		ConfigureContextFunc: func(c context.Context, d *schema.ResourceData) (interface{}, diag.Diagnostics) {
@@ -42,24 +47,47 @@ func testServiceProvider() *schema.Provider {
 	}
 }
 
+type TestServiceResourceValidationTestCase struct {
+	Description   string
+	Config        string
+	ExpectedError string `yaml:"expected_error"`
+}
+
 func TestServiceResourceValidation(t *testing.T) {
 
 	providerFactories := map[string]func() (*schema.Provider, error){
 		"test": func() (*schema.Provider, error) { return testServiceProvider(), nil },
 	}
 
-	for _, test := range TestServiceResourceValidationDataProvider {
+	var resourceValidationDataProvider []TestServiceResourceValidationTestCase
+	parseYaml(t, "validation_data_provider.yaml", &resourceValidationDataProvider)
+
+	for _, test := range resourceValidationDataProvider {
 		resource.UnitTest(t, resource.TestCase{
 			ProviderFactories: providerFactories,
 			Steps: []resource.TestStep{
 				{
-					Config:      test.config,
-					ExpectError: test.expectError,
+					Config:      test.Config,
+					ExpectError: regexp.MustCompile(test.ExpectedError),
 				},
 			},
 		})
 		mock_models.TearDown()
 	}
+}
+
+type TestServiceResourceCreateTestCase struct {
+	Description                string
+	ResourceName               string            `yaml:"resource_name"`
+	Config                     string            `yaml:"config"`
+	InputBaseSearchId          string            `yaml:"input_base_search_id"`
+	InputBaseSearch            string            `yaml:"input_base_search"`
+	InputThresholdTemplateId   string            `yaml:"input_threshold_template_id"`
+	InputThresholdTemplate     string            `yaml:"input_threshold_template"`
+	ExpectedPostBody           string            `yaml:"expected_service_post_body"`
+	ExpectedApiCallsCount      int               `yaml:"expected_api_calls_count"`
+	ExpectedResourceAttributes map[string]string `yaml:"expected_resource_attributes"`
+	ServiceIdToSet             string            `yaml:"service_id_to_set"`
 }
 
 func TestServiceResourceCreate(t *testing.T) {
@@ -68,8 +96,11 @@ func TestServiceResourceCreate(t *testing.T) {
 		"test": func() (*schema.Provider, error) { return testServiceProvider(), nil },
 	}
 
-	for _, test := range TestServiceResourceCreateDataProvider {
-		t.Log("=== RUNNING ", t.Name(), ": TEST CASE ", test.description)
+	var serviceResourceCreateDataProvider []TestServiceResourceCreateTestCase
+	parseYaml(t, "creation_data_provider.yaml", &serviceResourceCreateDataProvider)
+
+	for _, test := range serviceResourceCreateDataProvider {
+		t.Log("=== RUNNING ", t.Name(), ": TEST CASE ", test.Description)
 
 		GenerateUUID = func(internalID string) (string, error) {
 			return internalID, nil
@@ -79,11 +110,11 @@ func TestServiceResourceCreate(t *testing.T) {
 			ProviderFactories: providerFactories,
 			Steps: []resource.TestStep{
 				{
-					Config: test.config,
+					Config: test.Config,
 					Check: func(s *terraform.State) error {
-						resourceName := _SERVICE_RESOURCE_LABEL + "." + test.resourceName
+						resourceName := _SERVICE_RESOURCE_LABEL + "." + test.ResourceName
 
-						for attrKey, attrValue := range test.expectedResourceAttributes {
+						for attrKey, attrValue := range test.ExpectedResourceAttributes {
 							if err := resource.TestCheckResourceAttr(resourceName, attrKey, attrValue)(s); err != nil {
 								return fmt.Errorf("Check %s->%s error: %s", attrKey, attrValue, err)
 							}
@@ -105,32 +136,32 @@ func TestServiceResourceCreate(t *testing.T) {
 
 							switch method, body := req.Method, req.Body; {
 							// for destroy after the end of the test plan
-							case method == "DELETE" && path == _SERVICE+"/"+test.serviceIdToSet:
+							case method == "DELETE" && path == _SERVICE+"/"+test.ServiceIdToSet:
 								response = ioutil.NopCloser(bytes.NewReader([]byte("{success}")))
-								assert.Exactly(t, test.expectedApiCallsCount, actualApiCallCount, apiCallStackMsg)
+								assert.Exactly(t, test.ExpectedApiCallsCount, actualApiCallCount, apiCallStackMsg)
 
-							case method == "GET" && path == _KPI_BASE_SEARCH+"/"+test.inputBaseSearchId:
-								response = ioutil.NopCloser(bytes.NewReader([]byte(test.inputBaseSearch)))
+							case method == "GET" && path == _KPI_BASE_SEARCH+"/"+test.InputBaseSearchId:
+								response = ioutil.NopCloser(bytes.NewReader([]byte(test.InputBaseSearch)))
 
-							case method == "GET" && path == _KPI_THRESHOLD_TEMPLATE+"/"+test.inputThresholdTemplateId:
-								response = ioutil.NopCloser(bytes.NewReader([]byte(test.inputThresholdTemplate)))
+							case method == "GET" && path == _KPI_THRESHOLD_TEMPLATE+"/"+test.InputThresholdTemplateId:
+								response = ioutil.NopCloser(bytes.NewReader([]byte(test.InputThresholdTemplate)))
 
-							case method == "GET" && path == _SERVICE+"/"+test.serviceIdToSet:
+							case method == "GET" && path == _SERVICE+"/"+test.ServiceIdToSet:
 								var serviceAfterCreation map[string]interface{}
-								json.Unmarshal([]byte(test.expectedServicePostBody), &serviceAfterCreation)
-								serviceAfterCreation["_key"] = test.serviceIdToSet
+								json.Unmarshal([]byte(test.ExpectedPostBody), &serviceAfterCreation)
+								serviceAfterCreation["_key"] = test.ServiceIdToSet
 								newData, _ := json.Marshal(serviceAfterCreation)
 
 								response = ioutil.NopCloser(bytes.NewReader(newData))
 
 							case method == "POST" && path == _SERVICE:
-								mockAnswer := fmt.Sprintf("{\"_key\" : \"%s\"}", test.serviceIdToSet)
+								mockAnswer := fmt.Sprintf("{\"_key\" : \"%s\"}", test.ServiceIdToSet)
 								response = ioutil.NopCloser(bytes.NewReader([]byte(mockAnswer)))
 
 								actualServicePostBody := new(bytes.Buffer)
 								actualServicePostBody.ReadFrom(body)
 
-								assertServiceResourceJSONEq(t, test.expectedServicePostBody,
+								assertServiceResourceJSONEq(t, test.ExpectedPostBody,
 									actualServicePostBody.String(), "Service body mismatched")
 
 							default:
@@ -241,6 +272,16 @@ func TestServiceCreatePopulateComputed(t *testing.T) {
 			},
 		},
 	})
+}
+
+func parseYaml(t *testing.T, fileName string, testStruct interface{}) {
+	t.Helper()
+
+	yamlInput, err := os.ReadFile(_DATA_FOLDER + fileName)
+	assert.NoError(t, err)
+
+	err = yaml.Unmarshal(yamlInput, testStruct)
+	assert.NoError(t, err)
 }
 
 func assertServiceResourceJSONEq(t *testing.T, expected string, actual string, msgAndArgs ...interface{}) bool {
