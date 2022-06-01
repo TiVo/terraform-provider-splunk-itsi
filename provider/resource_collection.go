@@ -168,6 +168,32 @@ func ResourceCollectionEntries() *schema.Resource {
 }
 
 // ----------------------------------------------------------------------
+// Collection Datasources
+
+func DatasourceCollectionFields() *schema.Resource {
+	return &schema.Resource{
+		Description: "Use this data source to retrieve the contents of a Splunk lookup table.",
+		ReadContext: collectionFieldsRead,
+		Schema: map[string]*schema.Schema{
+			"collection_name": {
+				Type:         schema.TypeString,
+				Required:     true,
+				Description:  "Name of the collection containing this entry",
+				ValidateFunc: validateStringIdentifier(),
+			},
+			"fields": {
+				Type:     schema.TypeList,
+				Computed: true,
+				Elem: &schema.Schema{
+					Type: schema.TypeString,
+				},
+				Description: "Collection Fields",
+			},
+		},
+	}
+}
+
+// ----------------------------------------------------------------------
 
 // Helper functions in the spirit of diag.Errorf()...
 func errorf(summary string) diag.Diagnostic {
@@ -506,6 +532,14 @@ func collectionApiEntriesDeleteOldRows(ctx context.Context, d *schema.ResourceDa
 	api.Params = "query=" + url.QueryEscape(q)
 
 	return api.Delete(ctx)
+}
+
+func collectionApiDataRead(ctx context.Context, d *schema.ResourceData, m interface{}) (api *models.CollectionApi, err error) {
+	tflog.Info(ctx, "RSRC COLLECTION:   read ("+d.Get("name").(string)+")")
+	// To read the whole collection, we use...
+	//   storage/collections/data/{collection} -- GET
+	api, _ = collection(ctx, d, "collection_data", m)
+	return api.Read(ctx)
 }
 
 // ----------------------------------------------------------------------
@@ -1099,6 +1133,76 @@ func populateCollectionEntriesResourceData(ctx context.Context, c *models.Collec
 	if err = d.Set("data", data); err != nil {
 		return err
 	}
+
+	d.SetId(c.RESTKey)
+	return nil
+}
+
+func collectionFieldsRead(ctx context.Context, d *schema.ResourceData, m interface{}) (diags diag.Diagnostics) {
+	tflog.Info(ctx, "RSRC COLLECTION: ENTRIES FIELDS READ", map[string]interface{}{"d": fmt.Sprintf("%+v", d)})
+	if diags = collectionCheck(ctx, d, m); diags != nil {
+		return
+	}
+
+	c, err := collectionApiDataRead(ctx, d, m)
+	if err != nil {
+		diags = append(diags, errorf("Unable to read/dump collection model: "+err.Error()))
+		return
+	}
+	if c == nil || c.Data == nil {
+		d.SetId("")
+		return nil
+	}
+	if err := populateCollectionFieldsDatasource(ctx, c, d); err != nil {
+		diags = append(diags, errorf("Unable to populate resource: "+err.Error()))
+	}
+	return
+}
+
+func populateCollectionFieldsDatasource(ctx context.Context, c *models.CollectionApi, d *schema.ResourceData) (err error) {
+	var obj interface{}
+	if obj, err = c.Unmarshal(c.Body); err != nil {
+		return err
+	}
+	arr, ok := obj.([]interface{})
+	if !ok {
+		return fmt.Errorf("Expected array body return type!")
+	}
+
+	tflog.Trace(ctx, "RSRC COLLECTION:   populate", map[string]interface{}{"arr": arr})
+	fieldsMap := map[string]bool{}
+
+	for _, item := range arr {
+		item_, ok := item.(map[string]interface{})
+		if !ok {
+			return fmt.Errorf("Expected map in array body return type!")
+		}
+		row := []map[string]interface{}{}
+		for k, _ := range item_ {
+			// Perhaps do not include internal fields...
+			if k[0] != '_' || k == "_idx" || (k == "_key") {
+				fieldsMap[k] = true
+			}
+		}
+		tflog.Trace(ctx, "RSRC COLLECTION:     item", map[string]interface{}{"item": item_, "row": row})
+	}
+
+	fields := []string{}
+	for k, _ := range fieldsMap {
+		fields = append(fields, k)
+	}
+
+	sort.Strings(fields)
+
+	if err = d.Set("collection_name", c.Data["collection_name"]); err != nil {
+		return err
+	}
+
+	if err = d.Set("fields", fields); err != nil {
+		return err
+	}
+
+	tflog.Debug(ctx, "RSRC COLLECTION FIELDS:   populate", map[string]interface{}{"fields": fields})
 
 	d.SetId(c.RESTKey)
 	return nil

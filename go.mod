@@ -12,7 +12,6 @@ require (
 	github.com/hashicorp/terraform-plugin-log v0.4.0
 	github.com/hashicorp/terraform-plugin-sdk/v2 v2.16.0
 	github.com/lestrrat-go/backoff/v2 v2.0.9-0.20211111113235-51026d9f5dca
-	github.com/nsf/jsondiff v0.0.0-20200515183724-f29ed568f4ce
 	github.com/stretchr/testify v1.7.0
 	github.com/tmccombs/hcl2json v0.3.4
 	gopkg.in/yaml.v3 v3.0.0-20200615113413-eeeca48fe776
