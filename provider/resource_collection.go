@@ -172,7 +172,7 @@ func ResourceCollectionEntries() *schema.Resource {
 
 func DatasourceCollectionFields() *schema.Resource {
 	return &schema.Resource{
-		Description: "Use this data source to retrieve the contents of a Splunk lookup table.",
+		Description: "Use this data source to retrieve the list of field names of a collection.",
 		ReadContext: collectionFieldsRead,
 		Schema: map[string]*schema.Schema{
 			"collection_name": {
