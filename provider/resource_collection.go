@@ -178,7 +178,7 @@ func DatasourceCollectionFields() *schema.Resource {
 			"collection_name": {
 				Type:         schema.TypeString,
 				Required:     true,
-				Description:  "Name of the collection containing this entry",
+				Description:  "Name of the collection",
 				ValidateFunc: validateStringIdentifier(),
 			},
 			"fields": {
@@ -187,7 +187,7 @@ func DatasourceCollectionFields() *schema.Resource {
 				Elem: &schema.Schema{
 					Type: schema.TypeString,
 				},
-				Description: "Collection Fields",
+				Description: "Collection fields",
 			},
 		},
 	}
