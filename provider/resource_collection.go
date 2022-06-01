@@ -858,7 +858,7 @@ func populateCollectionEntryResourceData(ctx context.Context, c *models.Collecti
 	}
 	dataRes, ok := obj.(map[string]interface{})
 	if !ok {
-		return fmt.Errorf("Expected map body return type!")
+		return fmt.Errorf("expected map body return type")
 	}
 
 	tflog.Trace(ctx, "RSRC COLLECTION:   data", map[string]interface{}{"map": dataRes})
@@ -1020,7 +1020,7 @@ func populateCollectionEntriesResourceData(ctx context.Context, c *models.Collec
 	}
 	arr, ok := obj.([]interface{})
 	if !ok {
-		return fmt.Errorf("Expected array body return type!")
+		return fmt.Errorf("expected array body return type")
 	}
 
 	tflog.Trace(ctx, "RSRC COLLECTION:   populate", map[string]interface{}{"arr": arr})
@@ -1030,7 +1030,7 @@ func populateCollectionEntriesResourceData(ctx context.Context, c *models.Collec
 	for _, item := range arr {
 		item_, ok := item.(map[string]interface{})
 		if !ok {
-			return fmt.Errorf("Expected map in array body return type!")
+			return fmt.Errorf("expected map in array body return type")
 		}
 		row := []map[string]interface{}{}
 		for k, v := range item_ {
@@ -1042,7 +1042,7 @@ func populateCollectionEntriesResourceData(ctx context.Context, c *models.Collec
 				} else if multiValue, ok := v.([]interface{}); ok {
 					m["values"] = multiValue
 				} else {
-					return fmt.Errorf("Invalid collection value %#v", v)
+					return fmt.Errorf("invalid collection value %#v", v)
 				}
 
 				row = append(row, m)
