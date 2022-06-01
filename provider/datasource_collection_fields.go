@@ -35,7 +35,7 @@ func DatasourceCollectionFields() *schema.Resource {
 }
 
 func collectionApiDataRead(ctx context.Context, d *schema.ResourceData, m interface{}) (api *models.CollectionApi, err error) {
-	tflog.Info(ctx, "RSRC COLLECTION:   read ("+d.Get("name").(string)+")")
+	tflog.Info(ctx, "RSRC COLLECTION:   read ("+d.Get("collection_name").(string)+")")
 	// To read the whole collection, we use...
 	//   storage/collections/data/{collection} -- GET
 	api, _ = collection(ctx, d, "collection_data", m)
