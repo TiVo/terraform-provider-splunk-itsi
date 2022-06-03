@@ -14,7 +14,7 @@ require (
 	github.com/lestrrat-go/backoff/v2 v2.0.9-0.20211111113235-51026d9f5dca
 	github.com/stretchr/testify v1.7.1
 	github.com/tmccombs/hcl2json v0.3.4
-	gopkg.in/yaml.v3 v3.0.0
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
