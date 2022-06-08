@@ -53,7 +53,6 @@ resource "itsi_kpi_base_search" "my_kpi_base_search" {
 - `alert_lag` (String) Contains the number of seconds of lag to apply to the alert search, max is 30 minutes (1799 seconds).
 - `alert_period` (String) User specified interval to run the KPI search in minutes.
 - `base_search` (String) KPI search defined by user for this KPI. All generated searches for the KPI are based on this search.
-- `description` (String) General description for this KPI base search.
 - `entity_breakdown_id_fields` (String) KPI search events are split by the alias field defined in entities for the service containing this KPI
 - `entity_id_fields` (String) Fields from this KPI's search events that will be mapped to the alias fields defined in entities for the service containing this KPI. This field enables the KPI search to tie the aliases of entities to the fields from the KPI events in identifying entities at search time.
 - `is_entity_breakdown` (Boolean) Determines if search breaks down by entities. See KPI definition.
@@ -67,6 +66,7 @@ resource "itsi_kpi_base_search" "my_kpi_base_search" {
 ### Optional
 
 - `actions` (String) ?
+- `description` (String) General description for this KPI base search.
 - `entity_alias_filtering_fields` (String) Fields from this KPI's search events that will be mapped to the alias fields defined in entities for the service containing this KPI. This field enables the KPI search to tie the aliases of entities to the fields from the KPI events in identifying entities at search time.
 - `metric_qualifier` (String) Used to further split metrics. Hidden in the UI.
 
