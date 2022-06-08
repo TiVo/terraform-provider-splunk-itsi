@@ -362,7 +362,6 @@ func populateBaseSearchResourceData(ctx context.Context, b *models.Base, d *sche
 		"title":                         "title",
 		"description":                   "description",
 		"actions":                       "actions",
-		"alert_lag":                     "alert_lag",
 		"alert_period":                  "alert_period",
 		"base_search":                   "base_search",
 		"entity_alias_filtering_fields": "entity_alias_filtering_fields",
@@ -379,7 +378,7 @@ func populateBaseSearchResourceData(ctx context.Context, b *models.Base, d *sche
 			return diag.FromErr(err)
 		}
 	}
-
+	d.Set("alert_lag", fmt.Sprintf("%v", interfaceMap["alert_lag"]))
 	//metrics
 	metrics := []interface{}{}
 	for _, metricsData_ := range interfaceMap["metrics"].([]interface{}) {
@@ -397,7 +396,7 @@ func populateBaseSearchResourceData(ctx context.Context, b *models.Base, d *sche
 		m["gap_severity"] = metricsData["gap_severity"]
 		m["gap_severity_color"] = metricsData["gap_severity_color"]
 		m["gap_severity_color_light"] = metricsData["gap_severity_color_light"]
-		m["gap_severity_value"] = metricsData["gap_severity_value"]
+		m["gap_severity_value"] = fmt.Sprintf("%v", metricsData["gap_severity_value"])
 		m["threshold_field"] = metricsData["threshold_field"]
 		m["title"] = metricsData["title"]
 		m["unit"] = metricsData["unit"]

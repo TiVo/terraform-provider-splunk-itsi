@@ -154,7 +154,7 @@ func (rt *resourceTemplate) display(index string, element interface{}, sc *schem
 		if sc.Optional && sc.Default != nil && v.String() == "" {
 			return ""
 		}
-		if strings.Contains(v.String(), "\n") {
+		if strings.Contains(v.String(), "\n") || strings.Contains(v.String(), "\\") || strings.Contains(v.String(), "\"") {
 			split := strings.Split(v.String(), "\n")
 			for i := 0; i < len(split); i++ {
 				split[i] = fmt.Sprintf("%s%s", whitespaces, split[i])
