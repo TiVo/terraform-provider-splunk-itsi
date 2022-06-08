@@ -79,7 +79,7 @@ func ResourceKPIBaseSearch() *schema.Resource {
 			},
 			"description": {
 				Type:        schema.TypeString,
-				Required:    true,
+				Optional:    true,
 				Description: "General description for this KPI base search.",
 			},
 			"actions": {
