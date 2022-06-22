@@ -60,49 +60,59 @@ var severityMap = map[string]severityInfo{
 func getKpiThresholdPolicySchema() map[string]*schema.Schema {
 	return map[string]*schema.Schema{
 		"policies": {
-			Required: true,
-			Type:     schema.TypeSet,
+			Required:    true,
+			Type:        schema.TypeSet,
+			Description: "Map object of policies keyed by policy_name. ",
 			Elem: &schema.Resource{
 				Schema: map[string]*schema.Schema{
 					"policy_name": {
-						Type:     schema.TypeString,
-						Required: true,
+						Type:        schema.TypeString,
+						Required:    true,
+						Description: "Internal key value for policy.",
 					},
 					"title": {
-						Type:     schema.TypeString,
-						Required: true,
+						Type:        schema.TypeString,
+						Required:    true,
+						Description: "The policy title, displayed to the user in the UI. Should be unique per policies object.",
 					},
 					"policy_type": {
-						Type:         schema.TypeString,
-						Required:     true,
+						Type:     schema.TypeString,
+						Required: true,
+						Description: `The algorithm, specified for the current policy threshold level evaluation.
+									   Supported values: static, stdev (standard deviation), quantile and range.`,
 						ValidateFunc: validation.StringInSlice([]string{"static", "stdev", "quantile", "range"}, false),
 					},
 					"time_blocks": {
-						Type:     schema.TypeSet,
-						Optional: true,
+						Type:        schema.TypeSet,
+						Optional:    true,
+						Description: "Determines time periods which the policy is associated with.",
 						Elem: &schema.Resource{
 							Schema: map[string]*schema.Schema{
 								"cron": {
-									Type:     schema.TypeString,
-									Required: true,
+									Type:        schema.TypeString,
+									Required:    true,
+									Description: "Corresponds to the cron expression in format: {minute} {hour} {\\*} {\\*} {day}",
 								},
 								"interval": {
-									Type:     schema.TypeInt,
-									Required: true,
+									Type:        schema.TypeInt,
+									Required:    true,
+									Description: "The duration in minutes.",
 								},
 							},
 						},
 					},
 					"aggregate_thresholds": {
-						Required: true,
-						Type:     schema.TypeSet,
+						Required:    true,
+						Type:        schema.TypeSet,
+						Description: "User-defined thresholding levels for \"Aggregate\" threshold type. For more information, see KPI Threshold Setting.",
 						Elem: &schema.Resource{
 							Schema: getKpiThresholdSettingsSchema(),
 						},
 					},
 					"entity_thresholds": {
-						Required: true,
-						Type:     schema.TypeSet,
+						Required:    true,
+						Type:        schema.TypeSet,
+						Description: "User-defined thresholding levels for \"Per Entity\" threshold type. For more information, see KPI Threshold Setting.",
 						Elem: &schema.Resource{
 							Schema: getKpiThresholdSettingsSchema(),
 						},
@@ -141,6 +151,7 @@ func getKpiThresholdSettingsSchema() map[string]*schema.Schema {
 			Optional:     true,
 			Default:      "normal",
 			ValidateFunc: validation.StringInSlice([]string{"info", "critical", "high", "medium", "low", "normal"}, false),
+			Description:  "Base severity label assigned for the threshold (info, normal, low, medium, high, critical). ",
 		},
 		"gauge_max": {
 			Type:        schema.TypeFloat,

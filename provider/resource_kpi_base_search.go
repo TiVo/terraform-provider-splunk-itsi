@@ -85,7 +85,7 @@ func ResourceKPIBaseSearch() *schema.Resource {
 			"actions": {
 				Type:        schema.TypeString,
 				Optional:    true,
-				Description: "?",
+				Description: "Set of strings, delimited by comma. Corresponds custom actions stanzas, defined in alert_actions.conf.",
 				Default:     "",
 			},
 			"alert_lag": {
