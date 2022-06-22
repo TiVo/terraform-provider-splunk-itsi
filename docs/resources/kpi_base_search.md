@@ -88,15 +88,15 @@ Required:
 
 Optional:
 
-- `gap_custom_alert_value` (Number) Defaults to `0`.
-- `gap_severity` (String) Defaults to `unknown`.
-- `gap_severity_color` (String) Defaults to `#CCCCCC`.
-- `gap_severity_color_light` (String) Defaults to `#EEEEEE`.
-- `gap_severity_value` (String) Defaults to `-1`.
+- `gap_custom_alert_value` (Number) Custom value to fill data gaps. Defaults to `0`.
+- `gap_severity` (String) Severity level assigned for data gaps (info, normal, low, medium, high, critical, or unknown). Defaults to `unknown`.
+- `gap_severity_color` (String) Severity color assigned for data gaps. Defaults to `#CCCCCC`.
+- `gap_severity_color_light` (String) Severity light color assigned for data gaps. Defaults to `#EEEEEE`.
+- `gap_severity_value` (String) Severity value assigned for data gaps. Defaults to `-1`.
 
 Read-Only:
 
-- `id` (String) generated metric _key
+- `id` (String) Generated metric _key
 
 ## Import
 
