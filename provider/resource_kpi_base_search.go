@@ -6,9 +6,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/hashicorp/go-cty/cty"
 	"log"
 	"regexp"
 	"strconv"
+	"strings"
 
 	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
@@ -102,6 +104,21 @@ func ResourceKPIBaseSearch() *schema.Resource {
 				Type:        schema.TypeString,
 				Required:    true,
 				Description: "KPI search defined by user for this KPI. All generated searches for the KPI are based on this search.",
+				ValidateDiagFunc: func(v_ interface{}, p cty.Path) diag.Diagnostics {
+					v := strings.TrimSpace(v_.(string))
+					var diags diag.Diagnostics
+
+					if !strings.HasPrefix(v, "search") {
+						return diags
+					}
+					diag := diag.Diagnostic{
+						Severity: diag.Error,
+						Summary:  "wrong query",
+						Detail:   fmt.Sprintf("In KPI base search, the search string shouldn't start with the leading search command"),
+					}
+					diags = append(diags, diag)
+					return diags
+				},
 			},
 			"entity_alias_filtering_fields": {
 				Type:        schema.TypeString,
