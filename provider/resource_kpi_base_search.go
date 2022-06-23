@@ -6,9 +6,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/hashicorp/go-cty/cty"
 	"log"
 	"regexp"
 	"strconv"
+	"strings"
 
 	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
@@ -85,7 +87,7 @@ func ResourceKPIBaseSearch() *schema.Resource {
 			"actions": {
 				Type:        schema.TypeString,
 				Optional:    true,
-				Description: "?",
+				Description: "Set of strings, delimited by comma. Corresponds custom actions stanzas, defined in alert_actions.conf.",
 				Default:     "",
 			},
 			"alert_lag": {
@@ -102,6 +104,21 @@ func ResourceKPIBaseSearch() *schema.Resource {
 				Type:        schema.TypeString,
 				Required:    true,
 				Description: "KPI search defined by user for this KPI. All generated searches for the KPI are based on this search.",
+				ValidateDiagFunc: func(v_ interface{}, p cty.Path) diag.Diagnostics {
+					v := strings.TrimSpace(v_.(string))
+					var diags diag.Diagnostics
+
+					if !strings.HasPrefix(v, "search") {
+						return diags
+					}
+					diag := diag.Diagnostic{
+						Severity: diag.Error,
+						Summary:  "wrong query",
+						Detail:   fmt.Sprintf("In KPI base search, the search string shouldn't start with the leading search command"),
+					}
+					diags = append(diags, diag)
+					return diags
+				},
 			},
 			"entity_alias_filtering_fields": {
 				Type:        schema.TypeString,
@@ -142,7 +159,7 @@ func ResourceKPIBaseSearch() *schema.Resource {
 						"id": {
 							Type:        schema.TypeString,
 							Computed:    true,
-							Description: "generated metric _key",
+							Description: "Generated metric _key",
 						},
 						"aggregate_statop": {
 							Type:         schema.TypeString,
@@ -163,29 +180,35 @@ func ResourceKPIBaseSearch() *schema.Resource {
 							ValidateFunc: validation.StringInSlice([]string{"null_value", "last_available_value", "custom_value"}, false),
 						},
 						"gap_custom_alert_value": {
-							Type:     schema.TypeFloat,
-							Optional: true,
-							Default:  0,
+							Type:        schema.TypeFloat,
+							Optional:    true,
+							Description: "Custom value to fill data gaps.",
+							Default:     0,
 						},
 						"gap_severity": {
-							Type:     schema.TypeString,
-							Optional: true,
-							Default:  "unknown",
+							Type:         schema.TypeString,
+							Optional:     true,
+							Description:  "Severity level assigned for data gaps (info, normal, low, medium, high, critical, or unknown).",
+							ValidateFunc: validation.StringInSlice([]string{"info", "critical", "high", "medium", "low", "normal", "unknown"}, false),
+							Default:      "unknown",
 						},
 						"gap_severity_color": {
-							Type:     schema.TypeString,
-							Optional: true,
-							Default:  "#CCCCCC",
+							Type:        schema.TypeString,
+							Optional:    true,
+							Description: "Severity color assigned for data gaps.",
+							Default:     "#CCCCCC",
 						},
 						"gap_severity_color_light": {
-							Type:     schema.TypeString,
-							Optional: true,
-							Default:  "#EEEEEE",
+							Type:        schema.TypeString,
+							Optional:    true,
+							Description: "Severity light color assigned for data gaps.",
+							Default:     "#EEEEEE",
 						},
 						"gap_severity_value": {
-							Type:     schema.TypeString,
-							Optional: true,
-							Default:  "-1",
+							Type:        schema.TypeString,
+							Optional:    true,
+							Description: "Severity value assigned for data gaps.",
+							Default:     "-1",
 						},
 						"threshold_field": {
 							Type:        schema.TypeString,

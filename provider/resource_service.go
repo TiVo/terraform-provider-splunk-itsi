@@ -188,14 +188,14 @@ func ResourceService() *schema.Resource {
 			Type:         schema.TypeString,
 			Optional:     true,
 			Default:      "kpis_primary",
-			Description:  "Could be service_health or kpis_primary",
+			Description:  "Could be service_health or kpis_primary.",
 			ValidateFunc: validation.StringInSlice([]string{"kpis_primary", "service_health"}, false),
 		},
 		"urgency": {
 			Type:         schema.TypeInt,
 			Optional:     true,
 			Default:      5,
-			Description:  "User-assigned importance value for this KPI",
+			Description:  "User-assigned importance value for this KPI.",
 			ValidateFunc: validation.IntBetween(0, 11),
 		},
 		// BASE_SEARCH_KPI_ATTRIBUTES
@@ -229,7 +229,7 @@ func ResourceService() *schema.Resource {
 		"rule": {
 			Type:        schema.TypeSet,
 			Optional:    true,
-			Description: "A set of rules within the rule group, which are combined using AND operator",
+			Description: "A set of rules within the rule group, which are combined using AND operator.",
 			Elem: &schema.Resource{
 				Schema: map[string]*schema.Schema{
 					"field": {
@@ -272,19 +272,19 @@ func ResourceService() *schema.Resource {
 			"title": {
 				Type:        schema.TypeString,
 				Required:    true,
-				Description: "Title of the service",
+				Description: "Title of the service.",
 			},
 			"description": {
 				Type:        schema.TypeString,
 				Optional:    true,
 				Default:     "",
-				Description: "User defined description for the service",
+				Description: "User defined description for the service.",
 			},
 			"enabled": {
 				Type:        schema.TypeBool,
 				Optional:    true,
 				Default:     false,
-				Description: "Boolean value defining whether the service should be enabled",
+				Description: "Boolean value defining whether the service should be enabled.",
 			},
 			"security_group": {
 				Type:        schema.TypeString,
@@ -295,7 +295,7 @@ func ResourceService() *schema.Resource {
 			"entity_rules": {
 				Type:        schema.TypeSet,
 				Optional:    true,
-				Description: "A set of rule groups that are combined by OR operator",
+				Description: "A set of rule groups that are combined by OR operator.",
 				Elem: &schema.Resource{
 					Schema: entityRulesSchema,
 				},
@@ -342,7 +342,7 @@ func ResourceService() *schema.Resource {
 			"shkpi_id": {
 				Type:        schema.TypeString,
 				Computed:    true,
-				Description: "_key value for the Service Health Score KPI",
+				Description: "_key value for the Service Health Score KPI.",
 			},
 		},
 	}

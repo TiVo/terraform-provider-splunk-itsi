@@ -43,14 +43,14 @@ data "itsi_splunk_search" "test_search" {
 
 ### Optional
 
-- `join_fields` (Set of String)
-- `search_concurrency` (Number)
+- `join_fields` (Set of String) A set of strings, represents field names results will be FULL joined by.
+- `search_concurrency` (Number) Amount of searches that could be run in parallel per data source. Defaults to `2`.
 - `timeouts` (Block, Optional) (see [below for nested schema](#nestedblock--timeouts))
 
 ### Read-Only
 
 - `id` (String) The ID of this resource.
-- `results` (List of Map of String) Search results
+- `results` (List of Map of String) Represents search results. Format a list of maps, where field names of the raw result are keys.
 
 <a id="nestedblock--search"></a>
 ### Nested Schema for `search`
@@ -61,12 +61,12 @@ Required:
 
 Optional:
 
-- `allow_partial_results` (Boolean) Indicates whether the search job can proceed to provide partial results if a search peer fails. When set to false, the search job fails if a search peer providing results for the search job fails.
-- `earliest_time` (String) Specify a time string. Sets the earliest (inclusive), respectively, time bounds for the search.
-- `latest_time` (String) Specify a time string. Sets the latest (exclusive), respectively, time bounds for the search.
-- `splunk_app` (String) The Splunk app in which the searh query should be performed.
-- `splunk_user` (String) The Splunk user in the context of which the search query should be performed
-- `timeout` (Number) HTTP timeout in seconds. 0 means no timeout.
+- `allow_partial_results` (Boolean) Indicates whether the search job can proceed to provide partial results if a search peer fails. When set to false, the search job fails if a search peer providing results for the search job fails. Defaults to `false`.
+- `earliest_time` (String) Specify a time string. Sets the earliest (inclusive), respectively, time bounds for the search. Defaults to `-4h`.
+- `latest_time` (String) Specify a time string. Sets the latest (exclusive), respectively, time bounds for the search. Defaults to `now`.
+- `splunk_app` (String) The Splunk app in which the search query should be performed. Defaults to `search`.
+- `splunk_user` (String) The Splunk user in the context of which the search query should be performed Defaults to `nobody`.
+- `timeout` (Number) HTTP timeout in seconds. 0 means no timeout. Defaults to `60`.
 
 
 <a id="nestedblock--timeouts"></a>

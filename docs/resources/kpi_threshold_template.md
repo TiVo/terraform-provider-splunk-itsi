@@ -234,16 +234,16 @@ resource "itsi_kpi_threshold_template" "static" {
 
 ### Required
 
-- `adaptive_thresholding_training_window` (String)
-- `adaptive_thresholds_is_enabled` (Boolean)
-- `sec_grp` (String)
-- `time_variate_thresholds` (Boolean)
-- `time_variate_thresholds_specification` (Block Set, Min: 1) (see [below for nested schema](#nestedblock--time_variate_thresholds_specification))
-- `title` (String)
+- `adaptive_thresholding_training_window` (String) The earliest time for the Adaptive Threshold training algorithm to run over (latest time is always 'now') (e.g. '-7d')
+- `adaptive_thresholds_is_enabled` (Boolean) Determines if adaptive threshold is enabled for this KPI threshold template.
+- `sec_grp` (String) The team the object belongs to.
+- `time_variate_thresholds` (Boolean) If true, thresholds for alerts are pulled from time_variate_thresholds_specification.
+- `time_variate_thresholds_specification` (Block Set, Min: 1) Data structure for time variate threshold specification. (see [below for nested schema](#nestedblock--time_variate_thresholds_specification))
+- `title` (String) Name of this KPI threshold template.
 
 ### Optional
 
-- `description` (String)
+- `description` (String) User defined description of the entity.
 
 ### Read-Only
 
@@ -254,22 +254,23 @@ resource "itsi_kpi_threshold_template" "static" {
 
 Required:
 
-- `policies` (Block Set, Min: 1) (see [below for nested schema](#nestedblock--time_variate_thresholds_specification--policies))
+- `policies` (Block Set, Min: 1) Map object of policies keyed by policy_name. (see [below for nested schema](#nestedblock--time_variate_thresholds_specification--policies))
 
 <a id="nestedblock--time_variate_thresholds_specification--policies"></a>
 ### Nested Schema for `time_variate_thresholds_specification.policies`
 
 Required:
 
-- `aggregate_thresholds` (Block Set, Min: 1) (see [below for nested schema](#nestedblock--time_variate_thresholds_specification--policies--aggregate_thresholds))
-- `entity_thresholds` (Block Set, Min: 1) (see [below for nested schema](#nestedblock--time_variate_thresholds_specification--policies--entity_thresholds))
-- `policy_name` (String)
-- `policy_type` (String)
-- `title` (String)
+- `aggregate_thresholds` (Block Set, Min: 1) User-defined thresholding levels for "Aggregate" threshold type. For more information, see KPI Threshold Setting. (see [below for nested schema](#nestedblock--time_variate_thresholds_specification--policies--aggregate_thresholds))
+- `entity_thresholds` (Block Set, Min: 1) User-defined thresholding levels for "Per Entity" threshold type. For more information, see KPI Threshold Setting. (see [below for nested schema](#nestedblock--time_variate_thresholds_specification--policies--entity_thresholds))
+- `policy_name` (String) Internal key value for policy.
+- `policy_type` (String) The algorithm, specified for the current policy threshold level evaluation.
+									   Supported values: static, stdev (standard deviation), quantile and range.
+- `title` (String) The policy title, displayed to the user in the UI. Should be unique per policies object.
 
 Optional:
 
-- `time_blocks` (Block Set) (see [below for nested schema](#nestedblock--time_variate_thresholds_specification--policies--time_blocks))
+- `time_blocks` (Block Set) Determines time periods which the policy is associated with. (see [below for nested schema](#nestedblock--time_variate_thresholds_specification--policies--time_blocks))
 
 <a id="nestedblock--time_variate_thresholds_specification--policies--aggregate_thresholds"></a>
 ### Nested Schema for `time_variate_thresholds_specification.policies.aggregate_thresholds`
@@ -281,13 +282,13 @@ Required:
 
 Optional:
 
-- `base_severity_label` (String)
+- `base_severity_label` (String) Base severity label assigned for the threshold (info, normal, low, medium, high, critical).  Defaults to `normal`.
 - `gauge_max` (Number) Maximum value for the threshold gauge specified by user
 - `gauge_min` (Number) Minimum value for the threshold gauge specified by user.
-- `is_max_static` (Boolean) True when maximum threshold value is a static value, false otherwise.
-- `is_min_static` (Boolean) True when min threshold value is a static value, false otherwise.
-- `metric_field` (String) Thresholding field from the search.
-- `search` (String) Generated search used to compute the thresholds for this KPI.
+- `is_max_static` (Boolean) True when maximum threshold value is a static value, false otherwise.  Defaults to `false`.
+- `is_min_static` (Boolean) True when min threshold value is a static value, false otherwise. Defaults to `false`.
+- `metric_field` (String) Thresholding field from the search. Defaults to ``.
+- `search` (String) Generated search used to compute the thresholds for this KPI. Defaults to ``.
 - `threshold_levels` (Block Set) (see [below for nested schema](#nestedblock--time_variate_thresholds_specification--policies--aggregate_thresholds--threshold_levels))
 
 <a id="nestedblock--time_variate_thresholds_specification--policies--aggregate_thresholds--threshold_levels"></a>
@@ -315,13 +316,13 @@ Required:
 
 Optional:
 
-- `base_severity_label` (String)
+- `base_severity_label` (String) Base severity label assigned for the threshold (info, normal, low, medium, high, critical).  Defaults to `normal`.
 - `gauge_max` (Number) Maximum value for the threshold gauge specified by user
 - `gauge_min` (Number) Minimum value for the threshold gauge specified by user.
-- `is_max_static` (Boolean) True when maximum threshold value is a static value, false otherwise.
-- `is_min_static` (Boolean) True when min threshold value is a static value, false otherwise.
-- `metric_field` (String) Thresholding field from the search.
-- `search` (String) Generated search used to compute the thresholds for this KPI.
+- `is_max_static` (Boolean) True when maximum threshold value is a static value, false otherwise.  Defaults to `false`.
+- `is_min_static` (Boolean) True when min threshold value is a static value, false otherwise. Defaults to `false`.
+- `metric_field` (String) Thresholding field from the search. Defaults to ``.
+- `search` (String) Generated search used to compute the thresholds for this KPI. Defaults to ``.
 - `threshold_levels` (Block Set) (see [below for nested schema](#nestedblock--time_variate_thresholds_specification--policies--entity_thresholds--threshold_levels))
 
 <a id="nestedblock--time_variate_thresholds_specification--policies--entity_thresholds--threshold_levels"></a>
@@ -344,8 +345,8 @@ Optional:
 
 Required:
 
-- `cron` (String)
-- `interval` (Number)
+- `cron` (String) Corresponds to the cron expression in format: {minute} {hour} {\*} {\*} {day}
+- `interval` (Number) The duration in minutes.
 
 ## Import
 

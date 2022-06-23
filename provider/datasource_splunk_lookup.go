@@ -28,7 +28,7 @@ func DatasourceSplunkLookup() *schema.Resource {
 				Type:        schema.TypeString,
 				Optional:    true,
 				Default:     "search",
-				Description: "The Splunk app in which the searh query should be performed.",
+				Description: "The Splunk app in which the search query should be performed.",
 			},
 			"data": {
 				Type:     schema.TypeList,

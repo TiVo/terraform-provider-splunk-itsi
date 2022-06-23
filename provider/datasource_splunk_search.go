@@ -75,7 +75,7 @@ func DatasourceSplunkSearch() *schema.Resource {
 							Type:        schema.TypeString,
 							Optional:    true,
 							Default:     "search",
-							Description: "The Splunk app in which the searh query should be performed.",
+							Description: "The Splunk app in which the search query should be performed.",
 						},
 						"earliest_time": {
 							Type:        schema.TypeString,
@@ -105,17 +105,19 @@ func DatasourceSplunkSearch() *schema.Resource {
 				},
 			},
 			"join_fields": {
-				Type:     schema.TypeSet,
-				Optional: true,
-				Default:  nil,
+				Type:        schema.TypeSet,
+				Optional:    true,
+				Default:     nil,
+				Description: "A set of strings, represents field names results will be FULL joined by.",
 				Elem: &schema.Schema{
 					Type: schema.TypeString,
 				},
 			},
 			"search_concurrency": {
-				Type:     schema.TypeInt,
-				Optional: true,
-				Default:  2,
+				Type:        schema.TypeInt,
+				Optional:    true,
+				Default:     2,
+				Description: "Amount of searches that could be run in parallel per data source.",
 			},
 			"results": {
 				Type:     schema.TypeList,
@@ -123,7 +125,7 @@ func DatasourceSplunkSearch() *schema.Resource {
 				Elem: &schema.Schema{
 					Type: schema.TypeMap,
 				},
-				Description: "Search results",
+				Description: "Represents search results. Format a list of maps, where field names of the raw result are keys.",
 			},
 		},
 	}

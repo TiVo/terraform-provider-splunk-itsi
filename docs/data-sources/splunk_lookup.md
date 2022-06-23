@@ -31,8 +31,8 @@ output "splunk_lookup_data" {
 
 ### Optional
 
-- `splunk_app` (String) The Splunk app in which the searh query should be performed.
-- `splunk_user` (String) The Splunk user in the context of which the search query should be performed.
+- `splunk_app` (String) The Splunk app in which the search query should be performed. Defaults to `search`.
+- `splunk_user` (String) The Splunk user in the context of which the search query should be performed. Defaults to `nobody`.
 
 ### Read-Only
 

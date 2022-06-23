@@ -41,7 +41,7 @@ resource "itsi_entity" "host_entity" {
 
 ### Optional
 
-- `description` (String) User defined description of the entity.
+- `description` (String) User defined description of the entity. Defaults to ``.
 - `entity_type_ids` (Set of String) Array of _key values for each entity type associated with the entity.
 - `info` (Map of String) Map of Field/Value pairs that provide information/description for the entity
 

@@ -75,8 +75,8 @@ resource "itsi_splunk_collection_entries" "test_collection_fruits" {
 
 ### Optional
 
-- `preserve_keys` (Boolean) Should the _key field be preserved?
-- `scope` (String) Scope of ownership of this collection entry
+- `preserve_keys` (Boolean) Should the _key field be preserved? Defaults to `false`.
+- `scope` (String) Scope of ownership of this collection entry Defaults to `default_scope`.
 
 ### Read-Only
 
