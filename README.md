@@ -7,7 +7,7 @@ Terraform Provider for Splunk ITSI
 
 ## Prerequisites
 - install Terraform (v.1.0.4): https://learn.hashicorp.com/tutorials/terraform/install-cli
-- golang version 1.17 installed
+- golang version 1.18 installed
 - goreleaser: https://goreleaser.com/install/
 
 #### Starting a provider in Debug Mode: 
