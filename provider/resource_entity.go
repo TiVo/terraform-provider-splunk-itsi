@@ -275,7 +275,7 @@ func entityDelete(ctx context.Context, d *schema.ResourceData, m interface{}) (d
 
 func entityImport(ctx context.Context, d *schema.ResourceData, m interface{}) ([]*schema.ResourceData, error) {
 	b := entityBase(m.(models.ClientConfig), "", d.Id())
-	b, err := b.Read(ctx)
+	b, err := b.Find(ctx)
 	if err != nil {
 		return nil, err
 	}

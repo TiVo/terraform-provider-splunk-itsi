@@ -13,3 +13,4 @@ crash.log
 .terraform.lock.hcl
 *.swp
 *~
+.vscode
