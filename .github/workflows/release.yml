@@ -30,12 +30,9 @@ jobs:
         with:
           go-version: 1.18
       -
-        name: Kill gpg-agent
-        run: gpgconf --kill gpg-agent
-      -
         name: Import GPG key
         id: import_gpg
-        uses: hashicorp/ghaction-import-gpg@v2.1.0
+        uses: dmitrykruglov/ghaction-import-gpg@main
         env:
           # These secrets will need to be configured for the repository:
           GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
