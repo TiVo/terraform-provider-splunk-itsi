@@ -175,9 +175,8 @@ func (c *CollectionApi) shouldRetry(method string, statusCode int, err error) bo
 	//403: Forbidden
 	//404: Not Found
 	//409: Conflict
-	//500: Could not find object
 	if statusCode == 400 || statusCode == 401 || statusCode == 403 ||
-		statusCode == 404 || statusCode == 409 || statusCode == 500 {
+		statusCode == 404 || statusCode == 409 {
 		return false
 	}
 	return true
