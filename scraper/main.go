@@ -27,11 +27,6 @@ var outputBasePath = "dump"
 func main() {
 	parser := argparse.NewParser("ITSI scraper", "Dump ITSI resources via REST interface and format them in a file.")
 
-	user := parser.String("u", "user", &argparse.Options{Required: false, Help: "user", Default: "admin"})
-	password := parser.String("p", "password", &argparse.Options{Required: false, Help: "password", Default: "changeme"})
-	profile := parser.String("i", "profile", &argparse.Options{Required: false, Help: "Profile - to retrieve token from AWS SSM"})
-	region := parser.String("r", "region", &argparse.Options{Required: false, Help: "Region - to retrieve token from AWS SSM"})
-	tokenPath := parser.String("l", "path", &argparse.Options{Required: false, Help: "The auth token path from AWS SSM"})
 	host := parser.String("t", "host", &argparse.Options{Required: false, Help: "host", Default: "localhost"})
 	port := parser.Int("o", "port", &argparse.Options{Required: false, Help: "port", Default: 8089})
 	verbose := parser.Selector("v", "verbose", []string{"true", "false"}, &argparse.Options{Required: false, Help: "verbose mode", Default: "false"})
@@ -43,6 +38,16 @@ func main() {
 		objectTypes = append(objectTypes, k)
 	}
 	objs := parser.StringList("b", "obj", &argparse.Options{Required: false, Help: "object types", Default: objectTypes})
+
+	userCredCommand := parser.NewCommand("creds", "configure user/password  credential")
+	user := userCredCommand.String("u", "user", &argparse.Options{Required: true, Help: "user"})
+	password := userCredCommand.String("p", "password", &argparse.Options{Required: true, Help: "password"})
+
+	ssmTokenCommand := parser.NewCommand("token", "Bearer token to retrieve from AWS SSM")
+	profile := ssmTokenCommand.String("i", "profile", &argparse.Options{Required: true, Help: "Profile - to retrieve token from AWS SSM"})
+	region := ssmTokenCommand.String("r", "region", &argparse.Options{Required: true, Help: "Region - to retrieve token from AWS SSM"})
+	tokenPath := ssmTokenCommand.String("l", "path", &argparse.Options{Required: true, Help: "The auth token path from AWS SSM"})
+
 	err := parser.Parse(os.Args)
 	if err != nil {
 		log.Fatal(parser.Usage(err))
@@ -54,11 +59,13 @@ func main() {
 	models.Cache = models.NewCache(1000)
 	bearerToken := ""
 
-	if !(*tokenPath == "" || *profile == "" || *region == "") {
+	if ssmTokenCommand.Happened() {
 		bearerToken, err = getTokenFromSSM(*tokenPath, *profile, *region)
 		if err != nil {
 			log.Fatal(err)
 		}
+	} else if !userCredCommand.Happened() {
+		log.Fatal(parser.Usage("Access should be configured via the user credentials or bearer token."))
 	}
 
 	clientConfig := models.ClientConfig{
