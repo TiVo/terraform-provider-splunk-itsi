@@ -18,7 +18,7 @@ entity:
     rest_interface: itoa_interface
     object_type: entity
     rest_key_field: _key
-    tfid_field: _key
+    tfid_field: title
     max_page_size: 1000
 
 entity_type:
