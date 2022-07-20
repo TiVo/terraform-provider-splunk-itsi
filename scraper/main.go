@@ -34,7 +34,7 @@ func main() {
 	format := parser.Selector("f", "format", []string{"json", "yaml", "tf", "tfjson"}, &argparse.Options{Required: false, Help: "output format. json|yaml|tf", Default: "yaml"})
 
 	objectTypes := []string{}
-	for k, _ := range models.RestConfigs {
+	for k := range models.RestConfigs {
 		objectTypes = append(objectTypes, k)
 	}
 	objs := parser.StringList("b", "obj", &argparse.Options{Required: false, Help: "object types", Default: objectTypes})
@@ -70,11 +70,11 @@ func main() {
 
 	clientConfig := models.ClientConfig{
 		BearerToken: bearerToken,
-		Host:     *host,
-		Port:     *port,
-		User:     *user,
-		Password: *password,
-		SkipTLS:  (*skipTLS == "true"),
+		Host:        *host,
+		Port:        *port,
+		User:        *user,
+		Password:    *password,
+		SkipTLS:     (*skipTLS == "true"),
 	}
 
 	clientConfig.RetryPolicy = backoff.Exponential(

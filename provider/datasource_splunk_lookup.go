@@ -46,7 +46,7 @@ func splunkLookupRead(ctx context.Context, d *schema.ResourceData, meta interfac
 	client := meta.(models.ClientConfig)
 
 	searches := []SplunkSearch{
-		SplunkSearch{
+		{
 			Query:               " | inputlookup " + d.Get("name").(string),
 			User:                d.Get("splunk_user").(string),
 			App:                 d.Get("splunk_app").(string),

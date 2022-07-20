@@ -82,7 +82,7 @@ func populateCollectionFieldsDatasource(ctx context.Context, c *models.Collectio
 			return fmt.Errorf("expected map in array body return type")
 		}
 		row := []map[string]interface{}{}
-		for k, _ := range item_ {
+		for k := range item_ {
 			// Perhaps do not include internal fields...
 			if k[0] != '_' {
 				fieldsMap[k] = true
@@ -92,7 +92,7 @@ func populateCollectionFieldsDatasource(ctx context.Context, c *models.Collectio
 	}
 
 	fields := []string{}
-	for k, _ := range fieldsMap {
+	for k := range fieldsMap {
 		fields = append(fields, k)
 	}
 

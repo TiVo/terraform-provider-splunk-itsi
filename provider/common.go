@@ -84,7 +84,7 @@ func NewResourceTemplate(data *schema.ResourceData, resourceSchema map[string]*s
 		Schema:       resourceSchema,
 	}
 
-	for k, _ := range resourceSchema {
+	for k := range resourceSchema {
 		rt.Fields = append(rt.Fields, k)
 	}
 	sort.Strings(rt.Fields)

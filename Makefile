@@ -25,7 +25,7 @@ clean:
 	rm -rf dist bin
 
 fmt:
-	gofmt -w .
+	gofmt -s -l -w .
 	terraform fmt --recursive examples
 
 .PHONY: scraper docs
