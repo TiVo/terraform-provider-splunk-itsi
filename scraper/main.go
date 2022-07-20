@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"github.com/akamensky/argparse"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	"github.com/lestrrat-go/backoff/v2"
 	"github.com/tivo/terraform-provider-splunk-itsi/models"
 	"github.com/tivo/terraform-provider-splunk-itsi/provider"
@@ -25,8 +27,6 @@ var outputBasePath = "dump"
 func main() {
 	parser := argparse.NewParser("ITSI scraper", "Dump ITSI resources via REST interface and format them in a file.")
 
-	user := parser.String("u", "user", &argparse.Options{Required: false, Help: "user", Default: "admin"})
-	password := parser.String("p", "password", &argparse.Options{Required: false, Help: "password", Default: "changeme"})
 	host := parser.String("t", "host", &argparse.Options{Required: false, Help: "host", Default: "localhost"})
 	port := parser.Int("o", "port", &argparse.Options{Required: false, Help: "port", Default: 8089})
 	verbose := parser.Selector("v", "verbose", []string{"true", "false"}, &argparse.Options{Required: false, Help: "verbose mode", Default: "false"})
@@ -38,6 +38,16 @@ func main() {
 		objectTypes = append(objectTypes, k)
 	}
 	objs := parser.StringList("b", "obj", &argparse.Options{Required: false, Help: "object types", Default: objectTypes})
+
+	userCredCommand := parser.NewCommand("creds", "configure user/password  credential")
+	user := userCredCommand.String("u", "user", &argparse.Options{Required: true, Help: "user"})
+	password := userCredCommand.String("p", "password", &argparse.Options{Required: true, Help: "password"})
+
+	ssmTokenCommand := parser.NewCommand("token", "Bearer token to retrieve from AWS SSM")
+	profile := ssmTokenCommand.String("i", "profile", &argparse.Options{Required: true, Help: "Profile - to retrieve token from AWS SSM"})
+	region := ssmTokenCommand.String("r", "region", &argparse.Options{Required: true, Help: "Region - to retrieve token from AWS SSM"})
+	tokenPath := ssmTokenCommand.String("l", "path", &argparse.Options{Required: true, Help: "The auth token path from AWS SSM"})
+
 	err := parser.Parse(os.Args)
 	if err != nil {
 		log.Fatal(parser.Usage(err))
@@ -47,8 +57,19 @@ func main() {
 
 	models.Verbose = (*verbose == "true")
 	models.Cache = models.NewCache(1000)
+	bearerToken := ""
+
+	if ssmTokenCommand.Happened() {
+		bearerToken, err = getTokenFromSSM(*tokenPath, *profile, *region)
+		if err != nil {
+			log.Fatal(err)
+		}
+	} else if !userCredCommand.Happened() {
+		log.Fatal(parser.Usage("Access should be configured via the user credentials or bearer token."))
+	}
 
 	clientConfig := models.ClientConfig{
+		BearerToken: bearerToken,
 		Host:     *host,
 		Port:     *port,
 		User:     *user,
@@ -132,10 +153,9 @@ func dump(clientConfig models.ClientConfig, objectType, format string, formatter
 	for count, offset := base.GetPageSize(), 0; offset >= 0; offset += count {
 		ctx := context.Background()
 		items, err := base.Dump(ctx, offset, count)
-
 		if err != nil {
 			errors = append(errors, err)
-			continue
+			break
 		}
 
 		_errors := auditLog(items, objectType, format, formatter)
@@ -278,4 +298,38 @@ func auditFields(fieldsMap map[string]bool, objectType string) error {
 		return err
 	}
 	return ioutil.WriteFile(filename, by, 0644)
+}
+
+func getTokenFromSSM(tokenPath, profile, region string) (accessToken string, err error) {
+	cfg, err := config.LoadDefaultConfig(
+		context.Background(),
+		config.WithSharedConfigProfile(profile))
+	if err != nil {
+		return "", err
+	}
+
+	cfg.Region = region
+	client := ssm.NewFromConfig(cfg)
+
+	param, err := client.GetParameters(
+		context.Background(),
+		&ssm.GetParametersInput{
+			Names:          []string{tokenPath},
+			WithDecryption: true,
+		})
+	if err != nil {
+		return "", err
+	}
+
+	secretsInfo := map[string]string{}
+	for _, item := range param.Parameters {
+		secretsInfo[*item.Name] = *item.Value
+	}
+
+	token, ok := secretsInfo[tokenPath]
+	if !ok {
+		return "", fmt.Errorf("client token not found from SSM")
+	}
+
+	return token, nil
 }
