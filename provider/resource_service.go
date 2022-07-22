@@ -518,7 +518,7 @@ func service(ctx context.Context, d *schema.ResourceData, clientConfig models.Cl
 				return nil, err
 			}
 
-			itsiKpi["kpi_threshold_template_id"] = thresholdTemplateInterface["_key"].(string)
+			itsiKpi["kpi_threshold_template_id"] = thresholdRestKey
 			for _, thresholdKey := range []string{"time_variate_thresholds", "adaptive_thresholds_is_enabled",
 				"adaptive_thresholding_training_window", "aggregate_thresholds", "entity_thresholds",
 				"time_variate_thresholds_specification"} {
