@@ -160,7 +160,7 @@ func (rt *resourceTemplate) display(index string, element interface{}, sc *schem
 				split[i] = fmt.Sprintf("%s%s", whitespaces, split[i])
 			}
 			return fmt.Sprintf(`
-%s <<EOT
+%s <<-EOT
 %s
 %sEOT
 `, suffix, strings.Join(split, "\n"), whitespaces)

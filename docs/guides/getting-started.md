@@ -75,7 +75,7 @@ In this example, let the service nodes that are leaves of the tree hierarchy eac
 data "itsi_splunk_search" "guide_itsi_entity_search" {
 
   search {
-    query = <<EOT
+    query = <<-EOT
        search index=_internal host=itsi*
         | stats dc(host) by host
         | eval entity_type="guide_itsi_host"
@@ -86,7 +86,7 @@ data "itsi_splunk_search" "guide_itsi_entity_search" {
   }
 
   search {
-    query = <<EOT
+    query = <<-EOT
       | rest splunk_server=itsi* /services/server/info
       | stats values(server_roles) as server_roles by splunk_server
       | rename splunk_server as host
@@ -180,7 +180,7 @@ resource "itsi_kpi_base_search" "guide_kpi_base_search_success_job_runtime" {
   entity_breakdown_id_fields = ""
   is_service_entity_filter = true
   entity_id_fields = "host"
-  base_search =  <<EOT
+  base_search =  <<-EOT
       index=_internal sourcetype=scheduler status="success"
       | bin span=5m _time
       | search host=*itsi*
@@ -238,7 +238,7 @@ resource "itsi_kpi_base_search" "guide_kpi_base_search_non_success_job_count" {
   entity_breakdown_id_fields = "app"
   is_service_entity_filter = true
   entity_id_fields = "host"
-  base_search =  <<EOT
+  base_search =  <<-EOT
       index=_internal sourcetype=scheduler status!=success
       | bin span=5m _time
       | eval failed=if((status="delegated_remote_completion" AND success=0) OR status="delegated_remote_error", 1, 0)

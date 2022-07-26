@@ -16,7 +16,7 @@ Use this data source to retrieve the results of a Splunk search.
 data "itsi_splunk_search" "test_search" {
 
   search {
-    query = <<EOT
+    query = <<-EOT
        | makeresults count=5 | eval test = "A"
     EOT
 
@@ -24,7 +24,7 @@ data "itsi_splunk_search" "test_search" {
   }
 
   search {
-    query = <<EOT
+    query = <<-EOT
       | makeresults count=5 | eval test = "B"
     EOT
 
