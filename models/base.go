@@ -12,6 +12,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"reflect"
 	"sort"
 	"strconv"
 	"strings"
@@ -23,6 +24,25 @@ import (
 )
 
 var RestConfigs map[string]restConfig
+
+type RawJson json.RawMessage
+
+func (rj RawJson) ToInterfaceMap() (m map[string]interface{}, err error) {
+	var by []byte
+	if by, err = json.RawMessage(rj).MarshalJSON(); err != nil {
+		return
+	}
+	err = json.Unmarshal(by, &m)
+	return
+}
+
+func (rj RawJson) MarshalJSON() ([]byte, error) {
+	return json.RawMessage(rj).MarshalJSON()
+}
+
+func (rj *RawJson) UnmarshalJSON(data []byte) error {
+	return (*json.RawMessage)(rj).UnmarshalJSON(data)
+}
 
 func init() {
 	err := yaml.Unmarshal([]byte(metadataConfig), &RestConfigs)
@@ -46,7 +66,7 @@ type Base struct {
 	RESTKey string
 	// Terraform Identifier
 	TFID    string
-	RawJson json.RawMessage
+	RawJson RawJson
 	Fields  []string
 }
 
@@ -70,32 +90,6 @@ func NewBase(clientConfig ClientConfig, key, id, objectType string) *Base {
 	}
 	return b
 }
-
-// func (b *Base) GetValue(field string, out interface{}) error {
-// 	if v, ok := b.RawJson[field]; ok {
-// 		by, err := v.MarshalJSON()
-// 		if err != nil {
-// 			return err
-// 		}
-// 		return json.Unmarshal(by, out)
-// 	} else {
-// 		return fmt.Errorf("no value for field %s", field)
-// 	}
-// }
-
-// func (b *Base) SetValue(field string, value interface{}) error {
-// 	by, err := json.Marshal(value)
-// 	if err != nil {
-// 		return err
-// 	}
-// 	var raw *json.RawMessage
-// 	err = json.Unmarshal(by, raw)
-// 	if err != nil {
-// 		return err
-// 	}
-// 	b.RawJson[field] = raw
-// 	return nil
-// }
 
 func (b *Base) Clone() *Base {
 	b_ := &Base{
@@ -155,7 +149,9 @@ func (b *Base) requestWithRetry(ctx context.Context, method string, url string, 
 			}
 
 			attempt++
-			continue
+			if ctx.Err() == nil {
+				continue
+			}
 		}
 
 		break
@@ -303,6 +299,58 @@ func (b *Base) Update(ctx context.Context) error {
 	return nil
 }
 
+func (b *Base) updateAndWaitForState(ctx context.Context) (err error) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	reqBody, err := json.Marshal(b.RawJson)
+	if err != nil {
+		return err
+	}
+
+	resultCh := make(chan error)
+	go func() {
+		defer close(resultCh)
+		_, _, err := b.requestWithRetry(ctx, http.MethodPut, b.urlBaseWithKey(), reqBody)
+		resultCh <- err
+	}()
+
+	ticker := time.NewTicker(15 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case err = <-resultCh:
+			return
+		case <-ticker.C:
+			if b_, err := b.Read(ctx); err == nil && b_ != nil {
+				if ok, err := b.equals(b_); err == nil {
+					if ok {
+						return nil
+					}
+				} else {
+					return err
+				}
+			} else if err != nil {
+				return err
+			}
+			continue
+		case <-ctx.Done():
+			err = ctx.Err()
+			return
+		}
+	}
+}
+
+func (b *Base) UpdateAsync(ctx context.Context) error {
+	err := b.updateAndWaitForState(ctx)
+	if err != nil {
+		return err
+	}
+	b.storeCache()
+	return nil
+}
+
 func (b *Base) Delete(ctx context.Context) error {
 	Cache.Remove(b)
 	_, _, err := b.requestWithRetry(ctx, http.MethodDelete, b.urlBaseWithKey(), nil)
@@ -311,14 +359,6 @@ func (b *Base) Delete(ctx context.Context) error {
 
 func (b *Base) storeCache() {
 	Cache.Add(b)
-}
-
-func (b *Base) getCache() *Base {
-	cacheItem, ok := Cache.Get(b)
-	if ok {
-		return cacheItem.base
-	}
-	return nil
 }
 
 //Returns an object from cache if it's present, or makes the relevant API calls..
@@ -490,7 +530,7 @@ func (b *Base) lookupRESTKey(ctx context.Context) error {
 	}
 
 	if len(raw) > 1 {
-		return fmt.Errorf("Failed to lookup RESTKey for %s TFID %s: TFID is not unique", b.ObjectType, b.TFID)
+		return fmt.Errorf("failed to lookup RESTKey for %s TFID %s: TFID is not unique", b.ObjectType, b.TFID)
 	}
 
 	for _, r := range raw {
@@ -504,4 +544,24 @@ func (b *Base) lookupRESTKey(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+func (b *Base) equals(b_ *Base) (bool, error) {
+	m, err := b.RawJson.ToInterfaceMap()
+	if err != nil {
+		return false, err
+	}
+
+	m_, err := b_.RawJson.ToInterfaceMap()
+	if err != nil {
+		return false, err
+	}
+
+	for _, f := range b.Fields {
+		if !reflect.DeepEqual(m[f], m_[f]) {
+			return false, nil
+		}
+	}
+
+	return true, nil
 }
