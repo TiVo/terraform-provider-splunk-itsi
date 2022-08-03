@@ -181,12 +181,7 @@ func entityRead(ctx context.Context, d *schema.ResourceData, m interface{}) (dia
 }
 
 func populateEntityResourceData(ctx context.Context, b *models.Base, d *schema.ResourceData) (diags diag.Diagnostics) {
-	by, err := b.RawJson.MarshalJSON()
-	if err != nil {
-		return diag.FromErr(err)
-	}
-	var interfaceMap map[string]interface{}
-	err = json.Unmarshal(by, &interfaceMap)
+	interfaceMap, err := b.RawJson.ToInterfaceMap()
 	if err != nil {
 		return diag.FromErr(err)
 	}
