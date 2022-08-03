@@ -104,7 +104,7 @@ func providerConfigure(c context.Context, d *schema.ResourceData) (interface{}, 
 		backoff.WithMaxRetries(0),
 	)
 
-	client.Concurrency = 10
+	client.Concurrency = 15
 	models.InitItsiApiLimiter(client.Concurrency)
 	InitSplunkSearchLimiter(client.Concurrency)
 	if os.Getenv("TF_LOG") == "true" {

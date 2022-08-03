@@ -2,7 +2,6 @@ package provider
 
 import (
 	"context"
-	"encoding/json"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
@@ -42,12 +41,7 @@ func DatasourceKPIThresholdTemplateRead(ctx context.Context, d *schema.ResourceD
 }
 
 func populateKPIThresholdTemplateDatasourceData(b *models.Base, d *schema.ResourceData) error {
-	by, err := b.RawJson.MarshalJSON()
-	if err != nil {
-		return err
-	}
-	var interfaceMap map[string]interface{}
-	err = json.Unmarshal(by, &interfaceMap)
+	interfaceMap, err := b.RawJson.ToInterfaceMap()
 	if err != nil {
 		return err
 	}
