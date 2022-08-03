@@ -308,7 +308,7 @@ func (b *Base) updateAndWaitForState(ctx context.Context) (err error) {
 		return err
 	}
 
-	resultCh := make(chan error)
+	resultCh := make(chan error, 1)
 	go func() {
 		defer close(resultCh)
 		_, _, err := b.requestWithRetry(ctx, http.MethodPut, b.urlBaseWithKey(), reqBody)
