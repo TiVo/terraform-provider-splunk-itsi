@@ -207,7 +207,7 @@ func auditLog(items []*models.Base, objectType, format string, formatter provide
 	case "json":
 		objects := []json.RawMessage{}
 		for _, item := range items {
-			objects = append(objects, item.RawJson)
+			objects = append(objects, json.RawMessage(item.RawJson))
 		}
 
 		by, err = json.MarshalIndent(objects, "", "  ")

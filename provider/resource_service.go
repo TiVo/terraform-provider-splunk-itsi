@@ -108,9 +108,8 @@ func (ml *KPIBSMetricLookup) lookupMetricTitleByID(ctx context.Context, cc model
 	return
 }
 
-func getKpiBSData(ctx context.Context, cc models.ClientConfig, id string) (kpiSearchInterface map[string]interface{}, err error) {
-	kpiSearchBase := kpiBaseSearchBase(cc, id, "")
-	kpiSearchBase, err = kpiSearchBase.Find(ctx)
+func getKpiBSData(ctx context.Context, cc models.ClientConfig, id string) (map[string]interface{}, error) {
+	kpiSearchBase, err := kpiBaseSearchBase(cc, id, "").Find(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -119,13 +118,7 @@ func getKpiBSData(ctx context.Context, cc models.ClientConfig, id string) (kpiSe
 		return nil, fmt.Errorf("KPI Base search %s not found", id)
 	}
 
-	by, err := kpiSearchBase.RawJson.MarshalJSON()
-	if err != nil {
-		return nil, err
-	}
-
-	err = json.Unmarshal(by, &kpiSearchInterface)
-	return
+	return kpiSearchBase.RawJson.ToInterfaceMap()
 }
 
 /*
@@ -372,19 +365,16 @@ func service(ctx context.Context, d *schema.ResourceData, clientConfig models.Cl
 			return nil, err
 		}
 
-		by, err := base.RawJson.MarshalJSON()
+		serviceInterface, err := base.RawJson.ToInterfaceMap()
 		if err != nil {
 			return nil, err
 		}
-		var serviceInterface map[string]interface{}
-		if err = json.Unmarshal(by, &serviceInterface); err != nil {
-			return nil, err
-		}
+
 		if kpis, ok := serviceInterface["kpis"].([]interface{}); ok {
 			for _, kpi := range kpis {
 				k := kpi.(map[string]interface{})
 				if _, ok := k["_key"]; !ok {
-					return nil, errors.New("No kpiId was found for service: " + string(by))
+					return nil, fmt.Errorf("no kpiId was found for service: %v ", d.Id())
 				}
 				if _, ok := k["adaptive_thresholds_is_enabled"]; !ok {
 					continue
@@ -509,12 +499,8 @@ func service(ctx context.Context, d *schema.ResourceData, clientConfig models.Cl
 				return nil, fmt.Errorf("KPI Threshold Template %s not found", thresholdRestKey)
 			}
 
-			by, err := thresholdTemplateBase.RawJson.MarshalJSON()
+			thresholdTemplateInterface, err := thresholdTemplateBase.RawJson.ToInterfaceMap()
 			if err != nil {
-				return nil, err
-			}
-			var thresholdTemplateInterface map[string]interface{}
-			if err = json.Unmarshal(by, &thresholdTemplateInterface); err != nil {
 				return nil, err
 			}
 
@@ -663,12 +649,8 @@ func serviceRead(ctx context.Context, d *schema.ResourceData, m interface{}) (di
 }
 
 func populateServiceResourceData(ctx context.Context, b *models.Base, d *schema.ResourceData) (diags diag.Diagnostics) {
-	by, err := b.RawJson.MarshalJSON()
+	interfaceMap, err := b.RawJson.ToInterfaceMap()
 	if err != nil {
-		return diag.FromErr(err)
-	}
-	var interfaceMap map[string]interface{}
-	if err = json.Unmarshal(by, &interfaceMap); err != nil {
 		return diag.FromErr(err)
 	}
 
