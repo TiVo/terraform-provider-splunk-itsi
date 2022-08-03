@@ -6,11 +6,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/hashicorp/go-cty/cty"
 	"log"
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/hashicorp/go-cty/cty"
 
 	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
@@ -371,12 +372,7 @@ func kpiBaseSearchRead(ctx context.Context, d *schema.ResourceData, m interface{
 }
 
 func populateBaseSearchResourceData(ctx context.Context, b *models.Base, d *schema.ResourceData) (diags diag.Diagnostics) {
-	by, err := b.RawJson.MarshalJSON()
-	if err != nil {
-		return diag.FromErr(err)
-	}
-	var interfaceMap map[string]interface{}
-	err = json.Unmarshal(by, &interfaceMap)
+	interfaceMap, err := b.RawJson.ToInterfaceMap()
 	if err != nil {
 		return diag.FromErr(err)
 	}
@@ -448,7 +444,7 @@ func kpiBaseSearchUpdate(ctx context.Context, d *schema.ResourceData, m interfac
 	if err != nil {
 		return diag.FromErr(err)
 	}
-	return diag.FromErr(template.Update(ctx))
+	return diag.FromErr(template.UpdateAsync(ctx))
 }
 
 func kpiBaseSearchDelete(ctx context.Context, d *schema.ResourceData, m interface{}) (diags diag.Diagnostics) {
