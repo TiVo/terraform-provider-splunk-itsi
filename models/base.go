@@ -556,8 +556,7 @@ func (b *Base) equals(b_ *Base) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-
-	for _, f := range b.Fields {
+	for f := range m {
 		if !reflect.DeepEqual(m[f], m_[f]) {
 			return false, nil
 		}
