@@ -41,7 +41,8 @@ func (rj RawJson) MarshalJSON() ([]byte, error) {
 }
 
 func (rj *RawJson) UnmarshalJSON(data []byte) error {
-	return (*json.RawMessage)(rj).UnmarshalJSON(data)
+	*rj = RawJson(append(make([]byte, 0, len(data)), data...))
+	return nil
 }
 
 func init() {
