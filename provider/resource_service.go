@@ -234,7 +234,7 @@ func ResourceService() *schema.Resource {
 						Type:         schema.TypeString,
 						Required:     true,
 						Description:  "Takes values alias, info or title specifying in which category of fields the field attribute is located.",
-						ValidateFunc: validation.StringInSlice([]string{"alias", "info", "title"}, false),
+						ValidateFunc: validation.StringInSlice([]string{"alias", "entity_type", "info", "title"}, false),
 					},
 					"rule_type": {
 						Type:         schema.TypeString,
