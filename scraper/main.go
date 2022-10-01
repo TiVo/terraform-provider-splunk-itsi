@@ -231,6 +231,9 @@ func auditLog(items []*models.Base, objectType, format string, formatter provide
 			objects = append(objects, i)
 		}
 		by, err = yaml.Marshal(objects)
+		if err != nil {
+			errors = append(errors, err)
+		}
 	case "tf":
 		if formatter == nil {
 			return &[]error{fmt.Errorf("formatter for %s is nil for %s format", objectType, format)}
@@ -310,12 +313,13 @@ func getTokenFromSSM(tokenPath, profile, region string) (accessToken string, err
 
 	cfg.Region = region
 	client := ssm.NewFromConfig(cfg)
+	decryption := true
 
 	param, err := client.GetParameters(
 		context.Background(),
 		&ssm.GetParametersInput{
 			Names:          []string{tokenPath},
-			WithDecryption: true,
+			WithDecryption: &decryption,
 		})
 	if err != nil {
 		return "", err
