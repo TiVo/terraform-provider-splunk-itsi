@@ -376,12 +376,14 @@ func service(ctx context.Context, d *schema.ResourceData, clientConfig models.Cl
 				if _, ok := k["_key"]; !ok {
 					return nil, fmt.Errorf("no kpiId was found for service: %v ", d.Id())
 				}
-				if _, ok := k["adaptive_thresholds_is_enabled"]; !ok {
+				if _, ok := k["kpi_threshold_template_id"]; !ok || k["kpi_threshold_template_id"].(string) == "" {
 					continue
 				}
-				if _, ok := k["kpi_threshold_template_id"]; !ok {
+
+				if _, ok := k["adaptive_thresholds_is_enabled"]; !ok || !k["adaptive_thresholds_is_enabled"].(bool) {
 					continue
 				}
+
 				kpiId := k["_key"].(string)
 				thresholdId := k["kpi_threshold_template_id"].(string)
 				thresholdValueCache[kpiId] = map[string]map[string]float64{}
