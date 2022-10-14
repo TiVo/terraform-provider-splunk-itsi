@@ -12,7 +12,7 @@ require (
 	github.com/hashicorp/hcl/v2 v2.14.1
 	github.com/hashicorp/terraform-plugin-docs v0.13.0
 	github.com/hashicorp/terraform-plugin-log v0.7.0
-	github.com/hashicorp/terraform-plugin-sdk/v2 v2.23.0
+	github.com/hashicorp/terraform-plugin-sdk/v2 v2.24.0
 	github.com/lestrrat-go/backoff/v2 v2.0.9-0.20211111113235-51026d9f5dca
 	github.com/stretchr/testify v1.8.0
 	github.com/tmccombs/hcl2json v0.3.4
