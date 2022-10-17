@@ -1,7 +1,7 @@
 PROVIDER_VERSION := 99.0.0
 TERRAFORM_PLUGIN_PATH := local/itsi/splunk-itsi/$(PROVIDER_VERSION)/
 OS := $(shell uname| tr '[:upper:]' '[:lower:]')
-ARCH := amd64
+ARCH := $(shell arch)
 
 ifeq ($(OS), linux)
 	TERRAFORM_PLUGIN_PATH := ~/.terraform.d/plugins/$(TERRAFORM_PLUGIN_PATH)$(OS)_$(ARCH)
