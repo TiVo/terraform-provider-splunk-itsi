@@ -501,7 +501,7 @@ func collectionApiEntriesDeleteOldRows(ctx context.Context, d *schema.ResourceDa
 
 	gen := api.Data["generation"].(int)
 	scope := api.Data["scope"].(string)
-	q := fmt.Sprintf("{\"$or\":[{\"_gen\":null},{\"_gen\":{\"$lt\": %d}}]}", gen)
+	q := fmt.Sprintf("{\"$or\":[{\"_gen\":null},{\"_gen\":{\"$ne\": %d}}]}", gen)
 	q = fmt.Sprintf("{\"$and\":[{\"_scope\":\"%s\"},%s]}", scope, q)
 	api.Params = "query=" + url.QueryEscape(q)
 
