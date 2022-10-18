@@ -319,7 +319,7 @@ func collectionEntriesDataBody(ctx context.Context, d *schema.ResourceData, obje
 		rowMap["_idx"] = fmt.Sprintf("%d", i)
 		// Add generational information so that we can delete
 		// out of date entries efficiently...
-		rowMap["_gen"] = fmt.Sprintf("%d", gen)
+		rowMap["_gen"] = gen
 		// Add scope information so that we can manage a
 		// subset of the entries...
 		rowMap["_scope"] = scope
@@ -501,7 +501,7 @@ func collectionApiEntriesDeleteOldRows(ctx context.Context, d *schema.ResourceDa
 
 	gen := api.Data["generation"].(int)
 	scope := api.Data["scope"].(string)
-	q := fmt.Sprintf("{\"$or\":[{\"_gen\":null},{\"_gen\":{\"$lt\":\"%d\"}}]}", gen)
+	q := fmt.Sprintf("{\"$or\":[{\"_gen\":null},{\"_gen\":{\"$ne\": %d}}]}", gen)
 	q = fmt.Sprintf("{\"$and\":[{\"_scope\":\"%s\"},%s]}", scope, q)
 	api.Params = "query=" + url.QueryEscape(q)
 
