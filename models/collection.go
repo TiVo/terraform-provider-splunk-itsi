@@ -250,7 +250,7 @@ func (c *CollectionApi) request(ctx context.Context, method string, u string, bo
 		map[string]interface{}{"key": c.RESTKey, "method": method, "url": u})
 
 	tflog.Trace(ctx, "COLLECTION:   Request body",
-		map[string]interface{}{"key": c.RESTKey, "c": c, "body": fmt.Sprintf("%s", body)})
+		map[string]interface{}{"key": c.RESTKey, "c": c, "body": string(body)})
 
 	resp, err := client.Do(req)
 	if resp != nil {
@@ -273,7 +273,7 @@ func (c *CollectionApi) request(ctx context.Context, method string, u string, bo
 	if err != nil {
 		tflog.Trace(ctx, "COLLECTION:   Response read err",
 			map[string]interface{}{"key": c.RESTKey, "err": err})
-		return statusCode, nil, fmt.Errorf("%v error: %v\n", method, resp.Status)
+		return statusCode, nil, fmt.Errorf("%v error: %v", method, resp.Status)
 	}
 
 	success := false
@@ -287,12 +287,6 @@ func (c *CollectionApi) request(ctx context.Context, method string, u string, bo
 			break
 		}
 		success = resp.StatusCode >= 200 && resp.StatusCode < 300
-	case http.MethodGet:
-		success = resp.StatusCode >= 200 && resp.StatusCode < 300
-		if !success {
-			responseBody = nil
-			success = true
-		}
 	default:
 		success = resp.StatusCode >= 200 && resp.StatusCode < 300
 	}
@@ -328,7 +322,7 @@ func (c *CollectionApi) Read(ctx context.Context) (*CollectionApi, error) {
 		return nil, nil
 	}
 
-	if c.apiConfig.ApiIgnoreResponseBody == false {
+	if !c.apiConfig.ApiIgnoreResponseBody {
 		c.Body = respBody
 	}
 	return c, nil
@@ -366,7 +360,7 @@ func (c *CollectionApi) Marshal(obj interface{}) (bytes []byte, err error) {
 	case "XML":
 		bytes, err = xml.Marshal(obj)
 	default:
-		err = fmt.Errorf("Unknown REST body format")
+		err = fmt.Errorf("unknown REST body format")
 	}
 	return
 }
@@ -378,7 +372,7 @@ func (c *CollectionApi) Unmarshal(bytes []byte) (res interface{}, err error) {
 	case "XML":
 		err = xml.Unmarshal(bytes, &res)
 	default:
-		err = fmt.Errorf("Unknown REST body format")
+		err = fmt.Errorf("unknown REST body format")
 	}
 	return
 }
