@@ -250,7 +250,7 @@ func (c *CollectionApi) request(ctx context.Context, method string, u string, bo
 		map[string]interface{}{"key": c.RESTKey, "method": method, "url": u})
 
 	tflog.Trace(ctx, "COLLECTION:   Request body",
-		map[string]interface{}{"key": c.RESTKey, "c": c, "body": string(body[:])})
+		map[string]interface{}{"key": c.RESTKey, "c": c, "body": string(body)})
 
 	resp, err := client.Do(req)
 	if resp != nil {
