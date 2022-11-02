@@ -311,11 +311,14 @@ func (c *CollectionApi) Create(ctx context.Context) (*CollectionApi, error) {
 	return c, nil
 }
 
-func (c *CollectionApi) Read(ctx context.Context) (*CollectionApi, error) {
+func (c *CollectionApi) Read(ctx context.Context, ignore404 ...bool) (*CollectionApi, error) {
 	tflog.Trace(ctx, "COLLECTION READ: Read", map[string]interface{}{"c": c})
 
-	_, respBody, err := c.requestWithRetry(ctx, http.MethodGet, c.url(), nil)
+	statusCode, respBody, err := c.requestWithRetry(ctx, http.MethodGet, c.url(), nil)
 	if err != nil {
+		if len(ignore404) == 1 && ignore404[0] && statusCode == http.StatusNotFound {
+			return nil, nil
+		}
 		return nil, err
 	}
 	if respBody == nil {
