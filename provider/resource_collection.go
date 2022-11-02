@@ -343,8 +343,11 @@ func collectionApiExists(ctx context.Context, d *schema.ResourceData, m interfac
 	tflog.Info(ctx, "RSRC COLLECTION:   exists ("+getCollectionName(d)+")")
 	// To check if a collection exists, we use...
 	//   storage/collections/config/{collection} -- GET
-	api, _ = collection(ctx, d, "collection_config_no_body", m)
-	return api.Read(ctx)
+	api, err = collection(ctx, d, "collection_config_no_body", m)
+	if err != nil {
+		return nil, err
+	}
+	return api.Read(ctx, true)
 }
 
 // ----------------------------------------------------------------------
