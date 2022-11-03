@@ -58,6 +58,7 @@ type restConfig struct {
 	RestKeyField  string `yaml:"rest_key_field"`
 	TFIDField     string `yaml:"tfid_field"`
 	MaxPageSize   int    `yaml:"max_page_size"`
+	GenerateKey   bool   `yaml:"generate_key"`
 }
 
 type Base struct {
@@ -113,6 +114,27 @@ func (b *Base) urlBaseWithKey() string {
 	const restKeyFmt = "https://%[1]s:%[2]d/servicesNS/nobody/SA-ITOA/%[3]s/%[4]s/%[5]s"
 	url := fmt.Sprintf(restKeyFmt, b.Splunk.Host, b.Splunk.Port, b.RestInterface, b.ObjectType, b.RESTKey)
 	return url
+}
+
+func (b *Base) shouldRetryOnCreate(method string, statusCode int, err error) bool {
+	//Common unretriable errors
+	//400: Bad Request
+	//401: Unauthorized
+	//403: Forbidden
+	//404: Not Found
+	//409: Conflict
+	if statusCode == 409 && b.GenerateKey {
+		//read (and retry as usual)
+		// compare
+		// return
+		//   - OK-do-not-retry if compare is identical
+		//   - failure if 404 from the read or if compare does not match
+	}
+	if statusCode == 400 || statusCode == 401 || statusCode == 403 || statusCode == 404 || statusCode == 409 {
+		return false
+	}
+
+	return true
 }
 
 func (b *Base) shouldRetry(method string, statusCode int, err error) bool {
@@ -243,12 +265,37 @@ func (b *Base) GetPageSize() int {
 	return maxPageSize
 }
 
+func (b *Base) PopulateRawJSON(ctx context.Context, body map[string]interface{}) error {
+	if b.GenerateKey && b.RESTKey == "" {
+		key := "something_random"
+		body[b.RestKeyField] = key
+		b.RESTKey = key
+	}
+	by, err := json.Marshal(body)
+	if err != nil {
+		return err
+	}
+	err = json.Unmarshal(by, &b.RawJson)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func (b *Base) Create(ctx context.Context) (*Base, error) {
+
 	reqBody, err := json.Marshal(b.RawJson)
 	if err != nil {
 		return nil, err
 	}
-	_, respBody, err := b.requestWithRetry(ctx, http.MethodPost, b.urlBase(), reqBody)
+	var respBody []byte
+	if b.GenerateKey {
+		b.RESTKey = "something_random"
+		//unmarshal
+		_, respBody, err = b.requestWithRetry(ctx, http.MethodPut, b.urlBaseWithKey(), reqBody)
+	} else {
+		_, respBody, err = b.requestWithRetry(ctx, http.MethodPost, b.urlBase(), reqBody)
+	}
 	if err != nil {
 		return nil, err
 	}
