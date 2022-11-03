@@ -129,6 +129,25 @@ func (b *Base) shouldRetryOnCreate(method string, statusCode int, err error) boo
 		// return
 		//   - OK-do-not-retry if compare is identical
 		//   - failure if 404 from the read or if compare does not match
+
+		b_, err := b.Read(context.Background())
+		if err != nil {
+			panic("Read Failed")
+		} else if b_ == nil {
+			panic("Unexpected 404")
+			//return false
+		}
+
+		if ok, err := b.equals(b_); err == nil {
+			if ok {
+				return false
+			} else {
+				panic("!")
+			}
+		} else {
+			panic(fmt.Sprintf("equals function failed: %s", err))
+		}
+
 	}
 	if statusCode == 400 || statusCode == 401 || statusCode == 403 || statusCode == 404 || statusCode == 409 {
 		return false
@@ -165,9 +184,17 @@ func (b *Base) requestWithRetry(ctx context.Context, method string, url string, 
 		tflog.Trace(ctx, fmt.Sprintf("%v %v (%v): %v %v [%s]", method, url, attempt, statusCode, http.StatusText(statusCode), time.Since(start).String()))
 		if err != nil {
 
-			if !b.shouldRetry(method, statusCode, err) {
+			retryFunc := b.shouldRetry
+			if b.ObjectType == "service" {
+				retryFunc = b.shouldRetryOnCreate
+			}
+
+			if !retryFunc(method, statusCode, err) {
 				tflog.Error(ctx, fmt.Sprintf("%v %v (%v) failed: %v", attempt, method, url, statusCode))
 				responseBody = nil
+				if b.ObjectType == "service" {
+					return 200, []byte{}, nil
+				}
 				return
 			}
 
@@ -267,7 +294,12 @@ func (b *Base) GetPageSize() int {
 
 func (b *Base) PopulateRawJSON(ctx context.Context, body map[string]interface{}) error {
 	if b.GenerateKey && b.RESTKey == "" {
-		key := "something_random"
+
+		key := "C2E5E20B-C727-49E1-BB88-62016C87C395" //TODO!!!
+
+		// if err != nil {
+		// 	return err
+		// }
 		body[b.RestKeyField] = key
 		b.RESTKey = key
 	}
@@ -289,13 +321,7 @@ func (b *Base) Create(ctx context.Context) (*Base, error) {
 		return nil, err
 	}
 	var respBody []byte
-	if b.GenerateKey {
-		b.RESTKey = "something_random"
-		//unmarshal
-		_, respBody, err = b.requestWithRetry(ctx, http.MethodPut, b.urlBaseWithKey(), reqBody)
-	} else {
-		_, respBody, err = b.requestWithRetry(ctx, http.MethodPost, b.urlBase(), reqBody)
-	}
+	_, respBody, err = b.requestWithRetry(ctx, http.MethodPost, b.urlBase(), reqBody)
 	if err != nil {
 		return nil, err
 	}
