@@ -33,7 +33,7 @@ service:
     rest_key_field: _key
     tfid_field: title
     max_page_size: 100
-    generate_key = true
+    generate_key: true
 
 base_service_template:
     rest_interface: itoa_interface
@@ -124,6 +124,6 @@ notable_event_group:
 #        object_type:  notable_event_comment
 #        rest_key_field:  _key
 #        tfid_field:   title
-# 
+#
 `
 )
