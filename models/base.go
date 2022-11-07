@@ -46,6 +46,10 @@ func (rj *RawJson) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+var GenerateResourceKey = func() (string, error) {
+	return uuid.GenerateUUID()
+}
+
 func init() {
 	err := yaml.Unmarshal([]byte(metadataConfig), &RestConfigs)
 	if err != nil {
@@ -281,7 +285,7 @@ func (b *Base) GetPageSize() int {
 
 func (b *Base) PopulateRawJSON(ctx context.Context, body map[string]interface{}) error {
 	if b.GenerateKey && b.RESTKey == "" {
-		key, err := uuid.GenerateUUID()
+		key, err := GenerateResourceKey()
 		if err != nil {
 			return err
 		}
