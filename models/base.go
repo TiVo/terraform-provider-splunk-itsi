@@ -18,6 +18,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/lestrrat-go/backoff/v2"
 	"gopkg.in/yaml.v3"
@@ -45,6 +46,10 @@ func (rj *RawJson) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+var GenerateResourceKey = func() (string, error) {
+	return uuid.GenerateUUID()
+}
+
 func init() {
 	err := yaml.Unmarshal([]byte(metadataConfig), &RestConfigs)
 	if err != nil {
@@ -58,6 +63,7 @@ type restConfig struct {
 	RestKeyField  string `yaml:"rest_key_field"`
 	TFIDField     string `yaml:"tfid_field"`
 	MaxPageSize   int    `yaml:"max_page_size"`
+	GenerateKey   bool   `yaml:"generate_key"`
 }
 
 type Base struct {
@@ -115,21 +121,48 @@ func (b *Base) urlBaseWithKey() string {
 	return url
 }
 
-func (b *Base) shouldRetry(method string, statusCode int, err error) bool {
+func (b *Base) handleConflictOnCreate(ctx context.Context) (responseBody []byte, err error) {
+	b_, err := b.Read(ctx)
+	if err != nil {
+		return
+	} else if b_ == nil {
+		err = fmt.Errorf("error while handling 409 Conflict response for create %s request", b.ObjectType)
+		return
+	}
+
+	if b.RESTKey == b_.RESTKey {
+		responseBody = []byte(fmt.Sprintf("{\"_key\": \"%s\"}", b.RESTKey))
+	} else {
+		err = fmt.Errorf("409 Conflict response for create %s request", b.ObjectType)
+	}
+
+	return
+}
+
+func (b *Base) handleRequestError(ctx context.Context, method string, statusCode int, responseBody []byte, requestErr error) (shouldRetry bool, newStatusCode int, newBody []byte, err error) {
 	//Common unretriable errors
 	//400: Bad Request
 	//401: Unauthorized
 	//403: Forbidden
 	//404: Not Found
 	//409: Conflict
-	if statusCode == 400 || statusCode == 401 || statusCode == 403 || statusCode == 404 || statusCode == 409 {
-		return false
+
+	newStatusCode, newBody, err = statusCode, responseBody, requestErr
+
+	switch {
+	case method == http.MethodPost && statusCode == http.StatusConflict && b.GenerateKey:
+		if newBody, err = b.handleConflictOnCreate(ctx); err != nil {
+			newStatusCode = http.StatusOK
+		}
+	case statusCode == 400 || statusCode == 401 || statusCode == 403 || statusCode == 404 || statusCode == 409: //do not retry
+	default:
+		shouldRetry = true
 	}
 
-	return true
+	return
 }
 
-func (b *Base) requestWithRetry(ctx context.Context, method string, url string, body []byte) (statusCode int, responseBody []byte, err error) {
+func (b *Base) requestWithRetry(ctx context.Context, method string, url string, body []byte) (statusCode int, responseBody []byte, requestErr error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -139,18 +172,25 @@ func (b *Base) requestWithRetry(ctx context.Context, method string, url string, 
 
 	for backoff.Continue(bo) {
 		start := time.Now()
-		statusCode, responseBody, err = b.request(ctx, method, url, body)
+		statusCode, responseBody, requestErr = b.request(ctx, method, url, body)
 		tflog.Trace(ctx, fmt.Sprintf("%v %v (%v): %v %v [%s]", method, url, attempt, statusCode, http.StatusText(statusCode), time.Since(start).String()))
-		if err != nil {
+		if requestErr != nil {
 
-			if !b.shouldRetry(method, statusCode, err) {
-				tflog.Error(ctx, fmt.Sprintf("%v %v (%v) failed: %v", attempt, method, url, statusCode))
-				responseBody = nil
+			if shouldRetry, newStatus, newBody, err := b.handleRequestError(ctx, method, statusCode, responseBody, requestErr); !shouldRetry {
+				if err == nil {
+					statusCode = newStatus
+					responseBody = newBody
+				} else {
+					tflog.Error(ctx, fmt.Sprintf("%v %v (%v) failed: %v", attempt, method, url, statusCode))
+					responseBody = nil
+				}
+
+				requestErr = err
 				return
 			}
 
-			attempt++
 			if ctx.Err() == nil {
+				attempt++
 				continue
 			}
 		}
@@ -158,12 +198,12 @@ func (b *Base) requestWithRetry(ctx context.Context, method string, url string, 
 		break
 	}
 
-	if err == nil {
-		err = ctx.Err()
+	if requestErr == nil {
+		requestErr = ctx.Err()
 	}
 
-	if err != nil {
-		tflog.Error(ctx, fmt.Sprintf("%v %v (%v) failed: %s", method, url, attempt, err.Error()))
+	if requestErr != nil {
+		tflog.Error(ctx, fmt.Sprintf("%v %v (%v) failed: %s", method, url, attempt, requestErr.Error()))
 	}
 	return
 }
@@ -243,12 +283,35 @@ func (b *Base) GetPageSize() int {
 	return maxPageSize
 }
 
+func (b *Base) PopulateRawJSON(ctx context.Context, body map[string]interface{}) error {
+	if b.GenerateKey && b.RESTKey == "" {
+		key, err := GenerateResourceKey()
+		if err != nil {
+			return err
+		}
+
+		body[b.RestKeyField] = key
+		b.RESTKey = key
+	}
+	by, err := json.Marshal(body)
+	if err != nil {
+		return err
+	}
+	err = json.Unmarshal(by, &b.RawJson)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func (b *Base) Create(ctx context.Context) (*Base, error) {
+
 	reqBody, err := json.Marshal(b.RawJson)
 	if err != nil {
 		return nil, err
 	}
-	_, respBody, err := b.requestWithRetry(ctx, http.MethodPost, b.urlBase(), reqBody)
+	var respBody []byte
+	_, respBody, err = b.requestWithRetry(ctx, http.MethodPost, b.urlBase(), reqBody)
 	if err != nil {
 		return nil, err
 	}
@@ -264,7 +327,7 @@ func (b *Base) Create(ctx context.Context) (*Base, error) {
 
 func (b *Base) Read(ctx context.Context) (*Base, error) {
 	if b.RESTKey == "" {
-		return nil, fmt.Errorf("Could not Read %s resource: RESTKey was not provided", b.ObjectType)
+		return nil, fmt.Errorf("could not Read %s resource: RESTKey was not provided", b.ObjectType)
 	}
 
 	_, respBody, err := b.requestWithRetry(ctx, http.MethodGet, b.urlBaseWithKey(), nil)
@@ -365,7 +428,7 @@ func (b *Base) storeCache() {
 //Returns an object from cache if it's present, or makes the relevant API calls..
 func (b *Base) Find(ctx context.Context) (result *Base, err error) {
 	if b.RESTKey == "" && b.TFID == "" {
-		return nil, fmt.Errorf("Could not Find %s resource: neither RESTKey nor TFID were provided", b.ObjectType)
+		return nil, fmt.Errorf("could not Find %s resource: neither RESTKey nor TFID were provided", b.ObjectType)
 	}
 
 	cacheMu.Lock()

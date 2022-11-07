@@ -102,6 +102,10 @@ func TestServiceResourceCreate(t *testing.T) {
 	for _, test := range serviceResourceCreateDataProvider {
 		t.Log("=== RUNNING ", t.Name(), ": TEST CASE ", test.Description)
 
+		mock_models.GenerateResourceKey = func() (string, error) {
+			return test.ServiceIdToSet, nil
+		}
+
 		GenerateUUID = func(internalID string) (string, error) {
 			return internalID, nil
 		}

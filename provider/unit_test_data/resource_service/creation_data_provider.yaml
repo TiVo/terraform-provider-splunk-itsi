@@ -11,6 +11,7 @@
   input_threshold_template:
   expected_service_post_body: |
     {
+      "_key": "service_create_no_option",
       "description": "Terraform unit test",
       "enabled": 0,
       "entity_rules": [ ],
@@ -53,6 +54,7 @@
   input_threshold_template:
   expected_service_post_body: |
     {
+      "_key": "service_create_test_service_depends_on",
       "description":"Terraform unit test",
       "enabled":0,
       "entity_rules":[],
@@ -106,6 +108,7 @@
   input_threshold_template:
   expected_service_post_body: |
     {
+      "_key": "service_create_test_tags",
       "description":"Terraform unit test",
       "enabled":0,
       "entity_rules":[],
@@ -157,6 +160,7 @@
   input_threshold_template:
   expected_service_post_body: |
     {
+      "_key": "service_create_entity_rules",
       "description":"Terraform unit test",
       "enabled":0,
       "entity_rules":[
@@ -366,12 +370,12 @@
               "renderBoundaryMin":0,
               "search":"",
               "thresholdLevels":[
-              
+
               ]
             },
             "policy_type":"stdev",
             "time_blocks":[
-            
+
             ],
             "title":"default_policy"
           }
@@ -383,6 +387,7 @@
     }
   expected_service_post_body: |
     {
+       "_key": "service_test_create_kpis",
        "description":"Terraform unit test",
        "enabled":0,
        "entity_rules":[

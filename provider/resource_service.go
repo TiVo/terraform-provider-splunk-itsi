@@ -5,7 +5,6 @@ import (
 	"context"
 	"crypto/sha1"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -597,15 +596,9 @@ func service(ctx context.Context, d *schema.ResourceData, clientConfig models.Cl
 	if len(serviceTags) > 0 {
 		body["service_tags"] = map[string][]string{"tags": serviceTags}
 	}
-	by, err := json.Marshal(body)
-	if err != nil {
-		return
-	}
-	err = json.Unmarshal(by, &base.RawJson)
-	if err != nil {
-		return nil, err
-	}
-	return base, nil
+
+	err = base.PopulateRawJSON(ctx, body)
+	return base, err
 }
 
 func getKpiHashKey(kpiData map[string]interface{}) (string, error) {
