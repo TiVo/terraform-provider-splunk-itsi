@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
@@ -126,6 +127,11 @@ func ResourceCollectionEntries() *schema.Resource {
 				Optional:    true,
 				Default:     false,
 				Description: "Should the _key field be preserved?",
+			},
+			"instance": {
+				Type:        schema.TypeString,
+				Computed:    true,
+				Description: "Computed instance ID of the resource, used w/ 'generation' to prevent row duplication in a given scope",
 			},
 			"generation": {
 				Type:        schema.TypeInt,
@@ -281,6 +287,7 @@ func collectionEntries(ctx context.Context, d *schema.ResourceData, object_type 
 	c := models.NewCollection(clientConfig, name, name, object_type)
 
 	data := make(map[string]interface{})
+	data["instance"] = d.Get("instance").(string)
 	data["collection_name"] = d.Get("collection_name").(string)
 	data["preserve_keys"] = d.Get("preserve_keys").(bool)
 	data["generation"] = d.Get("generation").(int)
@@ -300,6 +307,8 @@ func collectionEntriesDataBody(ctx context.Context, d *schema.ResourceData, obje
 	c := models.NewCollection(clientConfig, name, name, object_type)
 
 	data := make(map[string]interface{})
+	instance := d.Get("instance").(string)
+	data["instance"] = instance
 	data["collection_name"] = d.Get("collection_name").(string)
 	data["preserve_keys"] = d.Get("preserve_keys").(bool)
 	gen := d.Get("generation").(int)
@@ -313,7 +322,7 @@ func collectionEntriesDataBody(ctx context.Context, d *schema.ResourceData, obje
 	tflog.Trace(ctx, "RSRC COLLECTION:     save", map[string]interface{}{"arr": dataRes})
 	for i, row := range dataRes {
 		rowMap := unpackRow(row.(*schema.Set).List())
-
+		rowMap["_instance"] = instance
 		// Add ordering information so that we can reorders
 		// after rereading from Splunk...s
 		rowMap["_idx"] = fmt.Sprintf("%d", i)
@@ -470,6 +479,16 @@ func collectionApiEntriesSave(ctx context.Context, d *schema.ResourceData, m int
 	// To update entries in a collection, we use...
 	//   storage/collections/data/{collection}/batch_save -- POST (body: <row data>)
 
+	instance := d.Get("instance")
+	if instance == "" {
+		if instance, err = uuid.GenerateUUID(); err != nil {
+			return
+		}
+		if err = d.Set("instance", instance); err != nil {
+			return
+		}
+	}
+
 	// Increment the generation counter...
 	gen := d.Get("generation").(int) + 1
 	if err := d.Set("generation", gen); err != nil {
@@ -501,10 +520,10 @@ func collectionApiEntriesDeleteOldRows(ctx context.Context, d *schema.ResourceDa
 	// To delete entries not matching our keys in a collection, we use...
 	//   storage/collections/data/{collection} -- DELETE
 	api, _ = collectionEntries(ctx, d, "collection_data", m)
-
+	instance := api.Data["instance"].(string)
 	gen := api.Data["generation"].(int)
 	scope := api.Data["scope"].(string)
-	q := fmt.Sprintf("{\"$or\":[{\"_gen\":null},{\"_gen\":{\"$ne\": %d}}]}", gen)
+	q := fmt.Sprintf("{\"$or\":[{\"_instance\":null},{\"_instance\":{\"$ne\": \"%s\"}},{\"_gen\":null},{\"_gen\":{\"$ne\": %d}}]}", instance, gen)
 	q = fmt.Sprintf("{\"$and\":[{\"_scope\":\"%s\"},%s]}", scope, q)
 	api.Params = "query=" + url.QueryEscape(q)
 
