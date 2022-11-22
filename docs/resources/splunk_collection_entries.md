@@ -82,5 +82,6 @@ resource "itsi_splunk_collection_entries" "test_collection_fruits" {
 
 - `generation` (Number) Computed latest generation of changes
 - `id` (String) The ID of this resource.
+- `instance` (String) Computed instance ID of the resource, used w/ 'generation' to prevent row duplication in a given scope
 
 
