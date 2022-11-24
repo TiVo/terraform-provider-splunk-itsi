@@ -3,7 +3,6 @@ package provider
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -101,7 +100,7 @@ func ResourceKPIThresholdTemplate() *schema.Resource {
 	}
 }
 
-func kpiThresholdTemplate(d *schema.ResourceData, clientConfig models.ClientConfig) (config *models.Base, err error) {
+func kpiThresholdTemplate(ctx context.Context, d *schema.ResourceData, clientConfig models.ClientConfig) (config *models.Base, err error) {
 	body := map[string]interface{}{}
 	body["objectType"] = "kpi_threshold_template"
 	body["title"] = d.Get("title").(string)
@@ -127,20 +126,15 @@ func kpiThresholdTemplate(d *schema.ResourceData, clientConfig models.ClientConf
 		timeVariateThresholdsSpecification["policies"] = policies
 	}
 	body["time_variate_thresholds_specification"] = timeVariateThresholdsSpecification
-	by, err := json.Marshal(body)
-	if err != nil {
-		return
-	}
+
 	base := kpiThresholdTemplateBase(clientConfig, d.Id(), d.Get("title").(string))
-	err = json.Unmarshal(by, &base.RawJson)
-	if err != nil {
-		return nil, err
-	}
-	return base, nil
+	err = base.PopulateRawJSON(ctx, body)
+
+	return base, err
 }
 
 func kpiThresholdTemplateCreate(ctx context.Context, d *schema.ResourceData, m interface{}) (diags diag.Diagnostics) {
-	template, err := kpiThresholdTemplate(d, m.(models.ClientConfig))
+	template, err := kpiThresholdTemplate(ctx, d, m.(models.ClientConfig))
 	if err != nil {
 		return diag.FromErr(err)
 	}
@@ -212,7 +206,7 @@ func kpiThresholdTemplateUpdate(ctx context.Context, d *schema.ResourceData, m i
 		return kpiThresholdTemplateCreate(ctx, d, m)
 	}
 
-	template, err := kpiThresholdTemplate(d, clientConfig)
+	template, err := kpiThresholdTemplate(ctx, d, clientConfig)
 	if err != nil {
 		return diag.FromErr(err)
 	}

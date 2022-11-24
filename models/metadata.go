@@ -20,6 +20,7 @@ entity:
     rest_key_field: _key
     tfid_field: title
     max_page_size: 1000
+    generate_key: true
 
 entity_type:
     rest_interface: itoa_interface
@@ -46,6 +47,7 @@ kpi_base_search:
     object_type: kpi_base_search
     rest_key_field: _key
     tfid_field: title
+    generate_key: true
 
 deep_dive:
     rest_interface: itoa_interface
@@ -77,6 +79,7 @@ kpi_threshold_template:
     rest_key_field: _key
     tfid_field: title
     max_page_size: 100
+    generate_key: true
 
 event_management_state:
     rest_interface: itoa_interface

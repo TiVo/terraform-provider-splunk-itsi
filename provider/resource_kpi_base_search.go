@@ -3,7 +3,6 @@ package provider
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -265,7 +264,7 @@ func metric(source map[string]interface{}) interface{} {
 	return m
 }
 
-func kpiBaseSearch(d *schema.ResourceData, clientConfig models.ClientConfig) (config *models.Base, err error) {
+func kpiBaseSearch(ctx context.Context, d *schema.ResourceData, clientConfig models.ClientConfig) (config *models.Base, err error) {
 	body := map[string]interface{}{}
 	body["objectType"] = "kpi_base_search"
 	body["title"] = d.Get("title").(string)
@@ -332,21 +331,15 @@ func kpiBaseSearch(d *schema.ResourceData, clientConfig models.ClientConfig) (co
 	body["sec_grp"] = d.Get("sec_grp").(string)
 	body["source_itsi_da"] = d.Get("source_itsi_da").(string)
 
-	by, err := json.Marshal(body)
-	if err != nil {
-		return
-	}
 	base := kpiBaseSearchBase(clientConfig, d.Id(), d.Get("title").(string))
-	err = json.Unmarshal(by, &base.RawJson)
-	if err != nil {
-		return nil, err
-	}
-	return base, nil
+	err = base.PopulateRawJSON(ctx, body)
+
+	return base, err
 }
 
 func kpiBaseSearchCreate(ctx context.Context, d *schema.ResourceData, m interface{}) (diags diag.Diagnostics) {
 	clientConfig := m.(models.ClientConfig)
-	template, err := kpiBaseSearch(d, clientConfig)
+	template, err := kpiBaseSearch(ctx, d, clientConfig)
 	if err != nil {
 		return diag.FromErr(err)
 	}
@@ -440,7 +433,7 @@ func kpiBaseSearchUpdate(ctx context.Context, d *schema.ResourceData, m interfac
 		return kpiBaseSearchCreate(ctx, d, m)
 	}
 
-	template, err := kpiBaseSearch(d, clientConfig)
+	template, err := kpiBaseSearch(ctx, d, clientConfig)
 	if err != nil {
 		return diag.FromErr(err)
 	}
