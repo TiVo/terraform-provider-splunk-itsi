@@ -3,7 +3,6 @@ package provider
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -92,7 +91,7 @@ func ResourceEntity() *schema.Resource {
 	}
 }
 
-func entity(d *schema.ResourceData, clientConfig models.ClientConfig) (config *models.Base, err error) {
+func entity(ctx context.Context, d *schema.ResourceData, clientConfig models.ClientConfig) (config *models.Base, err error) {
 	body := map[string]interface{}{}
 
 	body["object_type"] = "entity"
@@ -140,20 +139,14 @@ func entity(d *schema.ResourceData, clientConfig models.ClientConfig) (config *m
 	body["informational"] = map[string][]string{"fields": infoFields, "values": infoValues}
 	body["entity_type_ids"] = d.Get("entity_type_ids").(*schema.Set).List()
 
-	by, err := json.Marshal(body)
-	if err != nil {
-		return
-	}
 	base := entityBase(clientConfig, d.Id(), d.Get("title").(string))
-	err = json.Unmarshal(by, &base.RawJson)
-	if err != nil {
-		return nil, err
-	}
-	return base, nil
+	err = base.PopulateRawJSON(ctx, body)
+
+	return base, err
 }
 
 func entityCreate(ctx context.Context, d *schema.ResourceData, m interface{}) (diags diag.Diagnostics) {
-	template, err := entity(d, m.(models.ClientConfig))
+	template, err := entity(ctx, d, m.(models.ClientConfig))
 	tflog.Info(ctx, "ENTITY: create", map[string]interface{}{"TFID": template.TFID, "err": err})
 	if err != nil {
 		return diag.FromErr(err)
@@ -248,7 +241,7 @@ func entityUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) (d
 		return entityCreate(ctx, d, m)
 	}
 
-	template, err := entity(d, clientConfig)
+	template, err := entity(ctx, d, clientConfig)
 	if err != nil {
 		return diag.FromErr(err)
 	}
