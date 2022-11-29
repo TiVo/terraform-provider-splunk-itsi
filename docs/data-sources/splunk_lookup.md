@@ -31,6 +31,9 @@ output "splunk_lookup_data" {
 
 ### Optional
 
+- `is_mv` (Boolean) Multivalue mode. Indicates whether the lookup can return multivalue results. Defaults to `false`.
+- `mv_separator` (String) The separator string to be placed in between multivalue field elements. Defaults to `
+`.
 - `splunk_app` (String) The Splunk app in which the search query should be performed. Defaults to `search`.
 - `splunk_user` (String) The Splunk user in the context of which the search query should be performed. Defaults to `nobody`.
 
