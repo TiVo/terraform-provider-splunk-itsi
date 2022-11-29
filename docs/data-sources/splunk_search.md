@@ -43,14 +43,17 @@ data "itsi_splunk_search" "test_search" {
 
 ### Optional
 
+- `is_mv` (Boolean) Multivalue mode. Indicates whether the search can return multivalue results. Defaults to `false`.
 - `join_fields` (Set of String) A set of strings, represents field names results will be FULL joined by.
+- `mv_separator` (String) The separator string to be placed in between multivalue field elements. Defaults to `
+`.
 - `search_concurrency` (Number) Amount of searches that could be run in parallel per data source. Defaults to `2`.
 - `timeouts` (Block, Optional) (see [below for nested schema](#nestedblock--timeouts))
 
 ### Read-Only
 
 - `id` (String) The ID of this resource.
-- `results` (List of Map of String) Represents search results. Format a list of maps, where field names of the raw result are keys.
+- `results` (List of Map of String) Represents search results. Format is a list of maps, where field names of the raw result are keys.
 
 <a id="nestedblock--search"></a>
 ### Nested Schema for `search`

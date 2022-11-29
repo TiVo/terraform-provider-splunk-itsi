@@ -39,5 +39,5 @@ docs: fmt
 	go generate ./...
 
 local_install: build
-	mkdir -p $(TERRAFORM_PLUGIN_PATH)
+	rm -rf $(TERRAFORM_PLUGIN_PATH) && mkdir -p $(TERRAFORM_PLUGIN_PATH)
 	cp dist/terraform-provider-*/terraform-provider-*  $(TERRAFORM_PLUGIN_PATH)/terraform-provider-splunk-itsi_$(PROVIDER_VERSION)
