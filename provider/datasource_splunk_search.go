@@ -333,15 +333,15 @@ func (sr *SplunkRequest) Search(ctx context.Context, s SplunkSearch) (results []
 		resultRow := make(map[string]splunk.Value)
 		for k, v := range r.Result {
 			values, ismv := v.([]interface{})
-			valuesStr, err := interfaceSliceToStrSlice(values)
-			if err != nil {
-				return nil, append(diags, diag.FromErr(err)...)
-			}
 
 			switch {
 			case ismv && !sr.multivalue:
 				return nil, append(diags, diag.Errorf("Splunk search returned multivalue results, but multivalue mode is disabled.")...)
 			case ismv && sr.multivalue:
+				valuesStr, err := interfaceSliceToStrSlice(values)
+				if err != nil {
+					return nil, append(diags, diag.FromErr(err)...)
+				}
 				resultRow[k] = strings.Join(valuesStr, sr.mvseparator)
 			default:
 				resultRow[k] = v
