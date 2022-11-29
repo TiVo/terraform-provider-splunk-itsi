@@ -82,7 +82,7 @@
   expected_resource_attributes:
     ## .# length of set
     ## .% length of map
-    service_depends_on.0.%: 2
+    service_depends_on.0.%: 3
     ## len(service_depends_on[0][kpis]) == 2
     service_depends_on.0.kpis.#:  2
     service_depends_on.0.kpis.0:  0000-1234
