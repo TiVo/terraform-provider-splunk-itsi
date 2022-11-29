@@ -191,15 +191,6 @@ func unpackResourceList(in []interface{}) (out []string) {
 	return
 }
 
-func unpackResourceMap(in map[string]interface{}) (out map[string]string) {
-	out = make(map[string]string)
-	for k, v := range in {
-		out[k] = v.(string)
-	}
-
-	return
-}
-
 func unpackRow(in []interface{}) (out map[string]interface{}) {
 	out = make(map[string]interface{})
 	for _, f := range in {
@@ -239,7 +230,9 @@ func collection(ctx context.Context, d *schema.ResourceData, object_type string,
 	data := make(map[string]interface{})
 	data["name"] = name
 	if field_types, ok := d.GetOk("field_types"); ok {
-		data["field_types"] = unpackResourceMap(field_types.(map[string]interface{}))
+		if data["field_types"], err = unpackResourceMap[string](field_types.(map[string]interface{})); err != nil {
+			return
+		}
 	} else {
 		data["field_types"] = make(map[string]string)
 	}
@@ -267,7 +260,10 @@ func collectionEntry(ctx context.Context, d *schema.ResourceData, object_type st
 	data["collection"] = collection
 	data["key"] = key
 
-	dataMap := unpackResourceMap(d.Get("data").(map[string]interface{}))
+	dataMap, err := unpackResourceMap[string](d.Get("data").(map[string]interface{}))
+	if err != nil {
+		return
+	}
 	dataMap["_key"] = data["key"].(string)
 	tflog.Trace(ctx, "RSRC COLLECTION:     data", map[string]interface{}{"map": dataMap})
 

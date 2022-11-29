@@ -114,7 +114,7 @@ func ResourceKPIBaseSearch() *schema.Resource {
 					diag := diag.Diagnostic{
 						Severity: diag.Error,
 						Summary:  "wrong query",
-						Detail:   fmt.Sprintf("In KPI base search, the search string shouldn't start with the leading search command"),
+						Detail:   "In KPI base search, the search string shouldn't start with the leading search command",
 					}
 					diags = append(diags, diag)
 					return diags

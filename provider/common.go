@@ -259,3 +259,17 @@ func (rt *resourceTemplate) display(index string, element interface{}, sc *schem
 		panic(fmt.Sprintf("handled type: for field %s, %+v is of type %T", index, element, element))
 	}
 }
+
+func unpackResourceMap[T any](in map[string]interface{}) (map[string]T, error) {
+	out := make(map[string]T)
+	for k, v := range in {
+		res, ok := v.(T)
+
+		if !ok {
+			return nil, fmt.Errorf("failed to unpack %#v to map[string]%T ", in, *new(T))
+		}
+		out[k] = res
+	}
+
+	return out, nil
+}

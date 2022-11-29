@@ -102,7 +102,7 @@ func (ml *KPIBSMetricLookup) lookupMetricTitleByID(ctx context.Context, cc model
 	}
 
 	if title, ok = ml.titleByKpiBsIDandMetricID[ml.lookupKey(kpiBSID, metricID)]; !ok {
-		err = fmt.Errorf("Metric %s not found in KPI Base search %s", metricID, kpiBSID)
+		err = fmt.Errorf("metric %s not found in KPI Base search %s", metricID, kpiBSID)
 	}
 	return
 }
@@ -309,6 +309,14 @@ func ResourceService() *schema.Resource {
 							Description: "A set of _key ids for each KPI in service identified by serviceid, which this service will depend on.",
 							Elem: &schema.Schema{
 								Type: schema.TypeString,
+							},
+						},
+						"overloaded_urgencies": {
+							Type:        schema.TypeMap,
+							Optional:    true,
+							Description: "A map of urgency overriddes for the KPIs this service is depending on.",
+							Elem: &schema.Schema{
+								Type: schema.TypeInt,
 							},
 						},
 					},
@@ -584,7 +592,20 @@ func service(ctx context.Context, d *schema.ResourceData, clientConfig models.Cl
 	itsiServicesDependsOn := []map[string]interface{}{}
 	for _, itsiServiceDependsOn := range d.Get("service_depends_on").(*schema.Set).List() {
 		s := itsiServiceDependsOn.(map[string]interface{})
-		itsiServicesDependsOn = append(itsiServicesDependsOn, map[string]interface{}{"serviceid": s["service"], "kpis_depending_on": s["kpis"].(*schema.Set).List()})
+		dependsOnItem := map[string]interface{}{
+			"serviceid":         s["service"],
+			"kpis_depending_on": s["kpis"].(*schema.Set).List(),
+		}
+
+		overloaded_urgencies, err := unpackResourceMap[int](s["overloaded_urgencies"].(map[string]interface{}))
+		if err != nil {
+			return nil, err
+		}
+		if len(overloaded_urgencies) > 0 {
+			dependsOnItem["overloaded_urgencies"] = overloaded_urgencies
+		}
+
+		itsiServicesDependsOn = append(itsiServicesDependsOn, dependsOnItem)
 	}
 	body["services_depends_on"] = itsiServicesDependsOn
 
@@ -606,7 +627,7 @@ func getKpiHashKey(kpiData map[string]interface{}) (string, error) {
 	baseSearchMetricId := kpiData["base_search_metric"].(string)
 
 	if baseSearchId == "" || baseSearchMetricId == "" {
-		return "", errors.New(fmt.Sprintf("No base search data specified, smt went wrong: %s \n", kpiData))
+		return "", fmt.Errorf("no base search data specified, smt went wrong: %s", kpiData)
 	}
 
 	hash := sha1.New()
@@ -689,7 +710,11 @@ func populateServiceResourceData(ctx context.Context, b *models.Base, d *schema.
 	if _, ok := interfaceMap["services_depends_on"].([]interface{}); ok {
 		for _, itsiServiceDependsOn := range interfaceMap["services_depends_on"].([]interface{}) {
 			s := itsiServiceDependsOn.(map[string]interface{})
-			tfServicesDependsOn = append(tfServicesDependsOn, map[string]interface{}{"service": s["serviceid"], "kpis": s["kpis_depending_on"]})
+			dependsOnItem := map[string]interface{}{"service": s["serviceid"], "kpis": s["kpis_depending_on"]}
+			if overloadedUrgencies, hasOverloadedUrgencies := s["overloaded_urgencies"]; hasOverloadedUrgencies {
+				dependsOnItem["overloaded_urgencies"] = overloadedUrgencies
+			}
+			tfServicesDependsOn = append(tfServicesDependsOn, dependsOnItem)
 		}
 		if err = d.Set("service_depends_on", tfServicesDependsOn); err != nil {
 			return diag.FromErr(err)
