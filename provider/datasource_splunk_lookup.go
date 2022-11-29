@@ -38,6 +38,18 @@ func DatasourceSplunkLookup() *schema.Resource {
 				},
 				Description: "Lookup data.",
 			},
+			"is_mv": {
+				Type:        schema.TypeBool,
+				Optional:    true,
+				Default:     false,
+				Description: "Multivalue mode. Indicates whether the lookup can return multivalue results.",
+			},
+			"mv_separator": {
+				Type:        schema.TypeString,
+				Optional:    true,
+				Default:     "\n",
+				Description: "The separator string to be placed in between multivalue field elements.",
+			},
 		},
 	}
 }
@@ -56,7 +68,7 @@ func splunkLookupRead(ctx context.Context, d *schema.ResourceData, meta interfac
 		},
 	}
 
-	req := NewSplunkRequest(client, searches, 1, nil)
+	req := NewSplunkRequest(client, searches, 1, nil, d.Get("is_mv").(bool), d.Get("mv_separator").(string))
 	results, diags := req.Run(ctx)
 	d.SetId(req.ID())
 	err := d.Set("data", results)

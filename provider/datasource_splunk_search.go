@@ -59,7 +59,7 @@ func DatasourceSplunkSearch() *schema.Resource {
 								diag := diag.Diagnostic{
 									Severity: diag.Error,
 									Summary:  "wrong query",
-									Detail:   fmt.Sprintf("The query must start either with 'search' or '|'."),
+									Detail:   "The query must start either with 'search' or '|'.",
 								}
 								diags = append(diags, diag)
 								return diags
@@ -104,6 +104,18 @@ func DatasourceSplunkSearch() *schema.Resource {
 					},
 				},
 			},
+			"is_mv": {
+				Type:        schema.TypeBool,
+				Optional:    true,
+				Default:     false,
+				Description: "Multivalue mode. Indicates whether the search can return multivalue results.",
+			},
+			"mv_separator": {
+				Type:        schema.TypeString,
+				Optional:    true,
+				Default:     "\n",
+				Description: "The separator string to be placed in between multivalue field elements.",
+			},
 			"join_fields": {
 				Type:        schema.TypeSet,
 				Optional:    true,
@@ -125,7 +137,7 @@ func DatasourceSplunkSearch() *schema.Resource {
 				Elem: &schema.Schema{
 					Type: schema.TypeMap,
 				},
-				Description: "Represents search results. Format a list of maps, where field names of the raw result are keys.",
+				Description: "Represents search results. Format is a list of maps, where field names of the raw result are keys.",
 			},
 		},
 	}
@@ -133,7 +145,7 @@ func DatasourceSplunkSearch() *schema.Resource {
 
 func splunkSearchRead(ctx context.Context, d *schema.ResourceData, meta interface{}) (diags diag.Diagnostics) {
 	client := meta.(models.ClientConfig)
-
+	ismv := d.Get("is_mv").(bool)
 	searches := []SplunkSearch{}
 	for _, e := range d.Get("search").(*schema.Set).List() {
 		s := e.(map[string]interface{})
@@ -153,13 +165,13 @@ func splunkSearchRead(ctx context.Context, d *schema.ResourceData, meta interfac
 		joinFields = append(joinFields, f.(string))
 	}
 	sort.Strings(joinFields)
-	req := NewSplunkRequest(client, searches, d.Get("search_concurrency").(int), joinFields)
+	req := NewSplunkRequest(client, searches, d.Get("search_concurrency").(int), joinFields, ismv, d.Get("mv_separator").(string))
 
 	results, diags := req.Run(ctx)
 	d.SetId(req.ID())
 	err := d.Set("results", results)
 	if err != nil {
-		diags = append(diags, diag.Errorf("%s", err)...)
+		diags = append(diags, diag.FromErr(err)...)
 	}
 	return
 }
@@ -180,16 +192,17 @@ type SplunkSearchResults struct {
 }
 
 type SplunkRequest struct {
-	client     models.ClientConfig
-	searches   []SplunkSearch
-	joinFields []string
-
-	limiter *util.Limiter
+	client      models.ClientConfig
+	searches    []SplunkSearch
+	joinFields  []string
+	multivalue  bool
+	mvseparator string
+	limiter     *util.Limiter
 }
 
-func NewSplunkRequest(client models.ClientConfig, searches []SplunkSearch, concurrency int, joinFields []string) *SplunkRequest {
+func NewSplunkRequest(client models.ClientConfig, searches []SplunkSearch, concurrency int, joinFields []string, ismv bool, mvseparator string) *SplunkRequest {
 	limiter := util.NewLimiter(concurrency)
-	return &SplunkRequest{client, searches, joinFields, limiter}
+	return &SplunkRequest{client, searches, joinFields, ismv, mvseparator, limiter}
 }
 
 func (sr *SplunkRequest) Run(ctx context.Context) (results []map[string]splunk.Value, diags diag.Diagnostics) {
@@ -313,15 +326,44 @@ func (sr *SplunkRequest) Search(ctx context.Context, s SplunkSearch) (results []
 		} else {
 			return nil, append(diags, diag.Errorf("Splunk search returned incomplete results.")...)
 		}
-
 	}
 
 	results = make([]map[string]splunk.Value, len(rows))
 	for i, r := range rows {
-		results[i] = r.Result
+		resultRow := make(map[string]splunk.Value)
+		for k, v := range r.Result {
+			values, ismv := v.([]interface{})
+			valuesStr, err := interfaceSliceToStrSlice(values)
+			if err != nil {
+				return nil, append(diags, diag.FromErr(err)...)
+			}
+
+			switch {
+			case ismv && !sr.multivalue:
+				return nil, append(diags, diag.Errorf("Splunk search returned multivalue results, but multivalue mode is disabled.")...)
+			case ismv && sr.multivalue:
+				resultRow[k] = strings.Join(valuesStr, sr.mvseparator)
+			default:
+				resultRow[k] = v
+			}
+		}
+
+		results[i] = resultRow
 	}
 
 	return
+}
+
+func interfaceSliceToStrSlice(values []interface{}) ([]string, error) {
+	results := make([]string, len(values))
+	for i, v := range values {
+		str, ok := v.(string)
+		if !ok {
+			return nil, fmt.Errorf("failed to convert interface{} to string")
+		}
+		results[i] = str
+	}
+	return results, nil
 }
 
 func (sr *SplunkRequest) ID() string {
