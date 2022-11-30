@@ -273,3 +273,15 @@ func unpackResourceMap[T any](in map[string]interface{}) (map[string]T, error) {
 
 	return out, nil
 }
+
+func unpackResourceList[T any](in []interface{}) ([]T, error) {
+	out := make([]T, 0, len(in))
+	for _, v := range in {
+		res, ok := v.(T)
+		if !ok {
+			return nil, fmt.Errorf("failed to unpack %#v to []%T ", in, *new(T))
+		}
+		out = append(out, res)
+	}
+	return out, nil
+}

@@ -183,14 +183,6 @@ func warnf(summary string) diag.Diagnostic {
 	return diag.Diagnostic{Severity: diag.Warning, Summary: summary}
 }
 
-func unpackResourceList(in []interface{}) (out []string) {
-	out = make([]string, 0, len(in))
-	for _, e := range in {
-		out = append(out, e.(string))
-	}
-	return
-}
-
 func unpackRow(in []interface{}) (out map[string]interface{}) {
 	out = make(map[string]interface{})
 	for _, f := range in {
@@ -237,7 +229,9 @@ func collection(ctx context.Context, d *schema.ResourceData, object_type string,
 		data["field_types"] = make(map[string]string)
 	}
 	if accelerations, ok := d.GetOk("accelerations"); ok {
-		data["accelerations"] = unpackResourceList(accelerations.([]interface{}))
+		if data["accelerations"], err = unpackResourceList[string](accelerations.([]interface{})); err != nil {
+			return
+		}
 	} else {
 		data["accelerations"] = []string{}
 	}

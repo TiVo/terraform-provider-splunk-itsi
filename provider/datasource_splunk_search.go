@@ -338,7 +338,7 @@ func (sr *SplunkRequest) Search(ctx context.Context, s SplunkSearch) (results []
 			case ismv && !sr.multivalue:
 				return nil, append(diags, diag.Errorf("Splunk search returned multivalue results, but multivalue mode is disabled.")...)
 			case ismv && sr.multivalue:
-				valuesStr, err := interfaceSliceToStrSlice(values)
+				valuesStr, err := unpackResourceList[string](values)
 				if err != nil {
 					return nil, append(diags, diag.FromErr(err)...)
 				}
@@ -352,18 +352,6 @@ func (sr *SplunkRequest) Search(ctx context.Context, s SplunkSearch) (results []
 	}
 
 	return
-}
-
-func interfaceSliceToStrSlice(values []interface{}) ([]string, error) {
-	results := make([]string, len(values))
-	for i, v := range values {
-		str, ok := v.(string)
-		if !ok {
-			return nil, fmt.Errorf("failed to convert interface{} to string")
-		}
-		results[i] = str
-	}
-	return results, nil
 }
 
 func (sr *SplunkRequest) ID() string {

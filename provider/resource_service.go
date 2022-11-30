@@ -592,9 +592,17 @@ func service(ctx context.Context, d *schema.ResourceData, clientConfig models.Cl
 	itsiServicesDependsOn := []map[string]interface{}{}
 	for _, itsiServiceDependsOn := range d.Get("service_depends_on").(*schema.Set).List() {
 		s := itsiServiceDependsOn.(map[string]interface{})
+		dependsOnKPIs := s["kpis"].(*schema.Set).List()
+
+		//Bandaid for the terraform SDK glitch
+		//when d.Get("service_depends_on") might contain an unexpected empty element
+		if len(dependsOnKPIs) == 0 {
+			continue
+		}
+
 		dependsOnItem := map[string]interface{}{
 			"serviceid":         s["service"],
-			"kpis_depending_on": s["kpis"].(*schema.Set).List(),
+			"kpis_depending_on": dependsOnKPIs,
 		}
 
 		overloaded_urgencies, err := unpackResourceMap[int](s["overloaded_urgencies"].(map[string]interface{}))
