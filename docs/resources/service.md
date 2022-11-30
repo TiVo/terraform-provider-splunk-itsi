@@ -235,6 +235,10 @@ Required:
 - `kpis` (Set of String) A set of _key ids for each KPI in service identified by serviceid, which this service will depend on.
 - `service` (String) _key value of service that this service depends on.
 
+Optional:
+
+- `overloaded_urgencies` (Map of Number) A map of urgency overriddes for the KPIs this service is depending on.
+
 ## Import
 
 Import is supported using the following syntax:
