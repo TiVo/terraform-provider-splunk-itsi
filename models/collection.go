@@ -405,16 +405,6 @@ func (c *CollectionApi) GetAcl(ctx context.Context) (*ACLObject, error) {
 		return nil, fmt.Errorf("ACLResponse has %d entries, expected exactly 1", len(aclResponse.Entry))
 	}
 	return &aclResponse.Entry[0].Content, nil
-	// err = d.Set("acl", flattenACL())
-	// if err != nil {
-	// 	return err
-	// }
-	// resp, err := client.Get(endpoint)
-	// if err != nil {
-	// 	return nil, fmt.Errorf("GET failed for endpoint %s: %s", endpoint.Path, err)
-	// }
-
-	// return resp, nil
 }
 
 func (c *CollectionApi) UpdateAcl(ctx context.Context, acl *ACLObject) error {
@@ -429,7 +419,6 @@ func (c *CollectionApi) UpdateAcl(ctx context.Context, acl *ACLObject) error {
 	// Flatten []string
 	values.Set("perms.read", strings.Join(acl.Perms.Read, ","))
 	values.Set("perms.write", strings.Join(acl.Perms.Write, ","))
-	// Adding resources
 	_, _, err = c.requestWithRetry(ctx, http.MethodGet, path.Join(c.url(), "acl"), []byte(values.Encode()))
 	return err
 }
