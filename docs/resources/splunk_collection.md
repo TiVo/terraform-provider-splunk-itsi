@@ -33,11 +33,29 @@ resource "itsi_splunk_collection" "test_collection" {
 ### Optional
 
 - `accelerations` (List of String) Field acceleration information (see Splunk docs for accelerated_fields in collections.conf)
+- `acl` (Block List, Max: 1) (see [below for nested schema](#nestedblock--acl))
+- `app` (String) App the collection belongs to Defaults to `itsi`.
 - `field_types` (Map of String) Field type information
+- `owner` (String) Owner of the collection Defaults to `nobody`.
 
 ### Read-Only
 
 - `id` (String) The ID of this resource.
+
+<a id="nestedblock--acl"></a>
+### Nested Schema for `acl`
+
+Optional:
+
+- `can_change_perms` (Boolean) Indicates if the active user can change permissions for this object. Defaults to true.
+- `can_share_app` (Boolean) Indicates if the active user can change sharing to app level. Defaults to true.
+- `can_share_global` (Boolean) Indicates if the active user can change sharing to system level. Defaults to true.
+- `can_share_user` (Boolean) Indicates if the active user can change sharing to user level. Defaults to true.
+- `can_write` (Boolean) Indicates if the active user can edit this object. Defaults to true.
+- `read` (List of String) Properties that indicate resource read permissions.
+- `removable` (Boolean) Indicates whether an admin or user with sufficient permissions can delete the entity.
+- `sharing` (String) Indicates how the resource is shared. Required for updating any knowledge object ACL properties.app: Shared within a specific appglobal: (Default) Shared globally to all apps.user: Private to a user
+- `write` (List of String) Properties that indicate write permissions of the resource.
 
 ## Import
 
