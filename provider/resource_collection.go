@@ -47,6 +47,20 @@ func ResourceCollection() *schema.Resource {
 				Description:  "Name of the collection",
 				ValidateFunc: validateStringIdentifier(),
 			},
+			"app": {
+				Type:         schema.TypeString,
+				Optional:     true,
+				Default:      "itsi",
+				Description:  "App the collection belongs to",
+				ValidateFunc: validateStringIdentifier(),
+			},
+			"owner": {
+				Type:         schema.TypeString,
+				Optional:     true,
+				Default:      "nobody",
+				Description:  "Owner of the collection",
+				ValidateFunc: validateStringIdentifier(),
+			},
 			"field_types": {
 				Type:     schema.TypeMap,
 				Optional: true,
@@ -67,6 +81,7 @@ func ResourceCollection() *schema.Resource {
 				},
 				Description: "Field acceleration information (see Splunk docs for accelerated_fields in collections.conf)",
 			},
+			"acl": aclSchema(),
 		},
 	}
 }
@@ -86,6 +101,20 @@ func ResourceCollectionEntry() *schema.Resource {
 				Type:         schema.TypeString,
 				Required:     true,
 				Description:  "Name of the collection containing this entry",
+				ValidateFunc: validateStringIdentifier(),
+			},
+			"collection_app": {
+				Type:         schema.TypeString,
+				Optional:     true,
+				Default:      "itsi",
+				Description:  "App the collection belongs to",
+				ValidateFunc: validateStringIdentifier(),
+			},
+			"collection_owner": {
+				Type:         schema.TypeString,
+				Optional:     true,
+				Default:      "nobody",
+				Description:  "Owner of the collection",
 				ValidateFunc: validateStringIdentifier(),
 			},
 			"key": {
@@ -120,6 +149,20 @@ func ResourceCollectionEntries() *schema.Resource {
 				Type:         schema.TypeString,
 				Required:     true,
 				Description:  "Name of the collection containing this entry",
+				ValidateFunc: validateStringIdentifier(),
+			},
+			"collection_app": {
+				Type:         schema.TypeString,
+				Optional:     true,
+				Default:      "itsi",
+				Description:  "App the collection belongs to",
+				ValidateFunc: validateStringIdentifier(),
+			},
+			"collection_owner": {
+				Type:         schema.TypeString,
+				Optional:     true,
+				Default:      "nobody",
+				Description:  "Owner of the collection",
 				ValidateFunc: validateStringIdentifier(),
 			},
 			"preserve_keys": {
@@ -203,13 +246,25 @@ func unpackRow(in []interface{}) (out map[string]interface{}) {
 // ----------------------------------------------------------------------
 
 func getCollectionName(d *schema.ResourceData) string {
-	if name, ok := d.GetOk("name"); ok {
-		return name.(string)
+	return getCollectionField(d, "name")
+}
+
+func getCollectionApp(d *schema.ResourceData) string {
+	return getCollectionField(d, "app")
+}
+
+func getCollectionOwner(d *schema.ResourceData) string {
+	return getCollectionField(d, "owner")
+}
+
+func getCollectionField(d *schema.ResourceData, field string) string {
+	if v, ok := d.GetOk(field); ok {
+		return v.(string)
 	}
-	if name, ok := d.GetOk("collection_name"); ok {
-		return name.(string)
+	if v, ok := d.GetOk(fmt.Sprintf("collection_%s", field)); ok {
+		return v.(string)
 	}
-	panic("could not find collection name in resource")
+	panic(fmt.Sprintf("could not find collection %s in resource", field))
 }
 
 // Create a "collection API model" that can help us query APIs,
@@ -217,7 +272,9 @@ func getCollectionName(d *schema.ResourceData) string {
 func collection(ctx context.Context, d *schema.ResourceData, object_type string, m interface{}) (config *models.CollectionApi, err error) {
 	clientConfig := m.(models.ClientConfig)
 	name := getCollectionName(d)
-	c := models.NewCollection(clientConfig, name, name, object_type)
+	app := getCollectionName(d)
+	owner := getCollectionName(d)
+	c := models.NewCollection(clientConfig, name, app, owner, name, object_type)
 
 	data := make(map[string]interface{})
 	data["name"] = name
@@ -247,8 +304,10 @@ func collection(ctx context.Context, d *schema.ResourceData, object_type string,
 func collectionEntry(ctx context.Context, d *schema.ResourceData, object_type string, m interface{}) (config *models.CollectionApi, err error) {
 	clientConfig := m.(models.ClientConfig)
 	collection := d.Get("collection_name").(string)
+	app := getCollectionName(d)
+	owner := getCollectionName(d)
 	key := d.Get("key").(string)
-	c := models.NewCollection(clientConfig, collection, key, object_type)
+	c := models.NewCollection(clientConfig, collection, app, owner, key, object_type)
 
 	data := make(map[string]interface{})
 	data["collection"] = collection
@@ -274,7 +333,9 @@ func collectionEntry(ctx context.Context, d *schema.ResourceData, object_type st
 func collectionEntries(ctx context.Context, d *schema.ResourceData, object_type string, m interface{}) (config *models.CollectionApi, err error) {
 	clientConfig := m.(models.ClientConfig)
 	name := d.Get("collection_name").(string)
-	c := models.NewCollection(clientConfig, name, name, object_type)
+	app := getCollectionName(d)
+	owner := getCollectionName(d)
+	c := models.NewCollection(clientConfig, name, app, owner, name, object_type)
 
 	data := make(map[string]interface{})
 	data["instance"] = d.Get("instance").(string)
@@ -294,7 +355,9 @@ func collectionEntries(ctx context.Context, d *schema.ResourceData, object_type 
 func collectionEntriesDataBody(ctx context.Context, d *schema.ResourceData, object_type string, m interface{}) (config *models.CollectionApi, err error) {
 	clientConfig := m.(models.ClientConfig)
 	name := d.Get("collection_name").(string)
-	c := models.NewCollection(clientConfig, name, name, object_type)
+	app := getCollectionName(d)
+	owner := getCollectionName(d)
+	c := models.NewCollection(clientConfig, name, app, owner, name, object_type)
 
 	data := make(map[string]interface{})
 	instance := d.Get("instance").(string)
@@ -361,7 +424,19 @@ func collectionApiCreate(ctx context.Context, d *schema.ResourceData, m interfac
 	body.Set("name", api.RESTKey)
 	api.Body = []byte(body.Encode())
 
-	return api.Create(ctx)
+	api, err = api.Create(ctx)
+	if err != nil {
+		return api, err
+	}
+	aclObject := &models.ACLObject{
+		App:   api.App,
+		Owner: api.Owner,
+	}
+	if r, ok := d.GetOk("acl"); ok {
+		aclObject = getACLConfig(r.([]interface{}))
+	}
+	err = api.UpdateAcl(ctx, aclObject)
+	return api, err
 }
 
 func collectionApiRead(ctx context.Context, d *schema.ResourceData, m interface{}) (api *models.CollectionApi, err error) {
@@ -388,7 +463,19 @@ func collectionApiUpdate(ctx context.Context, d *schema.ResourceData, m interfac
 	}
 	api.Params = strings.Join(qft, "&") + "&" + strings.Join(qaf, "&")
 
-	return api.Update(ctx)
+	api, err = api.Update(ctx)
+	if err != nil {
+		return api, err
+	}
+	aclObject := &models.ACLObject{
+		App:   api.App,
+		Owner: api.Owner,
+	}
+	if r, ok := d.GetOk("acl"); ok {
+		aclObject = getACLConfig(r.([]interface{}))
+	}
+	err = api.UpdateAcl(ctx, aclObject)
+	return api, err
 }
 
 func collectionApiDelete(ctx context.Context, d *schema.ResourceData, m interface{}) (api *models.CollectionApi, err error) {
@@ -526,7 +613,6 @@ func collectionApiEntriesDeleteOldRows(ctx context.Context, d *schema.ResourceDa
 
 func collectionCreate(ctx context.Context, d *schema.ResourceData, m interface{}) (diags diag.Diagnostics) {
 	tflog.Info(ctx, "RSRC COLLECTION: CREATE", map[string]interface{}{"d": fmt.Sprintf("%+v", d)})
-
 	existing, err := collectionApiExists(ctx, d, m)
 	if err != nil {
 		diags = append(diags, warnf("Unable to check existence of collection: "+err.Error()))
@@ -558,6 +644,15 @@ func collectionCreate(ctx context.Context, d *schema.ResourceData, m interface{}
 	}
 	if err := populateCollectionResourceData(ctx, c, d); err != nil {
 		diags = append(diags, warnf("Unable to populate resource: "+err.Error()))
+		return
+	}
+	aclObject, err := c.GetAcl(ctx)
+	if err != nil {
+		diags = append(diags, warnf("Unable to get acl: "+err.Error()))
+		return
+	}
+	if err := d.Set("acl", flattenACL(aclObject)); err != nil {
+		diags = append(diags, warnf("Unable to populate acl: "+err.Error()))
 	}
 	return
 }
@@ -576,6 +671,16 @@ func collectionRead(ctx context.Context, d *schema.ResourceData, m interface{}) 
 	}
 	if err := populateCollectionResourceData(ctx, c, d); err != nil {
 		diags = append(diags, errorf("Unable to populate resource: "+err.Error()))
+		return
+	}
+
+	aclObject, err := c.GetAcl(ctx)
+	if err != nil {
+		diags = append(diags, warnf("Unable to get acl: "+err.Error()))
+		return
+	}
+	if err := d.Set("acl", flattenACL(aclObject)); err != nil {
+		diags = append(diags, warnf("Unable to populate acl: "+err.Error()))
 	}
 	return
 }
@@ -614,6 +719,15 @@ func collectionUpdate(ctx context.Context, d *schema.ResourceData, m interface{}
 	}
 	if err := populateCollectionResourceData(ctx, c, d); err != nil {
 		diags = append(diags, warnf("Unable to populate resource: "+err.Error()))
+		return
+	}
+	aclObject, err := c.GetAcl(ctx)
+	if err != nil {
+		diags = append(diags, warnf("Unable to get acl: "+err.Error()))
+		return
+	}
+	if err := d.Set("acl", flattenACL(aclObject)); err != nil {
+		diags = append(diags, warnf("Unable to populate acl: "+err.Error()))
 	}
 	return
 }

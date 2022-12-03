@@ -6,6 +6,7 @@ require (
 	github.com/akamensky/argparse v1.4.0
 	github.com/aws/aws-sdk-go-v2/config v1.18.3
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.33.1
+	github.com/google/go-querystring v1.1.0
 	github.com/hashicorp/go-cty v1.4.1-0.20200414143053-d3edf31b6320
 	github.com/hashicorp/go-uuid v1.0.3
 	github.com/hashicorp/golang-lru v0.5.5-0.20210104140557-80c98217689d

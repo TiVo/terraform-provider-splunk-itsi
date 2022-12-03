@@ -12,7 +12,11 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"path"
+	"strings"
 	"time"
+
+	"github.com/google/go-querystring/query"
 
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/lestrrat-go/backoff/v2"
@@ -117,12 +121,14 @@ type CollectionApi struct {
 
 	RESTKey    string                 // key used to collect this resource via the REST API
 	Collection string                 // Collection name
+	App        string                 // Collection App
+	Owner      string                 // Collection owner
 	Data       map[string]interface{} // Data for this object
 	Params     string                 // URL query string, iff provided
 	Body       []byte                 // Body used for this API call
 }
 
-func NewCollection(clientConfig ClientConfig, collection, key, objectType string) *CollectionApi {
+func NewCollection(clientConfig ClientConfig, collection, app, owner, key, objectType string) *CollectionApi {
 	if _, ok := CollectionApiConfigs[objectType]; !ok {
 		panic(fmt.Sprintf("invalid objectype %s!", objectType))
 	}
@@ -131,6 +137,8 @@ func NewCollection(clientConfig ClientConfig, collection, key, objectType string
 		apiConfig:  CollectionApiConfigs[objectType],
 		RESTKey:    key,
 		Collection: collection,
+		App:        app,
+		Owner:      owner,
 	}
 	if c.apiConfig.BodyFormat == "" {
 		c.apiConfig.BodyFormat = "JSON"
@@ -139,8 +147,8 @@ func NewCollection(clientConfig ClientConfig, collection, key, objectType string
 }
 
 func (c *CollectionApi) url() (u string) {
-	const f = "https://%[1]s:%[2]d/servicesNS/nobody/itsi/%[3]s"
-	u = fmt.Sprintf(f, c.splunk.Host, c.splunk.Port, c.apiConfig.Path)
+	const f = "https://%[1]s:%[2]d/servicesNS/%[3]s/%[4]s/%[5]s"
+	u = fmt.Sprintf(f, c.splunk.Host, c.splunk.Port, c.Owner, c.App, c.apiConfig.Path)
 	if c.apiConfig.ApiCollectionKeyInUrl {
 		u = fmt.Sprintf("%[1]s/%[2]s", u, c.Collection)
 	}
@@ -378,4 +386,50 @@ func (c *CollectionApi) Unmarshal(bytes []byte) (res interface{}, err error) {
 		err = fmt.Errorf("unknown REST body format")
 	}
 	return
+}
+
+// https://docs.splunk.com/Documentation/Splunk/8.0.4/RESTUM/RESTusing#Access_Control_List
+func (c *CollectionApi) GetAcl(ctx context.Context) (*ACLObject, error) {
+	_, b, err := c.requestWithRetry(ctx, http.MethodGet, path.Join(c.url(), "acl"), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	aclResponse := &ACLResponse{}
+	err = json.Unmarshal(b, aclResponse)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(aclResponse.Entry) != 1 {
+		return nil, fmt.Errorf("ACLResponse has %d entries, expected exactly 1", len(aclResponse.Entry))
+	}
+	return &aclResponse.Entry[0].Content, nil
+	// err = d.Set("acl", flattenACL())
+	// if err != nil {
+	// 	return err
+	// }
+	// resp, err := client.Get(endpoint)
+	// if err != nil {
+	// 	return nil, fmt.Errorf("GET failed for endpoint %s: %s", endpoint.Path, err)
+	// }
+
+	// return resp, nil
+}
+
+func (c *CollectionApi) UpdateAcl(ctx context.Context, acl *ACLObject) error {
+	values, err := query.Values(&acl)
+	if err != nil {
+		return err
+	}
+	// remove app from url values during POST
+	values.Del("app")
+	values.Del("perms[read]")
+	values.Del("perms[write]")
+	// Flatten []string
+	values.Set("perms.read", strings.Join(acl.Perms.Read, ","))
+	values.Set("perms.write", strings.Join(acl.Perms.Write, ","))
+	// Adding resources
+	_, _, err = c.requestWithRetry(ctx, http.MethodGet, path.Join(c.url(), "acl"), []byte(values.Encode()))
+	return err
 }
