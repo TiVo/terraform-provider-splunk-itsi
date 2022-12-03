@@ -272,8 +272,8 @@ func getCollectionField(d *schema.ResourceData, field string) string {
 func collection(ctx context.Context, d *schema.ResourceData, object_type string, m interface{}) (config *models.CollectionApi, err error) {
 	clientConfig := m.(models.ClientConfig)
 	name := getCollectionName(d)
-	app := getCollectionName(d)
-	owner := getCollectionName(d)
+	app := getCollectionApp(d)
+	owner := getCollectionOwner(d)
 	c := models.NewCollection(clientConfig, name, app, owner, name, object_type)
 
 	data := make(map[string]interface{})
@@ -424,19 +424,7 @@ func collectionApiCreate(ctx context.Context, d *schema.ResourceData, m interfac
 	body.Set("name", api.RESTKey)
 	api.Body = []byte(body.Encode())
 
-	api, err = api.Create(ctx)
-	if err != nil {
-		return api, err
-	}
-	aclObject := &models.ACLObject{
-		App:   api.App,
-		Owner: api.Owner,
-	}
-	if r, ok := d.GetOk("acl"); ok {
-		aclObject = getACLConfig(r.([]interface{}))
-	}
-	err = api.UpdateAcl(ctx, aclObject)
-	return api, err
+	return api.Create(ctx)
 }
 
 func collectionApiRead(ctx context.Context, d *schema.ResourceData, m interface{}) (api *models.CollectionApi, err error) {
@@ -468,11 +456,12 @@ func collectionApiUpdate(ctx context.Context, d *schema.ResourceData, m interfac
 		return api, err
 	}
 	aclObject := &models.ACLObject{
-		App:   api.App,
-		Owner: api.Owner,
+		App:     api.App,
+		Owner:   api.Owner,
+		Sharing: "app",
 	}
 	if r, ok := d.GetOk("acl"); ok {
-		aclObject = getACLConfig(r.([]interface{}))
+		getACLConfig(aclObject, r.([]interface{}))
 	}
 	err = api.UpdateAcl(ctx, aclObject)
 	return api, err

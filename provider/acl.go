@@ -98,8 +98,7 @@ func aclSchema() *schema.Schema {
 	}
 }
 
-func getACLConfig(r []interface{}) (acl *models.ACLObject) {
-	acl = &models.ACLObject{}
+func getACLConfig(acl *models.ACLObject, r []interface{}) *models.ACLObject {
 	for _, v := range r {
 		a := v.(map[string]interface{})
 

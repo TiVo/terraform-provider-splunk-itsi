@@ -12,7 +12,6 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
-	"path"
 	"strings"
 	"time"
 
@@ -161,6 +160,22 @@ func (c *CollectionApi) url() (u string) {
 	if c.Params != "" {
 		u = u + "?" + c.Params
 	}
+	return
+}
+
+func (c *CollectionApi) aclUrl() (u string) {
+	const f = "https://%[1]s:%[2]d/servicesNS/%[3]s/%[4]s/%[5]s"
+	u = fmt.Sprintf(f, c.splunk.Host, c.splunk.Port, c.Owner, c.App, c.apiConfig.Path)
+	if c.apiConfig.ApiCollectionKeyInUrl {
+		u = fmt.Sprintf("%[1]s/%[2]s", u, c.Collection)
+	}
+	if c.apiConfig.ApiKeyInUrl {
+		u = fmt.Sprintf("%[1]s/%[2]s", u, c.RESTKey)
+	}
+	if c.apiConfig.PathExtension != "" {
+		u = u + "/" + c.apiConfig.PathExtension
+	}
+	u = fmt.Sprintf("%[1]s/acl", u)
 	return
 }
 
@@ -390,7 +405,7 @@ func (c *CollectionApi) Unmarshal(bytes []byte) (res interface{}, err error) {
 
 // https://docs.splunk.com/Documentation/Splunk/8.0.4/RESTUM/RESTusing#Access_Control_List
 func (c *CollectionApi) GetAcl(ctx context.Context) (*ACLObject, error) {
-	_, b, err := c.requestWithRetry(ctx, http.MethodGet, path.Join(c.url(), "acl"), nil)
+	_, b, err := c.requestWithRetry(ctx, http.MethodGet, c.aclUrl(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -419,6 +434,6 @@ func (c *CollectionApi) UpdateAcl(ctx context.Context, acl *ACLObject) error {
 	// Flatten []string
 	values.Set("perms.read", strings.Join(acl.Perms.Read, ","))
 	values.Set("perms.write", strings.Join(acl.Perms.Write, ","))
-	_, _, err = c.requestWithRetry(ctx, http.MethodGet, path.Join(c.url(), "acl"), []byte(values.Encode()))
+	_, _, err = c.requestWithRetry(ctx, http.MethodPost, c.aclUrl(), []byte(values.Encode()))
 	return err
 }
