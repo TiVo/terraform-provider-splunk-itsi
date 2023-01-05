@@ -265,7 +265,7 @@ Required:
 - `entity_thresholds` (Block Set, Min: 1) User-defined thresholding levels for "Per Entity" threshold type. For more information, see KPI Threshold Setting. (see [below for nested schema](#nestedblock--time_variate_thresholds_specification--policies--entity_thresholds))
 - `policy_name` (String) Internal key value for policy.
 - `policy_type` (String) The algorithm, specified for the current policy threshold level evaluation.
-									   Supported values: static, stdev (standard deviation), quantile and range.
+									   Supported values: static, stdev (standard deviation), quantile, range and percentile.
 - `title` (String) The policy title, displayed to the user in the UI. Should be unique per policies object.
 
 Optional:
