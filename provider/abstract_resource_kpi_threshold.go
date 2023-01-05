@@ -80,7 +80,7 @@ func getKpiThresholdPolicySchema() map[string]*schema.Schema {
 						Required: true,
 						Description: `The algorithm, specified for the current policy threshold level evaluation.
 									   Supported values: static, stdev (standard deviation), quantile, range and percentile.`,
-						ValidateFunc: validation.StringInSlice([]string{"static", "stdev", "quantile", "range", "percentile"}, false),
+						ValidateFunc: validation.StringInSlice([]string{"static", "stdev", "quantile", "range", "percentage"}, false),
 					},
 					"time_blocks": {
 						Type:        schema.TypeSet,
