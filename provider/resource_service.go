@@ -278,6 +278,13 @@ func ResourceService() *schema.Resource {
 				Default:     false,
 				Description: "Boolean value defining whether the service should be enabled.",
 			},
+			"is_healthscore_calculate_by_entity_enabled": {
+				Type:     schema.TypeBool,
+				Optional: true,
+				Default:  true,
+				Description: `Set the Service Heath Score calculation to account for the severity levels of individual entities
+				               if at least one KPI is split by entity.`,
+			},
 			"security_group": {
 				Type:        schema.TypeString,
 				Optional:    true,
@@ -354,6 +361,12 @@ func service(ctx context.Context, d *schema.ResourceData, clientConfig models.Cl
 	body["object_type"] = "service"
 	body["title"] = d.Get("title").(string)
 	body["description"] = d.Get("description").(string)
+	isHealthscoreCalculateByEntityEnabled := d.Get("is_healthscore_calculate_by_entity_enabled").(bool)
+	if isHealthscoreCalculateByEntityEnabled {
+		body["is_healthscore_calculate_by_entity_enabled"] = 1
+	} else {
+		body["is_healthscore_calculate_by_entity_enabled"] = 0
+	}
 	body["enabled"] = func() int {
 		if d.Get("enabled").(bool) {
 			return 1
@@ -684,6 +697,12 @@ func populateServiceResourceData(ctx context.Context, b *models.Base, d *schema.
 
 	if err = d.Set("description", interfaceMap["description"]); err != nil {
 		return diag.FromErr(err)
+	}
+
+	if isHealthscoreCalculateByEntityEnabled, ok := interfaceMap["is_healthscore_calculate_by_entity_enabled"]; ok {
+		if err = d.Set("is_healthscore_calculate_by_entity_enabled", (int(isHealthscoreCalculateByEntityEnabled.(float64)) == 1)); err != nil {
+			return diag.FromErr(err)
+		}
 	}
 
 	if err = d.Set("enabled", (int(interfaceMap["enabled"].(float64)) != 0)); err != nil {

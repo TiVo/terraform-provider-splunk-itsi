@@ -98,6 +98,8 @@ resource "itsi_service" "Test-custom-static-threshold" {
 - `description` (String) User defined description for the service. Defaults to ``.
 - `enabled` (Boolean) Boolean value defining whether the service should be enabled. Defaults to `false`.
 - `entity_rules` (Block Set) A set of rule groups that are combined by OR operator. (see [below for nested schema](#nestedblock--entity_rules))
+- `is_healthscore_calculate_by_entity_enabled` (Boolean) Set the Service Heath Score calculation to account for the severity levels of individual entities
+				               if at least one KPI is split by entity. Defaults to `true`.
 - `kpi` (Block Set) A set of KPI descriptions for this service. (see [below for nested schema](#nestedblock--kpi))
 - `security_group` (String) The team the object belongs to. Defaults to `default_itsi_security_group`.
 - `service_depends_on` (Block Set) A set of service descriptions with KPIs in those services that this service depends on. (see [below for nested schema](#nestedblock--service_depends_on))
