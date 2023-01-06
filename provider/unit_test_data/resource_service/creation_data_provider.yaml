@@ -15,6 +15,7 @@
       "description": "Terraform unit test",
       "enabled": 0,
       "entity_rules": [ ],
+      "is_healthscore_calculate_by_entity_enabled":1,
       "kpis": [ ],
       "object_type": "service",
       "sec_grp": "default_itsi_security_group",
@@ -58,6 +59,7 @@
       "description":"Terraform unit test",
       "enabled":0,
       "entity_rules":[],
+      "is_healthscore_calculate_by_entity_enabled":1,
       "kpis":[],
       "object_type":"service",
       "sec_grp":"default_itsi_security_group",
@@ -112,6 +114,7 @@
       "description":"Terraform unit test",
       "enabled":0,
       "entity_rules":[],
+      "is_healthscore_calculate_by_entity_enabled":1,
       "kpis":[],
       "object_type":"service",
       "sec_grp":"default_itsi_security_group",
@@ -182,6 +185,7 @@
           ]
         }
       ],
+      "is_healthscore_calculate_by_entity_enabled":1,
       "kpis":[],
       "object_type":"service",
       "sec_grp":"default_itsi_security_group",
@@ -390,9 +394,8 @@
        "_key": "service_test_create_kpis",
        "description":"Terraform unit test",
        "enabled":0,
-       "entity_rules":[
-
-       ],
+       "entity_rules":[],
+       "is_healthscore_calculate_by_entity_enabled":1,
        "kpis":[
           {
              "_key":"5fd830adadebc708df764238712808cbc99e9e40",
