@@ -6,6 +6,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
+	"github.com/lestrrat-go/backoff/v2"
+	"gopkg.in/yaml.v3"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -14,14 +20,8 @@ import (
 	"runtime/debug"
 	"sort"
 	"strings"
+	"sync"
 	"testing"
-
-	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
-	"github.com/lestrrat-go/backoff/v2"
-	"gopkg.in/yaml.v3"
 
 	assert "github.com/stretchr/testify/assert"
 	mock_models "github.com/tivo/terraform-provider-splunk-itsi/models"
@@ -500,7 +500,7 @@ func TestSharedDependenciesConcurrentCallCheck(t *testing.T) {
 
 	mock_models.InitItsiApiLimiter(10)
 	defer mock_models.InitItsiApiLimiter(1)
-
+	var mu sync.Mutex
 	var resourceSharedDependenciesConcurrentProvider []TestSharedDependenciesConcurrentTestCase
 	parseYaml(t, "concurrent_cache_hit_data_provider.yaml", &resourceSharedDependenciesConcurrentProvider)
 	for _, test := range resourceSharedDependenciesConcurrentProvider {
@@ -542,8 +542,9 @@ func TestSharedDependenciesConcurrentCallCheck(t *testing.T) {
 								postBodyJsonInterface["_key"] = serviceIdToSet
 
 								postBodyJsonBytes, _ := json.Marshal(postBodyJsonInterface)
+								mu.Lock()
 								mockAnswers[_SERVICE+"/"+serviceIdToSet] = string(postBodyJsonBytes)
-
+								mu.Unlock()
 								mockedPostServerAnswer := fmt.Sprintf("{\"_key\" : \"%s\"}", serviceIdToSet)
 								response = ioutil.NopCloser(bytes.NewReader([]byte(mockedPostServerAnswer)))
 
