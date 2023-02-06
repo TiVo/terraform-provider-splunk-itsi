@@ -75,7 +75,8 @@ func ResourceEntityType() *schema.Resource {
 				Elem: &schema.Resource{
 					Schema: getVitalMetricSchema(),
 				},
-				Description: "An array of vital metric objects. Vital metrics are statistical calculations based on SPL searches that represent the overall health of entities of that type.",
+				Description: `An array of vital metric objects. Vital metrics are statistical calculations based on 
+							  SPL searches that represent the overall health of entities of that type.`,
 			},
 			/*"dashboard_drilldown": {
 				Type:     schema.TypeSet,
@@ -84,7 +85,7 @@ func ResourceEntityType() *schema.Resource {
 					Schema: getDashboardDrilldownSchema(),
 				},
 				Description: "An array of dashboard drilldown objects. Each dashboard drilldown defines an internal or external resource you specify with a URL and parameters that map to one of an entity fields. The parameters are passed to the resource when you open the URL.",
-			},
+			},*/
 			"data_drilldown": {
 				Type:     schema.TypeSet,
 				Optional: true,
@@ -92,53 +93,54 @@ func ResourceEntityType() *schema.Resource {
 					Schema: getDataDrilldownSchema(),
 				},
 				Description: "An array of data drilldown objects. Each data drilldown defines filters for raw data associated with entities that belong to the entity type.",
-			},*/
+			},
+		},
+	}
+}
+
+func getDataDrilldownSchema() map[string]*schema.Schema {
+	return map[string]*schema.Schema{
+		"title": {
+			Type:        schema.TypeString,
+			Required:    true,
+			Description: "Name of the drilldown.",
+		},
+		"type": {
+			Type:         schema.TypeString,
+			Required:     true,
+			ValidateFunc: validation.StringInSlice([]string{"events", "metrics"}, false),
+			Description:  "Type of raw data to associate with. Must be either metrics or events.",
+		},
+		"static_filters": {
+			Type:        schema.TypeMap,
+			Optional:    true,
+			Description: "Filter down to a subset of raw data associated with the entity using static information like sourcetype.",
+			Elem: &schema.Schema{
+				Type: schema.TypeString,
+			},
+		},
+		"entity_field_filter": {
+			Type:     schema.TypeSet,
+			Required: true,
+			Description: `Further filter down to the raw data associated with the entity 
+						  based on a set of selected entity alias or informational fields.`,
+			Elem: &schema.Resource{
+				Schema: map[string]*schema.Schema{
+					"data_field": {
+						Type:     schema.TypeString,
+						Required: true,
+					},
+					"entity_field": {
+						Type:     schema.TypeString,
+						Required: true,
+					},
+				},
+			},
 		},
 	}
 }
 
 /*
-	func getDataDrilldownSchema() map[string]*schema.Schema {
-		return map[string]*schema.Schema{
-			"title": {
-				Type:        schema.TypeString,
-				Required:    true,
-				Description: "Name of the drilldown.",
-			},
-			"type": {
-				Type:         schema.TypeString,
-				Required:     true,
-				ValidateFunc: validation.StringInSlice([]string{"events", "metrics"}, false),
-				Description:  "Type of raw data to associate with. Must be either metrics or events.",
-			},
-			"static_filters": {
-				Type:        schema.TypeMap,
-				Optional:    true,
-				Description: "Filter down to a subset of raw data associated with the entity using static information like sourcetype.",
-				Elem: &schema.Schema{
-					Type: schema.TypeString,
-				},
-			},
-			"entity_field_filter": {
-				Type:        schema.TypeSet,
-				Optional:    true,
-				Description: "Further filter down to the raw data associated with the entity based on a set of selected entity alias or informational fields.",
-				Elem: &schema.Resource{
-					Schema: map[string]*schema.Schema{
-						"data_field": {
-							Type:     schema.TypeString,
-							Required: true,
-						},
-						"entity_field": {
-							Type:     schema.TypeString,
-							Required: true,
-						},
-					},
-				},
-			},
-		}
-	}
-
 	func getDashboardDrilldownSchema() map[string]*schema.Schema {
 		return map[string]*schema.Schema{}
 	}
@@ -326,7 +328,48 @@ func entityType(ctx context.Context, d *schema.ResourceData, clientConfig models
 		}
 	}
 	body["vital_metrics"] = body_vital_metrics
-	body["data_drilldowns"] = []interface{}{}
+
+	body_data_drilldowns := []interface{}{}
+	if data_drilldowns, ok := d.GetOk("data_drilldown"); ok {
+		for _, data_drilldown := range data_drilldowns.(*schema.Set).List() {
+			body_data_drilldown := map[string]interface{}{}
+
+			_data_drilldown := data_drilldown.(map[string]interface{})
+			if data_drilldown_title := _data_drilldown["title"].(string); data_drilldown_title != "" {
+				body_data_drilldown["title"] = data_drilldown_title
+				body_data_drilldown["type"] = _data_drilldown["type"].(string)
+				body_static_filters := []interface{}{}
+				for _static_filter_key, _static_filter_value := range _data_drilldown["static_filters"].(map[string]interface{}) {
+					body_static_filters = append(body_static_filters, map[string]interface{}{
+						"type":   "include",
+						"field":  _static_filter_key,
+						"values": []string{_static_filter_value.(string)},
+					})
+				}
+				body_data_drilldown["static_filter"] = map[string]interface{}{
+					"type":    "and",
+					"filters": body_static_filters,
+				}
+
+				body_entity_field_filter := map[string]interface{}{}
+				for idx, entity_field_filter := range _data_drilldown["entity_field_filter"].(*schema.Set).List() {
+					if idx > 0 {
+						return nil, fmt.Errorf("unexpected entity_field_filters amount in the data_drilldown: %s", data_drilldown_title)
+					}
+					_entity_field_filter := entity_field_filter.(map[string]interface{})
+					body_entity_field_filter = map[string]interface{}{
+						"type":         "entity",
+						"data_field":   _entity_field_filter["data_field"].(string),
+						"entity_field": _entity_field_filter["entity_field"].(string),
+					}
+				}
+				body_data_drilldown["entity_field_filter"] = body_entity_field_filter
+				body_data_drilldowns = append(body_data_drilldowns, body_data_drilldown)
+			}
+		}
+	}
+	body["data_drilldowns"] = body_data_drilldowns
+
 	body["dashboard_drilldowns"] = []interface{}{}
 
 	base := entityTypeBase(clientConfig, d.Id(), d.Get("title").(string))
@@ -370,11 +413,9 @@ func populateEntityTypeResourceData(ctx context.Context, b *models.Base, d *sche
 		}
 	}
 
-	exists = d.Get("vital_metric") != nil
-	if exists {
+	if d.Get("vital_metric") != nil {
 		data_vital_metrics := []interface{}{}
-		vital_metrics, exists := interfaceMap["vital_metrics"].([]interface{})
-		if exists {
+		if vital_metrics, exists := interfaceMap["vital_metrics"].([]interface{}); exists {
 			for _, vital_metric := range vital_metrics {
 				_vital_metric := vital_metric.(map[string]interface{})
 				matching_entity_fields := map[string]string{}
@@ -421,6 +462,42 @@ func populateEntityTypeResourceData(ctx context.Context, b *models.Base, d *sche
 				data_vital_metrics = append(data_vital_metrics, _vital_metric)
 			}
 			err = d.Set("vital_metric", data_vital_metrics)
+			if err != nil {
+				return diag.FromErr(err)
+			}
+		}
+	}
+	if d.Get("data_drilldown") != nil {
+		data_data_drilldowns := []interface{}{}
+		if _data_drilldowns, exists := interfaceMap["data_drilldowns"].([]interface{}); exists {
+			for _, data_drilldown := range _data_drilldowns {
+				_data_drilldown := data_drilldown.(map[string]interface{})
+				data_data_drilldown := map[string]interface{}{}
+				data_data_drilldown["title"] = _data_drilldown["title"].(string)
+				data_data_drilldown["type"] = _data_drilldown["type"].(string)
+				data_static_filters := map[string]interface{}{}
+				filters := _data_drilldown["static_filter"].(map[string]interface{})
+				for _, filter := range filters["filters"].([]interface{}) {
+					_filter := filter.(map[string]interface{})
+					_values := _filter["values"].([]interface{})
+					if len(_values) > 1 {
+						return diag.Errorf("expected only 1 value for static filter in %s", filter)
+					}
+					data_static_filters[_filter["field"].(string)] = _values[0].(string)
+				}
+				data_data_drilldown["static_filters"] = data_static_filters
+				if entity_field_filter, exists := _data_drilldown["entity_field_filter"]; exists {
+					_entity_field_filter := entity_field_filter.(map[string]interface{})
+					data_data_drilldown["entity_field_filter"] = []map[string]interface{}{
+						{
+							"data_field":   _entity_field_filter["data_field"].(string),
+							"entity_field": _entity_field_filter["entity_field"].(string),
+						},
+					}
+				}
+				data_data_drilldowns = append(data_data_drilldowns, data_data_drilldown)
+			}
+			err = d.Set("data_drilldown", data_data_drilldowns)
 			if err != nil {
 				return diag.FromErr(err)
 			}
