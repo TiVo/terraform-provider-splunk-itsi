@@ -1,0 +1,503 @@
+package provider
+
+import (
+	"bytes"
+	"context"
+	"errors"
+	"fmt"
+	"log"
+	"strconv"
+
+	"github.com/hashicorp/terraform-plugin-log/tflog"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
+	"github.com/tivo/terraform-provider-splunk-itsi/models"
+)
+
+func entityTypeTFFormat(b *models.Base) (string, error) {
+	res := ResourceEntity()
+	resData := res.Data(nil)
+	d := populateEntityTypeResourceData(context.Background(), b, resData)
+	if len(d) > 0 {
+		err := d[0].Validate()
+		if err != nil {
+			return "", err
+		}
+		return "", errors.New(d[0].Summary)
+	}
+	resourcetpl, err := NewResourceTemplate(resData, res.Schema, "title", "itsi_entity_type")
+	if err != nil {
+		return "", err
+	}
+
+	templateResource, err := newTemplate(resourcetpl)
+	if err != nil {
+		log.Fatal(err)
+	}
+	var tpl bytes.Buffer
+	err = templateResource.Execute(&tpl, resourcetpl)
+	if err != nil {
+		return "", err
+	}
+
+	return cleanerRegex.ReplaceAllString(tpl.String(), ""), nil
+}
+
+func ResourceEntityType() *schema.Resource {
+	return &schema.Resource{
+		Description: `An entity_type defines how to classify a type of data source.
+						For example, you can create a Linux, Windows, Unix/Linux add-on, VMware, or Kubernetes entity type.
+						An entity type can include zero or more data drilldowns and zero or more dashboard drilldowns.
+						You can use a single data drilldown or dashboard drilldown for multiple entity types.`,
+		CreateContext: entityTypeCreate,
+		ReadContext:   entityTypeRead,
+		UpdateContext: entityTypeUpdate,
+		DeleteContext: entityTypeDelete,
+		Importer: &schema.ResourceImporter{
+			StateContext: entityTypeImport,
+		},
+		Schema: map[string]*schema.Schema{
+			"title": {
+				Type:        schema.TypeString,
+				Required:    true,
+				Description: "The name of the entity type.",
+			},
+			"description": {
+				Type:        schema.TypeString,
+				Optional:    true,
+				Default:     "",
+				Description: "A description of the entity type.",
+			},
+			"vital_metric": {
+				Type:     schema.TypeSet,
+				Optional: true,
+				Elem: &schema.Resource{
+					Schema: getVitalMetricSchema(),
+				},
+				Description: "An array of vital metric objects. Vital metrics are statistical calculations based on SPL searches that represent the overall health of entities of that type.",
+			},
+			/*"dashboard_drilldown": {
+				Type:     schema.TypeSet,
+				Optional: true,
+				Elem: &schema.Resource{
+					Schema: getDashboardDrilldownSchema(),
+				},
+				Description: "An array of dashboard drilldown objects. Each dashboard drilldown defines an internal or external resource you specify with a URL and parameters that map to one of an entity fields. The parameters are passed to the resource when you open the URL.",
+			},
+			"data_drilldown": {
+				Type:     schema.TypeSet,
+				Optional: true,
+				Elem: &schema.Resource{
+					Schema: getDataDrilldownSchema(),
+				},
+				Description: "An array of data drilldown objects. Each data drilldown defines filters for raw data associated with entities that belong to the entity type.",
+			},*/
+		},
+	}
+}
+
+/*
+	func getDataDrilldownSchema() map[string]*schema.Schema {
+		return map[string]*schema.Schema{
+			"title": {
+				Type:        schema.TypeString,
+				Required:    true,
+				Description: "Name of the drilldown.",
+			},
+			"type": {
+				Type:         schema.TypeString,
+				Required:     true,
+				ValidateFunc: validation.StringInSlice([]string{"events", "metrics"}, false),
+				Description:  "Type of raw data to associate with. Must be either metrics or events.",
+			},
+			"static_filters": {
+				Type:        schema.TypeMap,
+				Optional:    true,
+				Description: "Filter down to a subset of raw data associated with the entity using static information like sourcetype.",
+				Elem: &schema.Schema{
+					Type: schema.TypeString,
+				},
+			},
+			"entity_field_filter": {
+				Type:        schema.TypeSet,
+				Optional:    true,
+				Description: "Further filter down to the raw data associated with the entity based on a set of selected entity alias or informational fields.",
+				Elem: &schema.Resource{
+					Schema: map[string]*schema.Schema{
+						"data_field": {
+							Type:     schema.TypeString,
+							Required: true,
+						},
+						"entity_field": {
+							Type:     schema.TypeString,
+							Required: true,
+						},
+					},
+				},
+			},
+		}
+	}
+
+	func getDashboardDrilldownSchema() map[string]*schema.Schema {
+		return map[string]*schema.Schema{}
+	}
+*/
+func getVitalMetricSchema() map[string]*schema.Schema {
+	return map[string]*schema.Schema{
+		"metric_name": {
+			Type:     schema.TypeString,
+			Required: true,
+			Description: `The title of the vital metric. When creating vital metrics,
+					  it's a best practice to include the aggregation method and the name of the metric being calculated.
+					  For example, Average CPU usage.`,
+		},
+		"search": {
+			Type:     schema.TypeString,
+			Required: true,
+			Description: `The search that computes the vital metric. The search must specify the following fields:
+							- val for the value of the metric.
+							- _time because the UI attempts to render changes over time. You can achieve this by adding span={time} to your search.
+							- Fields as described in the split_by_fields configuration of this vital metric.
+							For example, your search should be split by host,region if the split_by_fields configuration is [ "host", "region" ].`,
+		},
+		"matching_entity_fields": {
+			Type:     schema.TypeMap,
+			Required: true,
+			Elem: &schema.Schema{
+				Type: schema.TypeString,
+			},
+			Description: `Specifies the aliases of an entity to use to match with the fields specified by the fields that the search configuration is split on.
+						Make sure the value matches the split by fields in the actual search.
+						For example:
+							- search = "..... by InstanceId, region"
+							- matching_entity_fields = {instance_id = "InstanceId", zone = "region"}.`,
+		},
+		"is_key": {
+			Type:     schema.TypeBool,
+			Optional: true,
+			Default:  false,
+			Description: `Indicates if the vital metric specified is a key metric.
+						A key metric calculates the distribution of entities associated with the entity type to indicate the overall health of the entity type.
+						The key metric is rendered as a histogram in the Infrastructure Overview. Only one vital metric can have is_key set to true. `,
+		},
+		"unit": {
+			Type:        schema.TypeString,
+			Optional:    true,
+			Default:     "",
+			Description: "The unit of the vital metric. For example, KB/s. ",
+		},
+		"alert_rule": {
+			Type:     schema.TypeSet,
+			Optional: true,
+			Elem: &schema.Resource{
+				Schema: map[string]*schema.Schema{
+					"suppress_time": {
+						Type:        schema.TypeString,
+						Optional:    true,
+						Default:     "0",
+						Description: "suppress the alert until this time",
+					},
+					"cron_schedule": {
+						Type:        schema.TypeString,
+						Required:    true,
+						Description: "frequency of alert search",
+					},
+					"is_enabled": {
+						Type:        schema.TypeBool,
+						Optional:    true,
+						Default:     false,
+						Description: "if alert is enabled",
+					},
+					"warning_threshold": {
+						Type:     schema.TypeInt,
+						Required: true,
+					},
+					"critical_threshold": {
+						Type:     schema.TypeInt,
+						Required: true,
+					},
+					"entity_filter": {
+						Type:     schema.TypeSet,
+						Optional: true,
+						Elem: &schema.Resource{
+							Schema: map[string]*schema.Schema{
+								"field": {
+									Type:     schema.TypeString,
+									Required: true,
+								},
+								"value": {
+									Type:     schema.TypeString,
+									Required: true,
+								},
+								"field_type": {
+									Type:         schema.TypeString,
+									Required:     true,
+									Description:  "Takes values alias, info or title specifying in which category of fields the field attribute is located.",
+									ValidateFunc: validation.StringInSlice([]string{"alias", "entity_type", "info", "title"}, false),
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+func entityType(ctx context.Context, d *schema.ResourceData, clientConfig models.ClientConfig) (config *models.Base, err error) {
+	body := map[string]interface{}{}
+
+	body["object_type"] = "entity_type"
+	body["sec_grp"] = "default_itsi_security_group"
+	body["title"] = d.Get("title").(string)
+	body["description"] = d.Get("description").(string)
+
+	body_vital_metrics := []interface{}{}
+
+	if vital_metrics, ok := d.GetOk("vital_metric"); ok {
+		for _, vital_metric := range vital_metrics.(*schema.Set).List() {
+			body_vital_metric := map[string]interface{}{}
+
+			_vital_metric := vital_metric.(map[string]interface{})
+			if metric_name := _vital_metric["metric_name"].(string); metric_name != "" {
+				body_vital_metric["metric_name"] = metric_name
+				body_vital_metric["search"] = _vital_metric["search"].(string)
+
+				body_vital_metric["matching_entity_fields"] = []string{}
+				body_vital_metric["split_by_fields"] = []string{}
+
+				matching_entity_fields := _vital_metric["matching_entity_fields"].(map[string]interface{})
+
+				for alias, split_by_field := range matching_entity_fields {
+					body_vital_metric["matching_entity_fields"] = append(body_vital_metric["matching_entity_fields"].([]string), alias)
+					body_vital_metric["split_by_fields"] = append(body_vital_metric["split_by_fields"].([]string), split_by_field.(string))
+				}
+
+				body_vital_metric["is_key"] = _vital_metric["is_key"].(bool)
+				body_vital_metric["unit"] = _vital_metric["unit"].(string)
+				body_alert_rule := map[string]interface{}{}
+				for idx, alert_rule := range _vital_metric["alert_rule"].(*schema.Set).List() {
+					if idx > 0 {
+						return nil, fmt.Errorf("more than one alert rule is passed in metric: %s", metric_name)
+					}
+					_alert_rule := alert_rule.(map[string]interface{})
+
+					body_alert_rule["suppress_time"] = _alert_rule["suppress_time"].(string)
+					body_alert_rule["cron_schedule"] = _alert_rule["cron_schedule"].(string)
+					body_alert_rule["is_enabled"] = _alert_rule["is_enabled"].(bool)
+
+					warning_threshold := _alert_rule["warning_threshold"].(int)
+					critical_threshold := _alert_rule["critical_threshold"].(int)
+					if warning_threshold < critical_threshold {
+						// greater than
+						body_alert_rule["critical_threshold"] = []string{strconv.Itoa(critical_threshold), "+inf"}
+						body_alert_rule["warning_threshold"] = []string{strconv.Itoa(warning_threshold), strconv.Itoa(critical_threshold)}
+						body_alert_rule["info_threshold"] = []string{"-inf", strconv.Itoa(warning_threshold)}
+					} else {
+						// less than
+						body_alert_rule["critical_threshold"] = []string{"-inf", strconv.Itoa(critical_threshold)}
+						body_alert_rule["warning_threshold"] = []string{strconv.Itoa(critical_threshold), strconv.Itoa(warning_threshold)}
+						body_alert_rule["info_threshold"] = []string{strconv.Itoa(warning_threshold), "+inf"}
+					}
+					body_entity_filters := []map[string]string{}
+
+					if entity_filters, ok := _alert_rule["entity_filter"]; ok {
+						for _, entity_filter := range entity_filters.(*schema.Set).List() {
+
+							_entity_filter := entity_filter.(map[string]interface{})
+
+							if field, _ := _entity_filter["field"].(string); field != "" {
+								body_entity_filter := map[string]string{}
+								body_entity_filter["field"] = field
+								body_entity_filter["value"] = _entity_filter["value"].(string)
+								body_entity_filter["field_type"] = _entity_filter["field_type"].(string)
+
+								body_entity_filters = append(body_entity_filters, body_entity_filter)
+							}
+						}
+					}
+					body_alert_rule["entity_filter"] = body_entity_filters
+
+				}
+				body_vital_metric["alert_rule"] = body_alert_rule
+				body_vital_metrics = append(body_vital_metrics, body_vital_metric)
+			}
+		}
+	}
+	body["vital_metrics"] = body_vital_metrics
+	body["data_drilldowns"] = []interface{}{}
+	body["dashboard_drilldowns"] = []interface{}{}
+
+	base := entityTypeBase(clientConfig, d.Id(), d.Get("title").(string))
+	err = base.PopulateRawJSON(ctx, body)
+
+	return base, err
+}
+
+func entityTypeCreate(ctx context.Context, d *schema.ResourceData, m interface{}) (diags diag.Diagnostics) {
+	template, err := entityType(ctx, d, m.(models.ClientConfig))
+	tflog.Info(ctx, "ENTITY TYPE: create", map[string]interface{}{"TFID": template.TFID, "err": err})
+	if err != nil {
+		return diag.FromErr(err)
+	}
+	b, err := template.Create(ctx)
+	if err != nil {
+		return diag.FromErr(err)
+	}
+	b, err = b.Read(ctx)
+	if err != nil {
+		return diag.FromErr(err)
+	}
+	return populateEntityTypeResourceData(ctx, b, d)
+}
+
+func populateEntityTypeResourceData(ctx context.Context, b *models.Base, d *schema.ResourceData) (diags diag.Diagnostics) {
+	interfaceMap, err := b.RawJson.ToInterfaceMap()
+	if err != nil {
+		return diag.FromErr(err)
+	}
+
+	err = d.Set("title", interfaceMap["title"])
+	if err != nil {
+		return diag.FromErr(err)
+	}
+	exists := d.Get("description") != nil
+	if exists {
+		err = d.Set("description", interfaceMap["description"])
+		if err != nil {
+			return diag.FromErr(err)
+		}
+	}
+
+	exists = d.Get("vital_metric") != nil
+	if exists {
+		data_vital_metrics := []interface{}{}
+		vital_metrics, exists := interfaceMap["vital_metrics"].([]interface{})
+		if exists {
+			for _, vital_metric := range vital_metrics {
+				_vital_metric := vital_metric.(map[string]interface{})
+				matching_entity_fields := map[string]string{}
+				split_by_fields := _vital_metric["split_by_fields"].([]interface{})
+
+				if len(_vital_metric["matching_entity_fields"].([]interface{})) != len(split_by_fields) {
+					return diag.Errorf("Error: matching_entity_fields should be same length with split_by_fields")
+				}
+				for idx, vital_metric := range _vital_metric["matching_entity_fields"].([]interface{}) {
+					matching_entity_fields[vital_metric.(string)] = split_by_fields[idx].(string)
+				}
+				_vital_metric["matching_entity_fields"] = matching_entity_fields
+				alert_rules := []interface{}{}
+				delete(_vital_metric, "split_by_fields")
+
+				if alert_rule, ok := _vital_metric["alert_rule"].(map[string]interface{}); ok && len(alert_rule) > 0 {
+					_alert_rule := map[string]interface{}{}
+
+					critical_threshold := alert_rule["critical_threshold"].([]interface{})
+					warning_threshold := alert_rule["warning_threshold"].([]interface{})
+
+					idx := 0
+					if critical_threshold[0].(string) == "-inf" {
+						idx = 1
+					}
+					_alert_rule["critical_threshold"], err = strconv.Atoi(critical_threshold[idx].(string))
+					if err != nil {
+						diag.FromErr(err)
+					}
+					_alert_rule["warning_threshold"], err = strconv.Atoi(warning_threshold[idx].(string))
+					if err != nil {
+						diag.FromErr(err)
+					}
+					_alert_rule["suppress_time"] = alert_rule["suppress_time"].(string)
+					_alert_rule["cron_schedule"] = alert_rule["cron_schedule"].(string)
+					_alert_rule["is_enabled"] = alert_rule["is_enabled"].(bool)
+					if entity_filter, ok := alert_rule["entity_filter"]; ok {
+						_alert_rule["entity_filter"] = entity_filter.([]interface{})
+					}
+
+					alert_rules = append(alert_rules, _alert_rule)
+				}
+				_vital_metric["alert_rule"] = alert_rules
+				data_vital_metrics = append(data_vital_metrics, _vital_metric)
+			}
+			err = d.Set("vital_metric", data_vital_metrics)
+			if err != nil {
+				return diag.FromErr(err)
+			}
+		}
+	}
+
+	/*_, ok = d.GetOk("dashboard_drilldown")
+	if ok {
+		log.Print("dashboard_drilldown")
+	}
+	_, ok = d.GetOk("dashboard_drilldown")
+	if ok {
+		log.Print("data_drilldown")
+	}
+	if err != nil {
+		return diag.FromErr(err)
+	}*/
+
+	/*err = d.Set("id", interfaceMap["_key"])
+	if err != nil {
+		return diag.FromErr(err)
+	}*/
+
+	d.SetId(b.RESTKey)
+	return nil
+}
+
+func entityTypeUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) (diags diag.Diagnostics) {
+	clientConfig := m.(models.ClientConfig)
+	base := entityTypeBase(clientConfig, d.Id(), d.Get("title").(string))
+	tflog.Info(ctx, "ENTITY TYPE: update", map[string]interface{}{"TFID": base.TFID})
+	existing, err := base.Find(ctx)
+	if err != nil {
+		return diag.FromErr(err)
+	}
+	if existing == nil {
+		return entityTypeCreate(ctx, d, m)
+	}
+
+	template, err := entityType(ctx, d, clientConfig)
+	if err != nil {
+		return diag.FromErr(err)
+	}
+	return diag.FromErr(template.Update(ctx))
+}
+
+func entityTypeDelete(ctx context.Context, d *schema.ResourceData, m interface{}) (diags diag.Diagnostics) {
+	base := entityTypeBase(m.(models.ClientConfig), d.Id(), d.Get("title").(string))
+	tflog.Info(ctx, "ENTITY TYPE: delete", map[string]interface{}{"TFID": base.TFID})
+	existing, err := base.Find(ctx)
+	if err != nil {
+		return diag.FromErr(err)
+	}
+	if existing == nil {
+		return diag.Errorf("Unable to find entity type model")
+	}
+	return diag.FromErr(existing.Delete(ctx))
+}
+
+func entityTypeImport(ctx context.Context, data *schema.ResourceData, m interface{}) ([]*schema.ResourceData, error) {
+	b := entityTypeBase(m.(models.ClientConfig), "", data.Id())
+	b, err := b.Find(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if b == nil {
+		return nil, err
+	}
+	diags := populateEntityTypeResourceData(ctx, b, data)
+	for _, d := range diags {
+		if d.Severity == diag.Error {
+			return nil, fmt.Errorf(d.Summary)
+		}
+	}
+
+	if data.Id() == "" {
+		return nil, nil
+	}
+	return []*schema.ResourceData{data}, nil
+}

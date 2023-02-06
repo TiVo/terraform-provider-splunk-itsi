@@ -80,6 +80,7 @@ func Provider() *schema.Provider {
 			"itsi_kpi_threshold_template":    ResourceKPIThresholdTemplate(),
 			"itsi_kpi_base_search":           ResourceKPIBaseSearch(),
 			"itsi_entity":                    ResourceEntity(),
+			"itsi_entity_type":               ResourceEntityType(),
 			"itsi_service":                   ResourceService(),
 			"itsi_splunk_collection":         ResourceCollection(),
 			"itsi_splunk_collection_entry":   ResourceCollectionEntry(),

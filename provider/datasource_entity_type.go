@@ -18,11 +18,6 @@ func DatasourceEntityType() *schema.Resource {
 				Required:    true,
 				Description: "The name of the entity type",
 			},
-			"id": {
-				Type:        schema.TypeString,
-				Computed:    true,
-				Description: "_key value for the entity type",
-			},
 		},
 	}
 }
@@ -43,29 +38,5 @@ func entityTypeRead(ctx context.Context, d *schema.ResourceData, m interface{}) 
 		return nil
 	}
 
-	err = populateEntityTypeResourceData(b, d)
-	if err != nil {
-		return append(diags, diag.Errorf("%s", err)...)
-	}
-	return
-}
-
-func populateEntityTypeResourceData(b *models.Base, d *schema.ResourceData) error {
-	interfaceMap, err := b.RawJson.ToInterfaceMap()
-	if err != nil {
-		return err
-	}
-
-	err = d.Set("title", interfaceMap["title"])
-	if err != nil {
-		return err
-	}
-
-	err = d.Set("id", interfaceMap["_key"])
-	if err != nil {
-		return err
-	}
-
-	d.SetId(b.RESTKey)
-	return nil
+	return populateEntityTypeResourceData(ctx, b, d)
 }
