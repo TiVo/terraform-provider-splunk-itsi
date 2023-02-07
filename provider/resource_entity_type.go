@@ -78,14 +78,14 @@ func ResourceEntityType() *schema.Resource {
 				Description: `An array of vital metric objects. Vital metrics are statistical calculations based on 
 							  SPL searches that represent the overall health of entities of that type.`,
 			},
-			/*"dashboard_drilldown": {
+			"dashboard_drilldown": {
 				Type:     schema.TypeSet,
 				Optional: true,
 				Elem: &schema.Resource{
 					Schema: getDashboardDrilldownSchema(),
 				},
 				Description: "An array of dashboard drilldown objects. Each dashboard drilldown defines an internal or external resource you specify with a URL and parameters that map to one of an entity fields. The parameters are passed to the resource when you open the URL.",
-			},*/
+			},
 			"data_drilldown": {
 				Type:     schema.TypeSet,
 				Optional: true,
@@ -140,11 +140,44 @@ func getDataDrilldownSchema() map[string]*schema.Schema {
 	}
 }
 
-/*
-	func getDashboardDrilldownSchema() map[string]*schema.Schema {
-		return map[string]*schema.Schema{}
+func getDashboardDrilldownSchema() map[string]*schema.Schema {
+	return map[string]*schema.Schema{
+		"title": {
+			Type:        schema.TypeString,
+			Required:    true,
+			Description: "Name of the dashboard.",
+		},
+		"base_url": {
+			Type:     schema.TypeString,
+			Optional: true,
+			Description: `An internal or external URL that points to the dashboard. This setting exists because for internal purposes, navigation suggestions are treated as dashboards.
+							This setting is only required if is_splunk_dashboard is false.`,
+		},
+		"dashboard_id": {
+			Type:        schema.TypeString,
+			Optional:    true,
+			Description: `A unique identifier for the xml dashboard.`,
+		},
+		"dashboard_type": {
+			Type:         schema.TypeString,
+			Optional:     true,
+			Default:      "navigation_link",
+			ValidateFunc: validation.StringInSlice([]string{"xml_dashboard", "navigation_link"}, false),
+			Description: `The type of dashboard being added. This element is required. The following options are available:
+							xml_dashboard - a Splunk XML dashboard. Any dashboards you add must be of this type.
+							navigation_link - a navigation URL. Should be used when base_url is specified.`,
+		},
+		"params": {
+			Type:     schema.TypeMap,
+			Optional: true,
+			Elem: &schema.Schema{
+				Type: schema.TypeString,
+			},
+			Description: "A set of parameters for the entity dashboard drilldown that provide a mapping of a URL parameter and its alias",
+		},
 	}
-*/
+}
+
 func getVitalMetricSchema() map[string]*schema.Schema {
 	return map[string]*schema.Schema{
 		"metric_name": {
@@ -370,8 +403,37 @@ func entityType(ctx context.Context, d *schema.ResourceData, clientConfig models
 	}
 	body["data_drilldowns"] = body_data_drilldowns
 
-	body["dashboard_drilldowns"] = []interface{}{}
+	body_dashboard_drilldowns := []interface{}{}
+	if dashboard_drilldowns, ok := d.GetOk("dashboard_drilldown"); ok {
+		for _, dashboard_drilldown := range dashboard_drilldowns.(*schema.Set).List() {
+			_dashboard_drilldown := dashboard_drilldown.(map[string]interface{})
+			body_dashboard_drilldown := map[string]interface{}{}
+			if _dashboard_drilldown_title, ok := _dashboard_drilldown["title"]; ok && _dashboard_drilldown_title != "" {
+				body_dashboard_drilldown["title"] = _dashboard_drilldown_title
 
+				body_dashboard_drilldown["dashboard_type"] = _dashboard_drilldown["dashboard_type"].(string)
+				if body_dashboard_drilldown["dashboard_type"] != "xml_dashboard" {
+					body_dashboard_drilldown["base_url"] = _dashboard_drilldown["base_url"].(string)
+					body_dashboard_drilldown["id"] = _dashboard_drilldown_title.(string)
+				} else {
+					body_dashboard_drilldown["id"] = _dashboard_drilldown["dashboard_id"].(string)
+				}
+				body_params := []interface{}{}
+				for alias, param := range _dashboard_drilldown["params"].(map[string]interface{}) {
+					body_params = append(body_params, map[string]interface{}{
+						"alias": alias,
+						"param": param.(string),
+					})
+				}
+				body_dashboard_drilldown["params"] = map[string]interface{}{
+					"static_params":   map[string]interface{}{},
+					"alias_param_map": body_params,
+				}
+				body_dashboard_drilldowns = append(body_dashboard_drilldowns, body_dashboard_drilldown)
+			}
+		}
+	}
+	body["dashboard_drilldowns"] = body_dashboard_drilldowns
 	base := entityTypeBase(clientConfig, d.Id(), d.Get("title").(string))
 	err = base.PopulateRawJSON(ctx, body)
 
@@ -503,23 +565,39 @@ func populateEntityTypeResourceData(ctx context.Context, b *models.Base, d *sche
 			}
 		}
 	}
+	if d.Get("dashboard_drilldown") != nil {
+		data_dashboard_drilldowns := []interface{}{}
+		if _dashboard_drilldowns, exists := interfaceMap["dashboard_drilldowns"].([]interface{}); exists {
+			for _, dashboard_drilldown := range _dashboard_drilldowns {
+				_dashboard_drilldown := dashboard_drilldown.(map[string]interface{})
+				data_dashboard_drilldown := map[string]interface{}{}
 
-	/*_, ok = d.GetOk("dashboard_drilldown")
-	if ok {
-		log.Print("dashboard_drilldown")
-	}
-	_, ok = d.GetOk("dashboard_drilldown")
-	if ok {
-		log.Print("data_drilldown")
-	}
-	if err != nil {
-		return diag.FromErr(err)
-	}*/
+				data_dashboard_drilldown["title"] = _dashboard_drilldown["title"].(string)
+				data_dashboard_drilldown["dashboard_type"] = _dashboard_drilldown["dashboard_type"].(string)
 
-	/*err = d.Set("id", interfaceMap["_key"])
-	if err != nil {
-		return diag.FromErr(err)
-	}*/
+				if data_dashboard_drilldown["dashboard_type"] != "xml_dashboard" {
+					data_dashboard_drilldown["base_url"] = _dashboard_drilldown["base_url"].(string)
+				} else if dashboard_id, ok := _dashboard_drilldown["id"]; ok {
+					data_dashboard_drilldown["dashboard_id"] = dashboard_id.(string)
+				}
+				params := _dashboard_drilldown["params"].(map[string]interface{})
+				data_params := map[string]interface{}{}
+				if alias_param_map, ok := params["alias_param_map"]; ok {
+					for _, alias_param_tuple := range alias_param_map.([]interface{}) {
+						_alias_param_tuple := alias_param_tuple.(map[string]interface{})
+						data_params[_alias_param_tuple["alias"].(string)] = _alias_param_tuple["param"].(string)
+					}
+				}
+				data_dashboard_drilldown["params"] = data_params
+
+				data_dashboard_drilldowns = append(data_dashboard_drilldowns, data_dashboard_drilldown)
+			}
+			err = d.Set("dashboard_drilldown", data_dashboard_drilldowns)
+			if err != nil {
+				return diag.FromErr(err)
+			}
+		}
+	}
 
 	d.SetId(b.RESTKey)
 	return nil
