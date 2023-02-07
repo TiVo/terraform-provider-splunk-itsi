@@ -16,7 +16,7 @@ import (
 )
 
 func entityTypeTFFormat(b *models.Base) (string, error) {
-	res := ResourceEntity()
+	res := ResourceEntityType()
 	resData := res.Data(nil)
 	d := populateEntityTypeResourceData(context.Background(), b, resData)
 	if len(d) > 0 {
@@ -379,24 +379,34 @@ func entityType(ctx context.Context, d *schema.ResourceData, clientConfig models
 						"values": []string{_static_filter_value.(string)},
 					})
 				}
-				body_data_drilldown["static_filter"] = map[string]interface{}{
-					"type":    "and",
-					"filters": body_static_filters,
+				if len(body_static_filters) == 1 {
+					body_data_drilldown["static_filter"] = body_static_filters[0]
+				} else {
+					body_data_drilldown["static_filter"] = map[string]interface{}{
+						"type":    "and",
+						"filters": body_static_filters,
+					}
 				}
 
-				body_entity_field_filter := map[string]interface{}{}
-				for idx, entity_field_filter := range _data_drilldown["entity_field_filter"].(*schema.Set).List() {
-					if idx > 0 {
-						return nil, fmt.Errorf("unexpected entity_field_filters amount in the data_drilldown: %s", data_drilldown_title)
-					}
+				body_entity_field_filters := []interface{}{}
+				for _, entity_field_filter := range _data_drilldown["entity_field_filter"].(*schema.Set).List() {
+
 					_entity_field_filter := entity_field_filter.(map[string]interface{})
-					body_entity_field_filter = map[string]interface{}{
+					body_entity_field_filters = append(body_entity_field_filters, map[string]interface{}{
 						"type":         "entity",
 						"data_field":   _entity_field_filter["data_field"].(string),
 						"entity_field": _entity_field_filter["entity_field"].(string),
-					}
+					})
 				}
-				body_data_drilldown["entity_field_filter"] = body_entity_field_filter
+				if len(body_entity_field_filters) > 1 {
+					body_data_drilldown["entity_field_filter"] = map[string]interface{}{
+						"type":    "and",
+						"filters": body_entity_field_filters,
+					}
+				} else {
+					body_data_drilldown["entity_field_filter"] = body_entity_field_filters[0]
+				}
+
 				body_data_drilldowns = append(body_data_drilldowns, body_data_drilldown)
 			}
 		}
@@ -491,6 +501,11 @@ func populateEntityTypeResourceData(ctx context.Context, b *models.Base, d *sche
 				}
 				_vital_metric["matching_entity_fields"] = matching_entity_fields
 				alert_rules := []interface{}{}
+				switch _vital_metric["is_key"].(type) {
+				case float64:
+					_vital_metric["is_key"] = _vital_metric["is_key"].(float64) > 0
+				}
+
 				delete(_vital_metric, "split_by_fields")
 
 				if alert_rule, ok := _vital_metric["alert_rule"].(map[string]interface{}); ok && len(alert_rule) > 0 {
@@ -539,6 +554,10 @@ func populateEntityTypeResourceData(ctx context.Context, b *models.Base, d *sche
 				data_data_drilldown["type"] = _data_drilldown["type"].(string)
 				data_static_filters := map[string]interface{}{}
 				filters := _data_drilldown["static_filter"].(map[string]interface{})
+				if _, ok := filters["filters"]; !ok {
+					filters["filters"] = []interface{}{filters}
+				}
+
 				for _, filter := range filters["filters"].([]interface{}) {
 					_filter := filter.(map[string]interface{})
 					_values := _filter["values"].([]interface{})
@@ -547,14 +566,19 @@ func populateEntityTypeResourceData(ctx context.Context, b *models.Base, d *sche
 					}
 					data_static_filters[_filter["field"].(string)] = _values[0].(string)
 				}
+
 				data_data_drilldown["static_filters"] = data_static_filters
 				if entity_field_filter, exists := _data_drilldown["entity_field_filter"]; exists {
 					_entity_field_filter := entity_field_filter.(map[string]interface{})
-					data_data_drilldown["entity_field_filter"] = []map[string]interface{}{
-						{
-							"data_field":   _entity_field_filter["data_field"].(string),
-							"entity_field": _entity_field_filter["entity_field"].(string),
-						},
+					if filters, ok := _entity_field_filter["filters"]; ok {
+						data_data_drilldown["entity_field_filter"] = filters
+					} else {
+						data_data_drilldown["entity_field_filter"] = []interface{}{
+							_entity_field_filter,
+						}
+					}
+					for _, data_drilldown := range data_data_drilldown["entity_field_filter"].([]interface{}) {
+						delete(data_drilldown.(map[string]interface{}), "type")
 					}
 				}
 				data_data_drilldowns = append(data_data_drilldowns, data_data_drilldown)
