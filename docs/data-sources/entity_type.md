@@ -27,6 +27,6 @@ data "itsi_entity_type" "host" {
 
 ### Read-Only
 
-- `id` (String) _key value for the entity type
+- `id` (String) The ID of this resource.
 
 
