@@ -355,7 +355,9 @@ func entityType(ctx context.Context, d *schema.ResourceData, clientConfig models
 					body_alert_rule["entity_filter"] = body_entity_filters
 
 				}
-				body_vital_metric["alert_rule"] = body_alert_rule
+				if len(body_alert_rule) > 0 {
+					body_vital_metric["alert_rule"] = body_alert_rule
+				}
 				body_vital_metrics = append(body_vital_metrics, body_vital_metric)
 			}
 		}
@@ -427,6 +429,7 @@ func entityType(ctx context.Context, d *schema.ResourceData, clientConfig models
 					body_dashboard_drilldown["id"] = _dashboard_drilldown_title.(string)
 				} else {
 					body_dashboard_drilldown["id"] = _dashboard_drilldown["dashboard_id"].(string)
+					body_dashboard_drilldown["base_url"] = ""
 				}
 				body_params := []interface{}{}
 				for alias, param := range _dashboard_drilldown["params"].(map[string]interface{}) {
