@@ -308,11 +308,8 @@ func entityType(ctx context.Context, d *schema.ResourceData, clientConfig models
 					body_vital_metric["matching_entity_fields"] = append(body_vital_metric["matching_entity_fields"].([]string), alias)
 					body_vital_metric["split_by_fields"] = append(body_vital_metric["split_by_fields"].([]string), split_by_field.(string))
 				}
-				isKey := 0
-				if _vital_metric["is_key"].(bool) {
-					isKey = 1
-				}
-				body_vital_metric["is_key"] = isKey
+
+				body_vital_metric["is_key"] = _vital_metric["is_key"].(bool)
 				body_vital_metric["unit"] = _vital_metric["unit"].(string)
 				body_alert_rule := map[string]interface{}{}
 				for idx, alert_rule := range _vital_metric["alert_rule"].(*schema.Set).List() {
@@ -358,7 +355,9 @@ func entityType(ctx context.Context, d *schema.ResourceData, clientConfig models
 					body_alert_rule["entity_filter"] = body_entity_filters
 
 				}
-				body_vital_metric["alert_rule"] = body_alert_rule
+				if len(body_alert_rule) > 0 {
+					body_vital_metric["alert_rule"] = body_alert_rule
+				}
 				body_vital_metrics = append(body_vital_metrics, body_vital_metric)
 			}
 		}
