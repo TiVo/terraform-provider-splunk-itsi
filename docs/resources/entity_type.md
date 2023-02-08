@@ -29,7 +29,7 @@ resource "itsi_entity_type" "dashboard_drilldowns" {
   }
   dashboard_drilldown {
     base_url = "https://itsi.oi.tivo.com/en-US/app/itsi/homeview?view=standard&viewType=service_topology&earliest=-60m%40m&latest=now"
-    params {
+    params = {
       mso_id = "service"
     }
     title = "Service Analyzer (for MSO)"
@@ -63,7 +63,7 @@ resource "itsi_entity_type" "Kubernetes_Pod" {
       data_field   = "pod"
       entity_field = "pod-name"
     }
-    static_filters {
+    static_filters = {
       sourcetype = "kube:objects:pods"
     }
     title = "Kubernetes Pod metadata"
@@ -71,7 +71,7 @@ resource "itsi_entity_type" "Kubernetes_Pod" {
   }
   vital_metric {
     is_key = true
-    matching_entity_fields {
+    matching_entity_fields = {
       pod-name      = "pod-name"
       pod-namespace = "pod-namespace"
     }
@@ -79,7 +79,7 @@ resource "itsi_entity_type" "Kubernetes_Pod" {
     search      = "| mstats avg(kube.pod.cpu.usage_rate) as val WHERE `itsi_entity_type_k8s_pod_metrics_indexes` by pod-name, pod-namespace span=5m"
   }
   vital_metric {
-    matching_entity_fields {
+    matching_entity_fields = {
       pod-name      = "pod-name"
       pod-namespace = "pod-namespace"
     }

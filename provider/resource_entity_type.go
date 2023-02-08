@@ -308,8 +308,11 @@ func entityType(ctx context.Context, d *schema.ResourceData, clientConfig models
 					body_vital_metric["matching_entity_fields"] = append(body_vital_metric["matching_entity_fields"].([]string), alias)
 					body_vital_metric["split_by_fields"] = append(body_vital_metric["split_by_fields"].([]string), split_by_field.(string))
 				}
-
-				body_vital_metric["is_key"] = _vital_metric["is_key"].(bool)
+				isKey := 0
+				if _vital_metric["is_key"].(bool) {
+					isKey = 1
+				}
+				body_vital_metric["is_key"] = isKey
 				body_vital_metric["unit"] = _vital_metric["unit"].(string)
 				body_alert_rule := map[string]interface{}{}
 				for idx, alert_rule := range _vital_metric["alert_rule"].(*schema.Set).List() {
@@ -427,6 +430,7 @@ func entityType(ctx context.Context, d *schema.ResourceData, clientConfig models
 					body_dashboard_drilldown["id"] = _dashboard_drilldown_title.(string)
 				} else {
 					body_dashboard_drilldown["id"] = _dashboard_drilldown["dashboard_id"].(string)
+					body_dashboard_drilldown["base_url"] = ""
 				}
 				body_params := []interface{}{}
 				for alias, param := range _dashboard_drilldown["params"].(map[string]interface{}) {
