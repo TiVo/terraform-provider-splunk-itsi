@@ -434,7 +434,7 @@ func collectionApiEntryRead(ctx context.Context, d *schema.ResourceData, m inter
 	// To read a collection entry, we use...
 	//   storage/collections/data/{collection}/{key} -- GET
 	api, _ = collectionEntry(ctx, d, "collection_entry", m)
-	return api.Read(ctx)
+	return api.Read(ctx, true)
 }
 
 func collectionApiEntryUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) (api *models.CollectionApi, err error) {
