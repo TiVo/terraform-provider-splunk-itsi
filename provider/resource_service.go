@@ -792,7 +792,11 @@ func populateServiceResourceData(ctx context.Context, b *models.Base, d *schema.
 					}
 					if linkedKPIBS {
 						if tfKpi["base_search_metric"], err = metricLookup.lookupMetricTitleByID(ctx, b.Splunk, k["base_search_id"].(string), k["base_search_metric"].(string)); err != nil {
-							return diag.FromErr(err)
+							diags = append(diags, diag.Diagnostic{
+								Severity: diag.Warning,
+								Summary:  err.Error(),
+							})
+							continue
 						}
 					}
 					tfKpi["id"] = id
