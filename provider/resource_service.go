@@ -785,19 +785,21 @@ func populateServiceResourceData(ctx context.Context, b *models.Base, d *schema.
 							linkedKPIBS = false
 							diags = append(diags, diag.Diagnostic{
 								Severity: diag.Warning,
-								Summary:  fmt.Sprintf("Missing base_search_id and base_search_metric fields for Service %s, KPI %s.\nThe itsi_service resource does support adhoc KPIs.", b.RESTKey, id),
+								Summary:  fmt.Sprintf("Missing base_search_id and base_search_metric fields for Service %s, KPI %s.\nThe itsi_service resource does not support adhoc KPIs.", b.RESTKey, id),
 							})
 							break
 						}
 					}
-					if linkedKPIBS {
-						if tfKpi["base_search_metric"], err = metricLookup.lookupMetricTitleByID(ctx, b.Splunk, k["base_search_id"].(string), k["base_search_metric"].(string)); err != nil {
-							diags = append(diags, diag.Diagnostic{
-								Severity: diag.Warning,
-								Summary:  err.Error(),
-							})
-							continue
-						}
+					if !linkedKPIBS {
+						// skip populating the adhoc KPI.
+						continue
+					}
+					if tfKpi["base_search_metric"], err = metricLookup.lookupMetricTitleByID(ctx, b.Splunk, k["base_search_id"].(string), k["base_search_metric"].(string)); err != nil {
+						diags = append(diags, diag.Diagnostic{
+							Severity: diag.Warning,
+							Summary:  err.Error(),
+						})
+						continue
 					}
 					tfKpi["id"] = id
 					if kpiThresholdTemplateId, ok := k["kpi_threshold_template_id"]; ok && kpiThresholdTemplateId != "" {
