@@ -425,7 +425,7 @@ func (b *Base) storeCache() {
 	Cache.Add(b)
 }
 
-//Returns an object from cache if it's present, or makes the relevant API calls..
+// Returns an object from cache if it's present, or makes the relevant API calls..
 func (b *Base) Find(ctx context.Context) (result *Base, err error) {
 	if b.RESTKey == "" && b.TFID == "" {
 		return nil, fmt.Errorf("could not Find %s resource: neither RESTKey nor TFID were provided", b.ObjectType)
