@@ -108,6 +108,8 @@ notable_event_aggregation_policy:
     object_type: notable_event_aggregation_policy
     rest_key_field: _key
     tfid_field: title
+    max_page_size: 100
+    generate_key: true
 
 correlation_search:
     rest_interface: event_management_interface

@@ -5,57 +5,8 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
+	"github.com/tivo/terraform-provider-splunk-itsi/provider/util"
 )
-
-type severityInfo struct {
-	// Severity label assigned for the threshold level, including info, warning, critical, etc.
-	severityLabel string
-	// Severity color assigned for the threshold level
-	severityColor string
-	// Severity light color assigned for the threshold level
-	severityColorLight string
-	// Value for threshold level.
-	severityValue int
-}
-
-var severityMap = map[string]severityInfo{
-	"critical": {
-		severityLabel:      "critical",
-		severityColor:      "#B50101",
-		severityColorLight: "#E5A6A6",
-		severityValue:      6,
-	},
-	"high": {
-		severityLabel:      "high",
-		severityColor:      "#F26A35",
-		severityColorLight: "#FBCBB9",
-		severityValue:      5,
-	},
-	"medium": {
-		severityLabel:      "medium",
-		severityColor:      "#FCB64E",
-		severityColorLight: "#FEE6C1",
-		severityValue:      4,
-	},
-	"low": {
-		severityLabel:      "low",
-		severityColor:      "#FFE98C",
-		severityColorLight: "#FFF4C5",
-		severityValue:      3,
-	},
-	"normal": {
-		severityLabel:      "normal",
-		severityColor:      "#99D18B",
-		severityColorLight: "#DCEFD7",
-		severityValue:      2,
-	},
-	"info": {
-		severityLabel:      "info",
-		severityColor:      "#AED3E5",
-		severityColorLight: "#E3F0F6",
-		severityValue:      1,
-	},
-}
 
 func getKpiThresholdPolicySchema() map[string]*schema.Schema {
 	return map[string]*schema.Schema{
@@ -303,11 +254,11 @@ func kpiThresholdPolicyToPayload(sourcePolicy map[string]interface{}) (interface
 
 func kpiThresholdThresholdSettingsToPayload(source map[string]interface{}) (interface{}, error) {
 	thresholdSetting := map[string]interface{}{}
-	if severity, ok := severityMap[source["base_severity_label"].(string)]; ok {
-		thresholdSetting["baseSeverityColor"] = severity.severityColor
-		thresholdSetting["baseSeverityColorLight"] = severity.severityColorLight
-		thresholdSetting["baseSeverityLabel"] = severity.severityLabel
-		thresholdSetting["baseSeverityValue"] = severity.severityValue
+	if severity, ok := util.SeverityMap[source["base_severity_label"].(string)]; ok {
+		thresholdSetting["baseSeverityColor"] = severity.SeverityColor
+		thresholdSetting["baseSeverityColorLight"] = severity.SeverityColorLight
+		thresholdSetting["baseSeverityLabel"] = severity.SeverityLabel
+		thresholdSetting["baseSeverityValue"] = severity.SeverityValue
 	} else {
 		return nil, fmt.Errorf("schema Validation broken. Unknown severity %s", source["base_severity_label"])
 	}
@@ -324,11 +275,11 @@ func kpiThresholdThresholdSettingsToPayload(source map[string]interface{}) (inte
 		sourceThresholdLevel := sourceThresholdLevel_.(map[string]interface{})
 		thresholdLevel := map[string]interface{}{}
 		thresholdLevel["dynamicParam"] = sourceThresholdLevel["dynamic_param"].(float64)
-		if severity, ok := severityMap[sourceThresholdLevel["severity_label"].(string)]; ok {
-			thresholdLevel["severityColor"] = severity.severityColor
-			thresholdLevel["severityColorLight"] = severity.severityColorLight
-			thresholdLevel["severityLabel"] = severity.severityLabel
-			thresholdLevel["severityValue"] = severity.severityValue
+		if severity, ok := util.SeverityMap[sourceThresholdLevel["severity_label"].(string)]; ok {
+			thresholdLevel["severityColor"] = severity.SeverityColor
+			thresholdLevel["severityColorLight"] = severity.SeverityColorLight
+			thresholdLevel["severityLabel"] = severity.SeverityLabel
+			thresholdLevel["severityValue"] = severity.SeverityValue
 		} else {
 			return nil, fmt.Errorf("schema Validation broken. Unknown severity %s", sourceThresholdLevel["severity_label"])
 		}
