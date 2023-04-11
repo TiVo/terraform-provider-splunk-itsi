@@ -19,6 +19,8 @@ import (
 	"github.com/tivo/terraform-provider-splunk-itsi/provider/util"
 )
 
+var supported_execute_actions = []string{"slack_adv", "email", "bigpanda_stateful", "itsi_event_action_send_to_phantom", "itsi_event_action_link_url", "itsi_sample_event_action_ping", "script"}
+
 func notableEventAggregationPolicyTFFormat(b *models.Base) (string, error) {
 	res := ResourceNotableEventAggregationPolicy()
 	resData := res.Data(nil)
@@ -90,10 +92,101 @@ func ResourceNotableEventAggregationPolicy() *schema.Resource {
 			Type:     schema.TypeString,
 			Optional: true,
 		},
-		"bigpanda_stateful": {
-			Type:     schema.TypeSet,
+		"itsi_event_action_send_to_phantom": {
+			Type:        schema.TypeSet,
+			Description: "Run a script stored in $SPLUNK_HOME/bin/scripts. Note: DEPRECATED",
+			MaxItems:    1,
+			Optional:    true,
+			Elem: &schema.Resource{
+				Schema: map[string]*schema.Schema{
+					"ph_server": {
+						Description: "The Phantom server to which to send the ITSI episode",
+						Type:        schema.TypeString,
+						Required:    true,
+					},
+					"ph_label": {
+						Description: "Label which determines which playbooks to trigger.",
+						Type:        schema.TypeString,
+						Required:    true,
+					},
+				},
+			},
+		},
+		"script": {
+			Type:        schema.TypeSet,
+			Description: "Run a script stored in $SPLUNK_HOME/bin/scripts. Note: DEPRECATED",
+			MaxItems:    1,
+			Optional:    true,
+			Elem: &schema.Resource{
+				Schema: map[string]*schema.Schema{
+					"filename": {
+						Type:     schema.TypeString,
+						Required: true,
+					},
+				},
+			},
+		},
+		"itsi_event_action_link_url": {
+			Type: schema.TypeSet,
+			Description: `Set options to associate an episode with an external URL.
+			  Follow this stanza name with any number of the following
+			  attribute/value pairs.
+			  If you do not specify an entry for each attribute, Splunk will
+			  use the default value.`,
 			MaxItems: 1,
 			Optional: true,
+			Elem: &schema.Resource{
+				Schema: map[string]*schema.Schema{
+					"operation": {
+						Type:     schema.TypeString,
+						Optional: true,
+						Description: `Specifies the type of action to take on the URL.
+							If "upsert", ITSI inserts or updates existing fields.
+							If "delete", ITSI deletes the URL.`,
+						Default:      "upsert",
+						ValidateFunc: validation.StringInSlice([]string{"delete", "upsert"}, false),
+					},
+					"kwargs": {
+						Type:        schema.TypeString,
+						Description: "A dictionary of additional fields to pass to the URL.",
+						Optional:    true,
+						Default:     "",
+					},
+					"url": {
+						Type:        schema.TypeString,
+						Required:    true,
+						Description: "The external link for drilldown purposes. The URL must start with with http:// or https://. Otherwise it is interpreted as a relative URI.",
+					},
+					"url_description": {
+						Type:        schema.TypeString,
+						Optional:    true,
+						Description: "A description of the link destination. For display purposes only.",
+						Default:     "",
+					},
+				},
+			},
+		},
+		"itsi_sample_event_action_ping": {
+			Type:        schema.TypeSet,
+			MaxItems:    1,
+			Description: "Given one or more ITSI episodes, ping the `host` in it.",
+			Optional:    true,
+			Elem: &schema.Resource{
+				Schema: map[string]*schema.Schema{
+					"host_to_ping": {
+						Type:        schema.TypeString,
+						Description: "Type the event field that contains the host that you want to ping in the Host field. For example, %server%.",
+						Optional:    true,
+						Default:     "%orig_host%",
+					},
+				},
+			},
+		},
+		"bigpanda_stateful": {
+			Type:        schema.TypeSet,
+			Description: "Send a Stateful BigPanda Alert",
+			MaxItems:    1,
+			Optional:    true,
 			Elem: &schema.Resource{
 				Schema: map[string]*schema.Schema{
 					"api_token": {
@@ -149,24 +242,28 @@ func ResourceNotableEventAggregationPolicy() *schema.Resource {
 			},
 		},
 		"slack_adv": {
-			Type:     schema.TypeSet,
-			MaxItems: 1,
-			Optional: true,
+			Type:        schema.TypeSet,
+			Description: "Send an advanced message to a Slack channel",
+			MaxItems:    1,
+			Optional:    true,
 			Elem: &schema.Resource{
 				Schema: map[string]*schema.Schema{
 					"from_user": {
-						Type:     schema.TypeString,
-						Optional: true,
-						Default:  "Splunk",
+						Type:        schema.TypeString,
+						Optional:    true,
+						Description: "The name of the user sending the Slack message. By default this is \"Splunk\".",
+						Default:     "Splunk",
 					},
 					"from_user_icon": {
-						Type:     schema.TypeString,
-						Optional: true,
-						Default:  "https://s3-us-west-1.amazonaws.com/ziegfried-apps/slack-alerts/splunk-icon.png",
+						Type:        schema.TypeString,
+						Optional:    true,
+						Description: "URL to an icon to show as the avatar for the Slack message. By default this is a Splunk icon.",
+						Default:     "https://s3-us-west-1.amazonaws.com/ziegfried-apps/slack-alerts/splunk-icon.png",
 					},
 					"webhook_url": {
-						Type:     schema.TypeString,
-						Required: true,
+						Type:        schema.TypeString,
+						Required:    true,
+						Description: "The webhook URL to send the Slack message requests to. This can be obtained by creating a new \"Incoming webhook\" integration in Slack.",
 					},
 					"channel": {
 						Type:        schema.TypeString,
@@ -188,9 +285,10 @@ func ResourceNotableEventAggregationPolicy() *schema.Resource {
 			},
 		},
 		"email": {
-			Type:     schema.TypeSet,
-			MaxItems: 1,
-			Optional: true,
+			Type:        schema.TypeSet,
+			Description: "Send email",
+			MaxItems:    1,
+			Optional:    true,
 			Elem: &schema.Resource{
 				Schema: map[string]*schema.Schema{
 					"to": {
@@ -217,7 +315,7 @@ func ResourceNotableEventAggregationPolicy() *schema.Resource {
 					"content_type": {
 						Type:         schema.TypeString,
 						Optional:     true,
-						ValidateFunc: validation.StringInSlice([]string{"html", "text"}, false),
+						ValidateFunc: validation.StringInSlice([]string{"html", "plain"}, false),
 					},
 					"priority": {
 						Type:     schema.TypeString,
@@ -408,6 +506,23 @@ func ResourceNotableEventAggregationPolicy() *schema.Resource {
 				},
 				Description: "BreakingCriteria represents the criteria which retires an active group.",
 			},
+			/*
+				- run_time_based_actions_once
+				- service_topology_enabled
+				- entity_factor_enabled
+				- sub_group_limit
+
+
+				- group_assignee
+				- group_custom_instruction
+				- group_dashboard
+				- group_dashboard_context
+				- group_description
+				- group_instruction
+				- group_severity
+				- group_status
+				- group_title
+			*/
 			"group_severity": {
 				Type:        schema.TypeString,
 				Optional:    true,
@@ -655,7 +770,6 @@ func notableEventAggregationPolicy(ctx context.Context, d *schema.ResourceData, 
 					}
 				} else {
 					item_json["type"] = "notable_event_execute_action"
-					supported_execute_actions := []string{"slack_adv", "email", "bigpanda_stateful"}
 					params := map[string]interface{}{}
 					var action_type = ""
 					for _, supported_execute_action := range supported_execute_actions {
@@ -668,34 +782,55 @@ func notableEventAggregationPolicy(ctx context.Context, d *schema.ResourceData, 
 						}
 					}
 					action_prefix := "action." + action_type + "."
-					// TF to JSON schema modifications (ex: convert email.to from set to string)
-					switch action_type {
-					case "email":
-						for _, addr := range []string{"to", "cc", "bcc"} {
-							emails := []string{}
-							if _addr, ok := params[addr]; ok {
-								for _, email := range _addr.(*schema.Set).List() {
-									emails = append(emails, email.(string))
+					supported := false
+					for _, supported_action := range supported_execute_actions {
+						if action_type == supported_action {
+							supported = true
+							switch action_type {
+							case "email":
+								for _, addr := range []string{"to", "cc", "bcc"} {
+									emails := []string{}
+									if _addr, ok := params[addr]; ok {
+										for _, email := range _addr.(*schema.Set).List() {
+											emails = append(emails, email.(string))
+										}
+										params[addr] = strings.Join(emails, ",")
+									}
 								}
-								params[addr] = strings.Join(emails, ",")
-							}
-						}
-					case "slack_adv":
-						action_prefix += "param."
-					case "bigpanda_stateful":
-						action_prefix += "param."
-						if tf_extra_params, ok := params["parameters"]; ok {
-							json_extra_params := ""
+							case "bigpanda_stateful":
+								action_prefix += "param."
+								if tf_extra_params, ok := params["parameters"]; ok {
+									json_extra_params := ""
 
-							for k, v := range tf_extra_params.(map[string]interface{}) {
-								json_extra_params += fmt.Sprintf("%s='%s' ", k, v.(string))
+									for k, v := range tf_extra_params.(map[string]interface{}) {
+										json_extra_params += fmt.Sprintf("%s='%s' ", k, v.(string))
 
+									}
+									params["parameters"] = json_extra_params
+								}
+							/*case "itsi_event_action_link_url":
+							action_prefix += "param."
+							if tf_extra_params, ok := params["kwargs"]; ok {
+								jsonString, err := json.Marshal(tf_extra_params.(map[string]interface{}))
+
+								if err != nil {
+									return nil, err
+								}
+								params["kwargs"] = jsonString
+							}*/
+
+							case "script":
+								// no additional actions required
+							default:
+								action_prefix += "param."
 							}
-							params["parameters"] = json_extra_params
+
 						}
-					default:
-						return nil, fmt.Errorf("unsupported action item: %s", _item)
 					}
+					if !supported {
+						return nil, fmt.Errorf("unsupported action type %s", action_type)
+					}
+					// TF to JSON schema modifications (ex: convert email.to from set to string)
 
 					params_json := map[string]interface{}{}
 					for key, value := range params {
@@ -1006,7 +1141,7 @@ func populateNotableEventAggregationPolicyResourceData(ctx context.Context, b *m
 						if name, ok := config.(map[string]interface{})["name"]; ok {
 							_name := name.(string)
 							if params, ok := config.(map[string]interface{})["params"]; ok {
-								for _, supported_action := range []string{"email", "slack_adv", "bigpanda_stateful"} {
+								for _, supported_action := range supported_execute_actions {
 									if _name == supported_action {
 										_params := params.(string)
 										/*params_unquoted, err := strconv.Unquote(_params)
@@ -1044,6 +1179,15 @@ func populateNotableEventAggregationPolicyResourceData(ctx context.Context, b *m
 													extra_params[v[1]] = v[2]
 												}
 												tf_execute_action[trimmed_key] = extra_params
+											/*case _name == "itsi_event_action_link_url" && trimmed_key == "kwargs":
+											var extra_params map[string]interface{}
+											if val := value.(string); val != "" {
+												err = json.Unmarshal([]byte(value.(string)), &extra_params)
+												if err != nil {
+													return diag.FromErr(err)
+												}
+												tf_execute_action[trimmed_key] = extra_params
+											}*/
 											default:
 												tf_execute_action[trimmed_key] = value
 											}
