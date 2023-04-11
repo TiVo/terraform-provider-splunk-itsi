@@ -488,12 +488,24 @@ func ResourceNotableEventAggregationPolicy() *schema.Resource {
 				},
 				Description: "BreakingCriteria represents the criteria which retires an active group.",
 			},
-			/*
-				- run_time_based_actions_once
-				- service_topology_enabled
-				- entity_factor_enabled
-				- sub_group_limit
-			*/
+			"entity_factor_enabled": {
+				Type:     schema.TypeBool,
+				Optional: true,
+				Default:  true,
+			},
+			"run_time_based_actions_once": {
+				Type:     schema.TypeBool,
+				Optional: true,
+				Description: `if you create an action to add a comment after an episode has existed for 60 seconds, a comment will only be added once for the episode. There are 2 conditions that trigger time-based actions:
+					- The episode existed for (duration)
+					- The flow of events into the episode paused for (pause)`,
+				Default: true,
+			},
+			"service_topology_enabled": {
+				Type:     schema.TypeBool,
+				Optional: true,
+				Default:  true,
+			},
 			"group_title": {
 				Type:        schema.TypeString,
 				Optional:    true,
@@ -710,7 +722,11 @@ func notableEventAggregationPolicy(ctx context.Context, d *schema.ResourceData, 
 	body["object_type"] = "notable_event_aggregation_policy"
 	body["title"] = d.Get("title").(string)
 	body["description"] = d.Get("description").(string)
-	body["disabled"] = d.Get("disabled").(bool)
+
+	bool_fields := []string{"disabled", "run_time_based_actions_once", "service_topology_enabled", "entity_factor_enabled"}
+	for _, bool_field := range bool_fields {
+		body[bool_field] = d.Get(bool_field).(bool)
+	}
 	body["priority"] = d.Get("priority").(int)
 	//group_status
 	json_group_severity := d.Get("group_severity").(string)
@@ -1044,30 +1060,32 @@ func populateNotableEventAggregationPolicyResourceData(ctx context.Context, b *m
 			}
 		}
 	}
+	bool_fields := []string{"disabled", "run_time_based_actions_once", "service_topology_enabled", "entity_factor_enabled"}
+	for _, bool_field := range bool_fields {
+		switch t := interfaceMap[bool_field].(type) {
+		case bool:
+			err = d.Set(bool_field, interfaceMap[bool_field].(bool))
+			if err != nil {
+				return diag.FromErr(err)
+			}
+		case float64:
+			err = d.Set(bool_field, interfaceMap[bool_field].(float64) > 0)
+			if err != nil {
+				return diag.FromErr(err)
+			}
+		case string:
+			disabled, err := strconv.Atoi(interfaceMap[bool_field].(string))
+			if err != nil {
+				return diag.FromErr(err)
+			}
+			err = d.Set(bool_field, disabled > 0)
+			if err != nil {
+				return diag.FromErr(err)
+			}
 
-	switch t := interfaceMap["disabled"].(type) {
-	case bool:
-		err = d.Set("disabled", interfaceMap["disabled"].(bool))
-		if err != nil {
-			return diag.FromErr(err)
+		default:
+			diag.FromErr(fmt.Errorf("usupported type %s for priority", t))
 		}
-	case float64:
-		err = d.Set("disabled", interfaceMap["disabled"].(float64) > 0)
-		if err != nil {
-			return diag.FromErr(err)
-		}
-	case string:
-		disabled, err := strconv.Atoi(interfaceMap["disabled"].(string))
-		if err != nil {
-			return diag.FromErr(err)
-		}
-		err = d.Set("disabled", disabled > 0)
-		if err != nil {
-			return diag.FromErr(err)
-		}
-
-	default:
-		diag.FromErr(fmt.Errorf("usupported type %s for priority", t))
 	}
 
 	filter_criteria, err := criteriaResourceData(interfaceMap["filter_criteria"].(map[string]interface{}))
