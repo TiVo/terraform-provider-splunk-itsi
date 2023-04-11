@@ -12,7 +12,6 @@ import (
 	"strings"
 
 	"github.com/hashicorp/go-uuid"
-	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
@@ -99,7 +98,7 @@ func ResourceNotableEventAggregationPolicy() *schema.Resource {
 				Schema: map[string]*schema.Schema{
 					"api_token": {
 						Type:     schema.TypeString,
-						Optional: true,
+						Required: true,
 					},
 					"api_url": {
 						Type:     schema.TypeString,
@@ -167,7 +166,7 @@ func ResourceNotableEventAggregationPolicy() *schema.Resource {
 					},
 					"webhook_url": {
 						Type:     schema.TypeString,
-						Optional: true,
+						Required: true,
 					},
 					"channel": {
 						Type:        schema.TypeString,
@@ -326,7 +325,7 @@ func ResourceNotableEventAggregationPolicy() *schema.Resource {
 					"operator": {
 						Type:             schema.TypeString,
 						Required:         true,
-						ValidateDiagFunc: util.CheckInputValidString([]string{"=", "!=", ">=", "<=", ">", "<"}),
+						ValidateDiagFunc: util.CheckInputValidString([]string{"==", "!=", ">=", "<=", ">", "<"}),
 					},
 					"limit": {
 						Type:     schema.TypeInt,
@@ -426,7 +425,7 @@ func ResourceNotableEventAggregationPolicy() *schema.Resource {
 			},
 			"rule": {
 				Type:     schema.TypeSet,
-				Required: true,
+				Optional: true,
 				Elem: &schema.Resource{
 					Schema: map[string]*schema.Schema{
 						"_key": {
@@ -548,9 +547,10 @@ func criteria(criteria_type string, criteria_data *schema.Set) (criteria map[str
 				}
 
 			case "notable_event_count":
+				notable_event_count := _item.(map[string]interface{})
 				item["config"] = map[string]interface{}{
-					"operator": _item.(string),
-					"limit":    _item.(int),
+					"operator": notable_event_count["operator"].(string),
+					"limit":    notable_event_count["limit"].(int),
 				}
 
 			case "breaking_criteria":
@@ -656,15 +656,16 @@ func notableEventAggregationPolicy(ctx context.Context, d *schema.ResourceData, 
 				} else {
 					item_json["type"] = "notable_event_execute_action"
 					supported_execute_actions := []string{"slack_adv", "email", "bigpanda_stateful"}
-					var params map[string]interface{}
+					params := map[string]interface{}{}
 					var action_type = ""
 					for _, supported_execute_action := range supported_execute_actions {
 						if action_type_params := _item[supported_execute_action].(*schema.Set).List(); len(action_type_params) == 1 {
 							action_type = supported_execute_action
 
-							params = action_type_params[0].(map[string]interface{})
+							for k, v := range action_type_params[0].(map[string]interface{}) {
+								params[k] = v
+							}
 						}
-
 					}
 					action_prefix := "action." + action_type + "."
 					// TF to JSON schema modifications (ex: convert email.to from set to string)
@@ -737,13 +738,13 @@ func criteriaResourceData(itsi_criteria map[string]interface{}) (tf_criteria map
 			case "notable_event_count":
 				config := _item["config"].(map[string]interface{})
 				tf_item["operator"] = config["operator"].(string)
-				switch config["limit"].(type) {
-				case int:
-					tf_item["limit"] = config["limit"].(int)
+				switch t := config["limit"].(type) {
+				case float64:
+					tf_item["limit"] = config["limit"].(float64)
 				case string:
 					tf_item["limit"], err = strconv.Atoi(config["limit"].(string))
 				default:
-					return nil, fmt.Errorf("unsupported notable_event_count limit type")
+					return nil, fmt.Errorf("unsupported notable_event_count limit type: %t", t)
 				}
 
 			case "pause", "duration":
@@ -1027,12 +1028,14 @@ func populateNotableEventAggregationPolicyResourceData(ctx context.Context, b *m
 											trimmed_key = strings.TrimPrefix(trimmed_key, "param.")
 											switch {
 											case _name == "email" && (trimmed_key == "to" || trimmed_key == "bcc" || trimmed_key == "cc"):
-												names := strings.Split(value.(string), ",")
-												for i := range names {
-													names[i] = strings.TrimSpace(names[i])
-												}
-												tf_execute_action[trimmed_key] = names
+												if value != "" {
+													names := strings.Split(value.(string), ",")
+													for i := range names {
+														names[i] = strings.TrimSpace(names[i])
+													}
 
+													tf_execute_action[trimmed_key] = names
+												}
 											case _name == "bigpanda_stateful" && trimmed_key == "parameters":
 												rex := regexp.MustCompile(`([^ =]*)[ ]*=[ ]*'([^']*)' `)
 												matches := rex.FindAllStringSubmatch(value.(string), -1)
@@ -1129,13 +1132,12 @@ func notableEventAggregationPolicyUpdate(ctx context.Context, d *schema.Resource
 
 func notableEventAggregationPolicyDelete(ctx context.Context, d *schema.ResourceData, m interface{}) (diags diag.Diagnostics) {
 	base := notableEventAggregationPolicyBase(m.(models.ClientConfig), d.Id(), d.Get("title").(string))
-	tflog.Info(ctx, "ENTITY: delete", map[string]interface{}{"TFID": base.TFID})
 	existing, err := base.Find(ctx)
 	if err != nil {
 		return diag.FromErr(err)
 	}
 	if existing == nil {
-		return diag.Errorf("Unable to find entity model")
+		return diag.Errorf("Unable to find neap model")
 	}
 	return diag.FromErr(existing.Delete(ctx))
 }
