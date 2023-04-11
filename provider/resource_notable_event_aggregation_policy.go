@@ -65,24 +65,13 @@ func ResourceNotableEventAggregationPolicy() *schema.Resource {
 			ValidateDiagFunc: util.CheckInputValidString([]string{"GROUP", "ALL", "FILTER", "THIS"}),
 		},
 		"notable_severity_change": {
-			Type:     schema.TypeString,
-			Optional: true,
-			ValidateDiagFunc: util.CheckInputValidString([]string{
-				"info",
-				"normal",
-				"low",
-				"medium",
-				"high",
-				"critical"})},
+			Type:             schema.TypeString,
+			Optional:         true,
+			ValidateDiagFunc: util.CheckInputValidString(*util.GetSupportedSeverities())},
 		"notable_status_change": {
-			Type:     schema.TypeString,
-			Optional: true,
-			ValidateDiagFunc: util.CheckInputValidString([]string{
-				"new",
-				"in progress",
-				"pending",
-				"resolved",
-				"closed"}),
+			Type:             schema.TypeString,
+			Optional:         true,
+			ValidateDiagFunc: util.CheckInputValidString(*util.GetSupportedStatuses()),
 		},
 		"notable_owner_change": {
 			Type:     schema.TypeString,
@@ -318,17 +307,10 @@ func ResourceNotableEventAggregationPolicy() *schema.Resource {
 						ValidateFunc: validation.StringInSlice([]string{"html", "plain"}, false),
 					},
 					"priority": {
-						Type:     schema.TypeString,
-						Optional: true,
-						Default:  "critical",
-						ValidateDiagFunc: util.CheckInputValidString([]string{
-							"info",
-							"normal",
-							"low",
-							"medium",
-							"high",
-							"critical",
-						}),
+						Type:             schema.TypeString,
+						Optional:         true,
+						Default:          "critical",
+						ValidateDiagFunc: util.CheckInputValidString(*util.GetSupportedSeverities()),
 					},
 					"subject": {
 						Type:        schema.TypeString,
@@ -511,32 +493,74 @@ func ResourceNotableEventAggregationPolicy() *schema.Resource {
 				- service_topology_enabled
 				- entity_factor_enabled
 				- sub_group_limit
-
-
-				- group_assignee
-				- group_custom_instruction
-				- group_dashboard
-				- group_dashboard_context
-				- group_description
-				- group_instruction
-				- group_severity
-				- group_status
-				- group_title
 			*/
+			"group_title": {
+				Type:        schema.TypeString,
+				Optional:    true,
+				Description: "The default title of each episode created by the notable event aggregation policy. (Episode Title)",
+				Default:     "%title%",
+			},
+			"group_description": {
+				Type:        schema.TypeString,
+				Optional:    true,
+				Description: "The default owner of each episode created by the notable event aggregation policy. (Episode Description)",
+				Default:     "%description%",
+			},
 			"group_severity": {
 				Type:        schema.TypeString,
 				Optional:    true,
 				Default:     "%severity%",
-				Description: "The default severity of each episode created by the notable event aggregation policy.",
-				ValidateDiagFunc: util.CheckInputValidString([]string{
-					"info",
-					"normal",
-					"low",
-					"medium",
-					"high",
-					"critical",
+				Description: "The default severity of each episode created by the notable event aggregation policy. (Episode Severity)",
+				ValidateDiagFunc: util.CheckInputValidString(append(*util.GetSupportedSeverities(), []string{
 					"%severity%",
-					"%last_severity%"}),
+					"%last_severity%",
+					"%lowest_severity%",
+					"%highest_severity%"}...)),
+			},
+			"group_assignee": {
+				Type:        schema.TypeString,
+				Optional:    true,
+				Description: "The default owner of each episode created by the notable event aggregation policy. (Episode Asignee)",
+				Default:     "%owner%",
+			},
+			"group_status": {
+				Type:        schema.TypeString,
+				Optional:    true,
+				Description: "The default status of each episode created by the notable event aggregation policy.  (Episode Asignee)",
+				Default:     "%owner%",
+				ValidateDiagFunc: util.CheckInputValidString(append(*util.GetSupportedStatuses(), []string{
+					"%status%",
+					"%last_status%"}...)),
+			},
+			"group_instruction": {
+				Type:        schema.TypeString,
+				Optional:    true,
+				Description: "The default instructions of each episode created by the notable event aggregation policy.",
+				Default:     "%instruction%",
+				ValidateDiagFunc: util.CheckInputValidString([]string{
+					"%instruction%",
+					"%last_instruction%",
+					"%all_instruction%",
+					"%custom_instruction%"}),
+			},
+			"group_custom_instruction": {
+				Type:        schema.TypeString,
+				Optional:    true,
+				Description: "The custom instruction of each episode created by the notable event aggregation policy.",
+				Default:     "",
+			},
+			"group_dashboard": {
+				Type:        schema.TypeString,
+				Optional:    true,
+				Description: "Customize the Episode dashboard using a JSON-formatted dashboard definition. The first notable event's fields are available to use as tokens in the dashboard.",
+				Default:     "",
+			},
+			"group_dashboard_context": {
+				Type:             schema.TypeString,
+				Optional:         true,
+				Description:      "Dashboard Tokens",
+				Default:          "first",
+				ValidateDiagFunc: util.CheckInputValidString([]string{"first", "last"}),
 			},
 			"rule": {
 				Type:     schema.TypeSet,
@@ -688,7 +712,26 @@ func notableEventAggregationPolicy(ctx context.Context, d *schema.ResourceData, 
 	body["description"] = d.Get("description").(string)
 	body["disabled"] = d.Get("disabled").(bool)
 	body["priority"] = d.Get("priority").(int)
-	body["group_severity"] = d.Get("group_severity").(string)
+	//group_status
+	json_group_severity := d.Get("group_severity").(string)
+	if value, ok := util.SeverityMap[json_group_severity]; ok {
+		json_group_severity = strconv.Itoa(value.SeverityValue)
+	}
+	body["group_severity"] = json_group_severity
+
+	json_group_status := d.Get("group_status").(string)
+	if value, ok := util.StatusInfoMap[json_group_severity]; ok {
+		json_group_status = strconv.Itoa(value)
+	}
+	body["group_status"] = json_group_status
+
+	group_fields := []string{"group_assignee", "group_custom_instruction",
+		"group_dashboard", "group_dashboard_context", "group_description", "group_instruction", "group_title"}
+
+	for _, group_field := range group_fields {
+		body[group_field] = d.Get(group_field).(string)
+	}
+
 	// TODO: support smart mode
 	body["ace_enabled"] = 0
 
@@ -974,6 +1017,34 @@ func populateNotableEventAggregationPolicyResourceData(ctx context.Context, b *m
 			return diag.FromErr(err)
 		}
 	}
+	group_status := interfaceMap["group_status"].(string)
+	group_status_label, err := strconv.Atoi(group_status)
+	if err == nil {
+		status_label, err := util.GetStatusInfoByValue(group_status_label)
+		if err != nil {
+			return diag.FromErr(err)
+		}
+		err = d.Set("group_status", status_label)
+		if err != nil {
+			return diag.FromErr(err)
+		}
+	} else {
+		err = d.Set("group_status", group_status)
+		if err != nil {
+			return diag.FromErr(err)
+		}
+	}
+	group_fields := []string{"group_assignee", "group_custom_instruction",
+		"group_dashboard", "group_dashboard_context", "group_description", "group_instruction", "group_title"}
+	for _, group_field := range group_fields {
+		if json_value, ok := interfaceMap[group_field]; ok {
+			err = d.Set(group_field, json_value.(string))
+			if err != nil {
+				return diag.FromErr(err)
+			}
+		}
+	}
+
 	switch t := interfaceMap["disabled"].(type) {
 	case bool:
 		err = d.Set("disabled", interfaceMap["disabled"].(bool))
