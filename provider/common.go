@@ -45,11 +45,12 @@ func newTemplate(resourcetpl *resourceTemplate) (*template.Template, error) {
 type TFFormatter func(*models.Base) (string, error)
 
 var Formatters map[string]TFFormatter = map[string]TFFormatter{
-	"kpi_base_search":        kpiBSTFFormat,
-	"kpi_threshold_template": kpiThresholdTemplateTFFormat,
-	"entity":                 entityTFFormat,
-	"entity_type":            entityTypeTFFormat,
-	"service":                serviceTFFormat,
+	"kpi_base_search":                  kpiBSTFFormat,
+	"kpi_threshold_template":           kpiThresholdTemplateTFFormat,
+	"entity":                           entityTFFormat,
+	"entity_type":                      entityTypeTFFormat,
+	"service":                          serviceTFFormat,
+	"notable_event_aggregation_policy": notableEventAggregationPolicyTFFormat,
 }
 
 func JSONify(base *models.Base, formatter TFFormatter) (json.RawMessage, error) {
