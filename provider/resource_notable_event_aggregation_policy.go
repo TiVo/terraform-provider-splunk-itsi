@@ -222,11 +222,6 @@ func ResourceNotableEventAggregationPolicy() *schema.Resource {
 						Optional:    true,
 						Description: "Extra parameters.",
 					},
-					"payload_format": {
-						Type:     schema.TypeString,
-						Optional: true,
-						Default:  "json",
-					},
 				},
 			},
 		},
@@ -550,7 +545,7 @@ func ResourceNotableEventAggregationPolicy() *schema.Resource {
 				Description: "The default instructions of each episode created by the notable event aggregation policy.",
 				Default:     "%instruction%",
 				ValidateDiagFunc: util.CheckInputValidString([]string{
-					"%instruction%",
+					"%itsi_instruction%",
 					"%last_instruction%",
 					"%all_instruction%",
 					"%custom_instruction%"}),
