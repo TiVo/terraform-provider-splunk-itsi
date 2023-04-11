@@ -808,16 +808,6 @@ func notableEventAggregationPolicy(ctx context.Context, d *schema.ResourceData, 
 									}
 									params["parameters"] = json_extra_params
 								}
-							/*case "itsi_event_action_link_url":
-							action_prefix += "param."
-							if tf_extra_params, ok := params["kwargs"]; ok {
-								jsonString, err := json.Marshal(tf_extra_params.(map[string]interface{}))
-
-								if err != nil {
-									return nil, err
-								}
-								params["kwargs"] = jsonString
-							}*/
 
 							case "script":
 								// no additional actions required
@@ -1179,15 +1169,6 @@ func populateNotableEventAggregationPolicyResourceData(ctx context.Context, b *m
 													extra_params[v[1]] = v[2]
 												}
 												tf_execute_action[trimmed_key] = extra_params
-											/*case _name == "itsi_event_action_link_url" && trimmed_key == "kwargs":
-											var extra_params map[string]interface{}
-											if val := value.(string); val != "" {
-												err = json.Unmarshal([]byte(value.(string)), &extra_params)
-												if err != nil {
-													return diag.FromErr(err)
-												}
-												tf_execute_action[trimmed_key] = extra_params
-											}*/
 											default:
 												tf_execute_action[trimmed_key] = value
 											}
