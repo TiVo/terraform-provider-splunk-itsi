@@ -1255,7 +1255,7 @@ func populateNotableEventAggregationPolicyResourceData(ctx context.Context, b *m
 									// trim action,%%action_name%% prefix
 									for key, value := range execute_action {
 										trimmed_key := strings.TrimPrefix(key, "action."+_name+".")
-										// apllicable for slack_adv, bigpanda_stateful
+										// applicable to slack_adv, bigpanda_stateful
 										trimmed_key = strings.TrimPrefix(trimmed_key, "param.")
 										switch {
 										case _name == "email" && (trimmed_key == "to" || trimmed_key == "bcc" || trimmed_key == "cc"):
