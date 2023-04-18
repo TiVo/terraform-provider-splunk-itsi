@@ -19,7 +19,6 @@ import (
 	"github.com/tivo/terraform-provider-splunk-itsi/provider/util"
 )
 
-// var supported_execute_actions = []string{, , , "", "", "", }
 var supported_execute_actions = map[string]struct{}{
 	"slack_adv":                         {},
 	"email":                             {},
