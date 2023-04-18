@@ -652,11 +652,11 @@ func ResourceNotableEventAggregationPolicy() *schema.Resource {
 }
 
 func criteria(criteria_type string, criteria_data *schema.Set) (criteria map[string]interface{}, err error) {
-	criterias := criteria_data.List()
-	if len(criterias) != 1 {
+	tf_criteria := criteria_data.List()
+	if len(tf_criteria) != 1 {
 		return nil, &SDK_ISSUE_588{}
 	}
-	_criteria := criterias[len(criterias)-1].(map[string]interface{})
+	_criteria := tf_criteria[len(tf_criteria)-1].(map[string]interface{})
 	criteria = make(map[string]interface{})
 
 	conflicting_item_types := []string{}
