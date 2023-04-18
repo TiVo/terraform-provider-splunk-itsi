@@ -19,7 +19,23 @@ import (
 	"github.com/tivo/terraform-provider-splunk-itsi/provider/util"
 )
 
-var supported_execute_actions = []string{"slack_adv", "email", "bigpanda_stateful", "itsi_event_action_send_to_phantom", "itsi_event_action_link_url", "itsi_sample_event_action_ping", "script"}
+var supported_execute_actions = map[string]struct{}{
+	"slack_adv":                         {},
+	"email":                             {},
+	"bigpanda_stateful":                 {},
+	"itsi_event_action_send_to_phantom": {},
+	"itsi_event_action_link_url":        {},
+	"itsi_sample_event_action_ping":     {},
+	"script":                            {},
+}
+
+type SDK_ISSUE_588 struct {
+	message string
+}
+
+func (i SDK_ISSUE_588) Error() string {
+	return "Deeply nested TypeMap under TypeSet will generate an empty distribution element on update of the nested attribute."
+}
 
 func notableEventAggregationPolicyTFFormat(b *models.Base) (string, error) {
 	res := ResourceNotableEventAggregationPolicy()
@@ -221,6 +237,9 @@ func ResourceNotableEventAggregationPolicy() *schema.Resource {
 						Type:        schema.TypeMap,
 						Optional:    true,
 						Description: "Extra parameters.",
+						Elem: &schema.Schema{
+							Type: schema.TypeString,
+						},
 					},
 				},
 			},
@@ -632,11 +651,11 @@ func ResourceNotableEventAggregationPolicy() *schema.Resource {
 }
 
 func criteria(criteria_type string, criteria_data *schema.Set) (criteria map[string]interface{}, err error) {
-	criterias := criteria_data.List()
-	if len(criterias) != 1 {
-		return nil, fmt.Errorf("%s should be specified once", criteria_type)
+	tf_criteria := criteria_data.List()
+	if len(tf_criteria) != 1 {
+		return nil, &SDK_ISSUE_588{}
 	}
-	_criteria := criterias[len(criterias)-1].(map[string]interface{})
+	_criteria := tf_criteria[len(tf_criteria)-1].(map[string]interface{})
 	criteria = make(map[string]interface{})
 
 	conflicting_item_types := []string{}
@@ -767,6 +786,14 @@ func notableEventAggregationPolicy(ctx context.Context, d *schema.ResourceData, 
 		rule_json := map[string]interface{}{}
 		_rule := rule.(map[string]interface{})
 
+		rule_json["activation_criteria"], err = criteria("activation_criteria", _rule["activation_criteria"].(*schema.Set))
+		switch err.(type) {
+		case nil: //nothing
+		case *SDK_ISSUE_588:
+			continue
+		default:
+			return nil, err
+		}
 		if key, ok := _rule["_key"]; ok && key != "" {
 			rule_json["_key"] = key
 		} else {
@@ -779,10 +806,6 @@ func notableEventAggregationPolicy(ctx context.Context, d *schema.ResourceData, 
 		rule_json["description"] = _rule["description"].(string)
 		rule_json["priority"] = _rule["priority"].(int)
 
-		rule_json["activation_criteria"], err = criteria("activation_criteria", _rule["activation_criteria"].(*schema.Set))
-		if err != nil {
-			return nil, err
-		}
 		rule_json["actions"] = []interface{}{}
 
 		for _, action := range _rule["actions"].(*schema.Set).List() {
@@ -826,7 +849,7 @@ func notableEventAggregationPolicy(ctx context.Context, d *schema.ResourceData, 
 					item_json["type"] = "notable_event_execute_action"
 					params := map[string]interface{}{}
 					var action_type = ""
-					for _, supported_execute_action := range supported_execute_actions {
+					for supported_execute_action := range supported_execute_actions {
 						if action_type_params := _item[supported_execute_action].(*schema.Set).List(); len(action_type_params) == 1 {
 							action_type = supported_execute_action
 
@@ -836,42 +859,37 @@ func notableEventAggregationPolicy(ctx context.Context, d *schema.ResourceData, 
 						}
 					}
 					action_prefix := "action." + action_type + "."
-					supported := false
-					for _, supported_action := range supported_execute_actions {
-						if action_type == supported_action {
-							supported = true
-							switch action_type {
-							case "email":
-								for _, addr := range []string{"to", "cc", "bcc"} {
-									emails := []string{}
-									if _addr, ok := params[addr]; ok {
-										for _, email := range _addr.(*schema.Set).List() {
-											emails = append(emails, email.(string))
-										}
-										params[addr] = strings.Join(emails, ",")
+					if action_type != "" {
+						switch action_type {
+						case "email":
+							for _, addr := range []string{"to", "cc", "bcc"} {
+								emails := []string{}
+								if _addr, ok := params[addr]; ok {
+									for _, email := range _addr.(*schema.Set).List() {
+										emails = append(emails, email.(string))
 									}
+									params[addr] = strings.Join(emails, ",")
 								}
-							case "bigpanda_stateful":
-								action_prefix += "param."
-								if tf_extra_params, ok := params["parameters"]; ok {
-									json_extra_params := ""
+							}
+						case "bigpanda_stateful":
+							action_prefix += "param."
+							if tf_extra_params, ok := params["parameters"]; ok {
+								json_extra_params := ""
 
-									for k, v := range tf_extra_params.(map[string]interface{}) {
-										json_extra_params += fmt.Sprintf("%s='%s' ", k, v.(string))
+								for k, v := range tf_extra_params.(map[string]interface{}) {
+									json_extra_params += fmt.Sprintf("%s='%s' ", k, v.(string))
 
-									}
-									params["parameters"] = json_extra_params
 								}
-
-							case "script":
-								// no additional actions required
-							default:
-								action_prefix += "param."
+								params["parameters"] = json_extra_params
 							}
 
+						case "script":
+							// no additional actions required
+						default:
+							action_prefix += "param."
 						}
-					}
-					if !supported {
+
+					} else {
 						return nil, fmt.Errorf("unsupported action type %s", action_type)
 					}
 					// TF to JSON schema modifications (ex: convert email.to from set to string)
@@ -1007,7 +1025,11 @@ func populateNotableEventAggregationPolicyResourceData(ctx context.Context, b *m
 	default:
 		diag.FromErr(fmt.Errorf("usupported type %s for priority", t))
 	}
-	err = d.Set("split_by_field", strings.Split(interfaceMap["split_by_field"].(string), ","))
+
+	if split_by_field, ok := interfaceMap["split_by_field"]; ok && split_by_field != "" {
+		err = d.Set("split_by_field", strings.Split(split_by_field.(string), ","))
+	}
+
 	if err != nil {
 		return diag.FromErr(err)
 	}
@@ -1215,51 +1237,49 @@ func populateNotableEventAggregationPolicyResourceData(ctx context.Context, b *m
 						if name, ok := config.(map[string]interface{})["name"]; ok {
 							_name := name.(string)
 							if params, ok := config.(map[string]interface{})["params"]; ok {
-								for _, supported_action := range supported_execute_actions {
-									if _name == supported_action {
-										_params := params.(string)
-										/*params_unquoted, err := strconv.Unquote(_params)
-										if err != nil {
-											return diag.FromErr(err)
-										}*/
-										var execute_action map[string]interface{}
-										err = json.Unmarshal([]byte(_params), &execute_action)
-										if err != nil {
-											return diag.FromErr(err)
-										}
-
-										tf_execute_action := map[string]interface{}{}
-
-										// trim action,%%action_name%% prefix
-										for key, value := range execute_action {
-											trimmed_key := strings.TrimPrefix(key, "action."+_name+".")
-											// apllicable for slack_adv, bigpanda_stateful
-											trimmed_key = strings.TrimPrefix(trimmed_key, "param.")
-											switch {
-											case _name == "email" && (trimmed_key == "to" || trimmed_key == "bcc" || trimmed_key == "cc"):
-												if value != "" {
-													names := strings.Split(value.(string), ",")
-													for i := range names {
-														names[i] = strings.TrimSpace(names[i])
-													}
-
-													tf_execute_action[trimmed_key] = names
-												}
-											case _name == "bigpanda_stateful" && trimmed_key == "parameters":
-												rex := regexp.MustCompile(`([^ =]*)[ ]*=[ ]*'([^']*)' `)
-												matches := rex.FindAllStringSubmatch(value.(string), -1)
-												extra_params := map[string]interface{}{}
-												for _, v := range matches {
-													extra_params[v[1]] = v[2]
-												}
-												tf_execute_action[trimmed_key] = extra_params
-											default:
-												tf_execute_action[trimmed_key] = value
-											}
-
-										}
-										tf_item[_name] = []interface{}{tf_execute_action}
+								if _, ok := supported_execute_actions[_name]; ok {
+									_params := params.(string)
+									/*params_unquoted, err := strconv.Unquote(_params)
+									if err != nil {
+										return diag.FromErr(err)
+									}*/
+									var execute_action map[string]interface{}
+									err = json.Unmarshal([]byte(_params), &execute_action)
+									if err != nil {
+										return diag.FromErr(err)
 									}
+
+									tf_execute_action := map[string]interface{}{}
+
+									// trim action,%%action_name%% prefix
+									for key, value := range execute_action {
+										trimmed_key := strings.TrimPrefix(key, "action."+_name+".")
+										// applicable to slack_adv, bigpanda_stateful
+										trimmed_key = strings.TrimPrefix(trimmed_key, "param.")
+										switch {
+										case _name == "email" && (trimmed_key == "to" || trimmed_key == "bcc" || trimmed_key == "cc"):
+											if value != "" {
+												names := strings.Split(value.(string), ",")
+												for i := range names {
+													names[i] = strings.TrimSpace(names[i])
+												}
+
+												tf_execute_action[trimmed_key] = names
+											}
+										case _name == "bigpanda_stateful" && trimmed_key == "parameters":
+											rex := regexp.MustCompile(`([^ =]*)[ ]*=[ ]*'([^']*)' `)
+											matches := rex.FindAllStringSubmatch(value.(string), -1)
+											extra_params := map[string]interface{}{}
+											for _, v := range matches {
+												extra_params[v[1]] = v[2]
+											}
+											tf_execute_action[trimmed_key] = extra_params
+										default:
+											tf_execute_action[trimmed_key] = value
+										}
+
+									}
+									tf_item[_name] = []interface{}{tf_execute_action}
 								}
 
 								if _, ok := tf_item[_name]; !ok {
