@@ -736,8 +736,12 @@ func notableEventAggregationPolicy(ctx context.Context, d *schema.ResourceData, 
 	body["object_type"] = "notable_event_aggregation_policy"
 	body["title"] = d.Get("title").(string)
 	body["description"] = d.Get("description").(string)
+	body["disabled"] = 0
+	if disabled := d.Get("disabled"); disabled.(bool) {
+		body["disabled"] = 1
+	}
 
-	bool_fields := []string{"disabled", "run_time_based_actions_once", "service_topology_enabled", "entity_factor_enabled"}
+	bool_fields := []string{"run_time_based_actions_once", "service_topology_enabled", "entity_factor_enabled"}
 	for _, bool_field := range bool_fields {
 		body[bool_field] = d.Get(bool_field).(bool)
 	}
