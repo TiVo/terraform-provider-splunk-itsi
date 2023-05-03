@@ -77,7 +77,7 @@ collection_entry_keyless:
     api_key_in_url:                  false
     body_format:                     JSON
     rest_key_field:                  _key
-    tfid_field:                      _key
+    tfid_field:                      key
 
 collection_entry:
     path:                            storage/collections/data
@@ -85,7 +85,7 @@ collection_entry:
     api_key_in_url:                  true
     body_format:                     JSON
     rest_key_field:                  _key
-    tfid_field:                      _key
+    tfid_field:                      key
 
 collection_entry_no_body:
     path:                            storage/collections/data
@@ -94,7 +94,7 @@ collection_entry_no_body:
     body_format:                     JSON
     api_ignore_response_body:        true
     rest_key_field:                  _key
-    tfid_field:                      _key
+    tfid_field:                      key
 
 collection_data:
     path:                            storage/collections/data
@@ -225,8 +225,11 @@ func (c *CollectionApi) requestWithRetry(ctx context.Context, method string, url
 				responseBody = nil
 				return
 			}
-			attempt++
-			continue
+
+			if ctx.Err() == nil {
+				attempt++
+				continue
+			}
 		}
 		break
 	}
@@ -244,7 +247,7 @@ func (c *CollectionApi) requestWithRetry(ctx context.Context, method string, url
 
 func (c *CollectionApi) request(ctx context.Context, method string, u string, body []byte) (statusCode int, responseBody []byte, err error) {
 	client := clients.Get(c.splunk)
-	req, err := http.NewRequest(method, u, bytes.NewBuffer(body))
+	req, err := http.NewRequestWithContext(ctx, method, u, bytes.NewBuffer(body))
 	if err != nil {
 		return
 	}
@@ -327,10 +330,19 @@ func (c *CollectionApi) Create(ctx context.Context) (*CollectionApi, error) {
 		return nil, err
 	}
 
-	_, _, err = c.requestWithRetry(ctx, http.MethodPost, c.url(), reqBody)
+	_, respBody, err := c.requestWithRetry(ctx, http.MethodPost, c.url(), reqBody)
 	if err != nil {
 		return nil, err
 	}
+	if c.apiConfig.Path == "storage/collections/data" && c.apiConfig.PathExtension != "batch_save" {
+		data := make(map[string]string)
+		if err = json.Unmarshal(respBody, &data); err == nil {
+			if key, ok := data["_key"]; ok {
+				c.RESTKey = key
+			}
+		}
+	}
+
 	return c, nil
 }
 

@@ -121,6 +121,7 @@ func ResourceCollectionEntry() *schema.Resource {
 				Type:        schema.TypeString,
 				Optional:    true,
 				Description: "Value of the key field of this collection entry",
+				ForceNew:    true,
 			},
 			"data": {
 				Type:     schema.TypeMap,
@@ -307,6 +308,9 @@ func collectionEntry(ctx context.Context, d *schema.ResourceData, object_type st
 	app := getCollectionName(d)
 	owner := getCollectionName(d)
 	key := d.Get("key").(string)
+  if key == "" {
+		key = d.Id()
+	}
 	c := models.NewCollection(clientConfig, collection, app, owner, key, object_type)
 
 	data := make(map[string]interface{})
@@ -479,10 +483,13 @@ func collectionApiDelete(ctx context.Context, d *schema.ResourceData, m interfac
 
 func collectionApiEntryExists(ctx context.Context, d *schema.ResourceData, m interface{}) (api *models.CollectionApi, err error) {
 	tflog.Info(ctx, "RSRC COLLECTION:   entry exists ("+d.Get("key").(string)+")")
+	if d.Get("key").(string) == "" {
+		return
+	}
 	// To check if a collection entry exists, we use...
 	//   storage/collections/config/{collection}/{key} -- GET
 	api, _ = collectionEntry(ctx, d, "collection_entry_no_body", m)
-	return api.Read(ctx)
+	return api.Read(ctx, true)
 }
 
 // ----------------------------------------------------------------------
@@ -503,7 +510,7 @@ func collectionApiEntryRead(ctx context.Context, d *schema.ResourceData, m inter
 	// To read a collection entry, we use...
 	//   storage/collections/data/{collection}/{key} -- GET
 	api, _ = collectionEntry(ctx, d, "collection_entry", m)
-	return api.Read(ctx)
+	return api.Read(ctx, true)
 }
 
 func collectionApiEntryUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) (api *models.CollectionApi, err error) {
@@ -847,32 +854,23 @@ func collectionEntryCreate(ctx context.Context, d *schema.ResourceData, m interf
 		return
 	}
 
+	var c *models.CollectionApi
 	existing, err := collectionApiEntryExists(ctx, d, m)
 	if err != nil {
-		diags = append(diags, warnf("Unable to read collection entry model: "+err.Error()))
+		diags = append(diags, errorf("Unable to read collection entry model: "+err.Error()))
 	}
 	if existing == nil {
-		if _, err := collectionApiEntryCreate(ctx, d, m); err != nil {
-			diags = append(diags, warnf("Unable to create entry: "+err.Error()))
+		if c, err = collectionApiEntryCreate(ctx, d, m); err != nil {
+			diags = append(diags, errorf("Unable to create entry: "+err.Error()))
 		}
 	} else {
-		if _, err := collectionApiEntryUpdate(ctx, d, m); err != nil {
-			diags = append(diags, warnf("Unable to update entry: "+err.Error()))
+		if c, err = collectionApiEntryUpdate(ctx, d, m); err != nil {
+			diags = append(diags, errorf("Unable to update entry: "+err.Error()))
 		}
 	}
 
-	// Now read everything back to see what we made...
-	c, err := collectionApiEntryRead(ctx, d, m)
-	if err != nil {
-		diags = append(diags, errorf("Unable to read back entry: "+err.Error()))
-		return
-	}
-	if c == nil {
-		diags = append(diags, errorf("Unable to create object!"))
-		return
-	}
 	if err := populateCollectionEntryResourceData(ctx, c, d); err != nil {
-		diags = append(diags, warnf("Unable to populate entry resource: "+err.Error()))
+		diags = append(diags, errorf("Unable to populate entry resource: "+err.Error()))
 	}
 	return
 }
@@ -906,15 +904,15 @@ func collectionEntryUpdate(ctx context.Context, d *schema.ResourceData, m interf
 
 	existing, err := collectionApiEntryExists(ctx, d, m)
 	if err != nil {
-		diags = append(diags, warnf("Unable to read collection entry model: "+err.Error()))
+		diags = append(diags, errorf("Unable to read collection entry model: "+err.Error()))
 	}
 	if existing == nil {
 		if _, err := collectionApiEntryCreate(ctx, d, m); err != nil {
-			diags = append(diags, warnf("Unable to create entry: "+err.Error()))
+			diags = append(diags, errorf("Unable to create entry: "+err.Error()))
 		}
 	} else {
 		if _, err := collectionApiEntryUpdate(ctx, d, m); err != nil {
-			diags = append(diags, warnf("Unable to update entry: "+err.Error()))
+			diags = append(diags, errorf("Unable to update entry: "+err.Error()))
 		}
 	}
 
@@ -929,7 +927,7 @@ func collectionEntryUpdate(ctx context.Context, d *schema.ResourceData, m interf
 		return
 	}
 	if err := populateCollectionEntryResourceData(ctx, c, d); err != nil {
-		diags = append(diags, warnf("Unable to populate entry resource: "+err.Error()))
+		diags = append(diags, errorf("Unable to populate entry resource: "+err.Error()))
 	}
 	return
 }
@@ -973,7 +971,7 @@ func populateCollectionEntryResourceData(ctx context.Context, c *models.Collecti
 	}
 	dataRes, ok := obj.(map[string]interface{})
 	if !ok {
-		return fmt.Errorf("expected map body return type")
+		return fmt.Errorf("expected map body return type: %s", string(c.Body))
 	}
 
 	tflog.Trace(ctx, "RSRC COLLECTION:   data", map[string]interface{}{"map": dataRes})
@@ -992,12 +990,10 @@ func populateCollectionEntryResourceData(ctx context.Context, c *models.Collecti
 	if c.Data == nil {
 		c.Data = make(map[string]interface{})
 	}
+
 	c.Data["key"] = key
 	c.Data["data"] = dataMap
 
-	if err = d.Set("key", c.Data["key"]); err != nil {
-		return err
-	}
 	if err = d.Set("data", c.Data["data"]); err != nil {
 		return err
 	}

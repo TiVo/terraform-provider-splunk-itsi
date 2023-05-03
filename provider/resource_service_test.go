@@ -20,6 +20,7 @@ import (
 	"runtime/debug"
 	"sort"
 	"strings"
+	"sync"
 	"testing"
 
 	assert "github.com/stretchr/testify/assert"
@@ -499,7 +500,7 @@ func TestSharedDependenciesConcurrentCallCheck(t *testing.T) {
 
 	mock_models.InitItsiApiLimiter(10)
 	defer mock_models.InitItsiApiLimiter(1)
-
+	var mu sync.Mutex
 	var resourceSharedDependenciesConcurrentProvider []TestSharedDependenciesConcurrentTestCase
 	parseYaml(t, "concurrent_cache_hit_data_provider.yaml", &resourceSharedDependenciesConcurrentProvider)
 	for _, test := range resourceSharedDependenciesConcurrentProvider {
@@ -541,8 +542,9 @@ func TestSharedDependenciesConcurrentCallCheck(t *testing.T) {
 								postBodyJsonInterface["_key"] = serviceIdToSet
 
 								postBodyJsonBytes, _ := json.Marshal(postBodyJsonInterface)
+								mu.Lock()
 								mockAnswers[_SERVICE+"/"+serviceIdToSet] = string(postBodyJsonBytes)
-
+								mu.Unlock()
 								mockedPostServerAnswer := fmt.Sprintf("{\"_key\" : \"%s\"}", serviceIdToSet)
 								response = ioutil.NopCloser(bytes.NewReader([]byte(mockedPostServerAnswer)))
 

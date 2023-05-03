@@ -336,7 +336,7 @@ func (sr *SplunkRequest) Search(ctx context.Context, s SplunkSearch) (results []
 
 			switch {
 			case ismv && !sr.multivalue:
-				return nil, append(diags, diag.Errorf("Splunk search returned multivalue results, but multivalue mode is disabled.")...)
+				return nil, append(diags, diag.Errorf("Splunk search returned multivalue results on field %s, but multivalue mode is disabled.", k)...)
 			case ismv && sr.multivalue:
 				valuesStr, err := unpackResourceList[string](values)
 				if err != nil {

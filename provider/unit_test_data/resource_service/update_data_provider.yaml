@@ -343,6 +343,7 @@
     {
        "_key":"test_service_update_kpiid_consistency",
        "description":"Terraform unit test",
+       "is_healthscore_calculate_by_entity_enabled":1,
        "enabled":1,
        "entity_rules":[],
        "kpis":[
@@ -761,6 +762,7 @@
   expected_put_service_body: |
     {
        "description":"Terraform unit test",
+       "is_healthscore_calculate_by_entity_enabled":1,
        "enabled":1,
        "entity_rules":[
 
@@ -3708,6 +3710,7 @@
     {
        "_key":"test_service_update_threshold_values",
        "description":"Terraform unit test",
+       "is_healthscore_calculate_by_entity_enabled":1,
        "enabled":1,
        "entity_rules":[
 
@@ -6186,6 +6189,7 @@
   expected_put_service_body: |
     {
        "description":"Terraform unit test",
+       "is_healthscore_calculate_by_entity_enabled":1,
        "enabled":1,
        "entity_rules":[
 
