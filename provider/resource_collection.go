@@ -264,7 +264,7 @@ func getCollectionField(d *schema.ResourceData, field string) (string, error) {
 			return "nobody", nil
 		}
 	}
-	return "", fmt.Errorf("could not find collection %s in resource", field)
+	return "", fmt.Errorf("could not find field %s in the collection resource", field)
 }
 
 // Create a "collection API model" that can help us query APIs,
@@ -484,7 +484,10 @@ func collectionApiWaitAndRead(ctx context.Context, d *schema.ResourceData, m int
 	tflog.Info(ctx, "RSRC COLLECTION:   read ("+d.Get("name").(string)+")")
 	// To read a collection, we use...
 	//   storage/collections/config/{collection} -- GET
-	api, _ = collection(ctx, d, "collection_config", m)
+	api, err = collection(ctx, d, "collection_config", m)
+	if err != nil {
+		return
+	}
 	api.SetCodeHandle(404, util.Retry)
 	return api.Read(ctx)
 }
@@ -493,7 +496,10 @@ func collectionApiRead(ctx context.Context, d *schema.ResourceData, m interface{
 	tflog.Info(ctx, "RSRC COLLECTION:   read ("+d.Get("name").(string)+")")
 	// To read a collection, we use...
 	//   storage/collections/config/{collection} -- GET
-	api, _ = collection(ctx, d, "collection_config", m)
+	api, err = collection(ctx, d, "collection_config", m)
+	if err != nil {
+		return
+	}
 	return api.Read(ctx)
 }
 
