@@ -16,6 +16,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/lestrrat-go/backoff/v2"
+	"github.com/tivo/terraform-provider-splunk-itsi/provider/util"
 	"gopkg.in/yaml.v3"
 )
 
@@ -115,22 +116,40 @@ type CollectionApi struct {
 	splunk    ClientConfig
 	apiConfig collectionApiConfig
 
-	RESTKey    string                 // key used to collect this resource via the REST API
-	Collection string                 // Collection name
-	Data       map[string]interface{} // Data for this object
-	Params     string                 // URL query string, iff provided
-	Body       []byte                 // Body used for this API call
+	RESTKey              string                  // key used to collect this resource via the REST API
+	Collection           string                  // Collection name
+	App                  string                  // Collection App
+	Owner                string                  // Collection owner
+	Data                 map[string]interface{}  // Data for this object
+	Params               string                  // URL query string, iff provided
+	Body                 []byte                  // Body used for this API call
+	CustomBehaviourCodes map[int]util.HandleCode // Common unretriable errors
 }
 
-func NewCollection(clientConfig ClientConfig, collection, key, objectType string) *CollectionApi {
+func NewCollection(clientConfig ClientConfig, collection, app, owner, key, objectType string) *CollectionApi {
 	if _, ok := CollectionApiConfigs[objectType]; !ok {
 		panic(fmt.Sprintf("invalid objectype %s!", objectType))
 	}
+
 	c := &CollectionApi{
 		splunk:     clientConfig,
 		apiConfig:  CollectionApiConfigs[objectType],
 		RESTKey:    key,
 		Collection: collection,
+		App:        app,
+		Owner:      owner,
+		CustomBehaviourCodes: map[int]util.HandleCode{
+			//400: Bad Request
+			400: util.ReturnError,
+			//401: Unauthorized
+			401: util.ReturnError,
+			//403: Forbidden
+			403: util.ReturnError,
+			//404: Not Found
+			404: util.ReturnError,
+			//409: Conflict
+			409: util.ReturnError,
+		},
 	}
 	if c.apiConfig.BodyFormat == "" {
 		c.apiConfig.BodyFormat = "JSON"
@@ -138,9 +157,13 @@ func NewCollection(clientConfig ClientConfig, collection, key, objectType string
 	return c
 }
 
+func (c *CollectionApi) SetCodeHandle(code int, instruction util.HandleCode) {
+	c.CustomBehaviourCodes[code] = instruction
+}
+
 func (c *CollectionApi) url() (u string) {
-	const f = "https://%[1]s:%[2]d/servicesNS/nobody/itsi/%[3]s"
-	u = fmt.Sprintf(f, c.splunk.Host, c.splunk.Port, c.apiConfig.Path)
+	const f = "https://%[1]s:%[2]d/servicesNS/%[3]s/%[4]s/%[5]s"
+	u = fmt.Sprintf(f, c.splunk.Host, c.splunk.Port, c.Owner, c.App, c.apiConfig.Path)
 	if c.apiConfig.ApiCollectionKeyInUrl {
 		u = fmt.Sprintf("%[1]s/%[2]s", u, c.Collection)
 	}
@@ -169,14 +192,7 @@ func (c *CollectionApi) body() (body []byte, err error) {
 }
 
 func (c *CollectionApi) shouldRetry(method string, statusCode int, err error) bool {
-	//Common unretriable errors
-	//400: Bad Request
-	//401: Unauthorized
-	//403: Forbidden
-	//404: Not Found
-	//409: Conflict
-	if statusCode == 400 || statusCode == 401 || statusCode == 403 ||
-		statusCode == 404 || statusCode == 409 {
+	if handle_code, ok := c.CustomBehaviourCodes[statusCode]; ok && (handle_code == util.ReturnError || handle_code == util.Ignore) {
 		return false
 	}
 	return true
@@ -323,12 +339,12 @@ func (c *CollectionApi) Create(ctx context.Context) (*CollectionApi, error) {
 	return c, nil
 }
 
-func (c *CollectionApi) Read(ctx context.Context, ignore404 ...bool) (*CollectionApi, error) {
+func (c *CollectionApi) Read(ctx context.Context) (*CollectionApi, error) {
 	tflog.Trace(ctx, "COLLECTION READ: Read", map[string]interface{}{"c": c})
 
 	statusCode, respBody, err := c.requestWithRetry(ctx, http.MethodGet, c.url(), nil)
 	if err != nil {
-		if len(ignore404) == 1 && ignore404[0] && statusCode == http.StatusNotFound {
+		if handleCode, ok := c.CustomBehaviourCodes[statusCode]; ok && handleCode == util.Ignore {
 			return nil, nil
 		}
 		return nil, err
