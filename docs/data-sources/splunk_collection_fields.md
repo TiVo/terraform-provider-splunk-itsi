@@ -25,6 +25,11 @@ resource "itsi_splunk_collection_fields" "test_collection_fields" {
 
 - `collection_name` (String) Name of the collection
 
+### Optional
+
+- `collection_app` (String) App the collection belongs to Defaults to `itsi`.
+- `collection_owner` (String) Owner of the collection Defaults to `nobody`.
+
 ### Read-Only
 
 - `fields` (List of String) Collection fields
