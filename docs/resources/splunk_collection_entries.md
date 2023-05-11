@@ -75,6 +75,8 @@ resource "itsi_splunk_collection_entries" "test_collection_fruits" {
 
 ### Optional
 
+- `collection_app` (String) App the collection belongs to Defaults to `itsi`.
+- `collection_owner` (String) Owner of the collection Defaults to `nobody`.
 - `preserve_keys` (Boolean) Should the _key field be preserved? Defaults to `false`.
 - `scope` (String) Scope of ownership of this collection entry Defaults to `default_scope`.
 

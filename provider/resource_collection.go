@@ -16,6 +16,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
 	"github.com/tivo/terraform-provider-splunk-itsi/models"
+	"github.com/tivo/terraform-provider-splunk-itsi/provider/util"
 )
 
 func validateStringIdentifier() schema.SchemaValidateFunc {
@@ -33,7 +34,7 @@ func validateFieldTypes() schema.SchemaValidateFunc {
 func ResourceCollection() *schema.Resource {
 	return &schema.Resource{
 		Description:   "Manages a KV store collection resource in Splunk.",
-		CreateContext: collectionCreate,
+		CreateContext: collectionUpdate,
 		ReadContext:   collectionRead,
 		UpdateContext: collectionUpdate,
 		DeleteContext: collectionDelete,
@@ -45,6 +46,22 @@ func ResourceCollection() *schema.Resource {
 				Type:         schema.TypeString,
 				Required:     true,
 				Description:  "Name of the collection",
+				ValidateFunc: validateStringIdentifier(),
+			},
+			"app": {
+				Type:         schema.TypeString,
+				Optional:     true,
+				Default:      "itsi",
+				ForceNew:     true,
+				Description:  "App the collection belongs to",
+				ValidateFunc: validateStringIdentifier(),
+			},
+			"owner": {
+				Type:         schema.TypeString,
+				Optional:     true,
+				Default:      "nobody",
+				ForceNew:     true,
+				Description:  "Owner of the collection",
 				ValidateFunc: validateStringIdentifier(),
 			},
 			"field_types": {
@@ -88,6 +105,20 @@ func ResourceCollectionEntry() *schema.Resource {
 				Description:  "Name of the collection containing this entry",
 				ValidateFunc: validateStringIdentifier(),
 			},
+			"collection_app": {
+				Type:         schema.TypeString,
+				Optional:     true,
+				Default:      "itsi",
+				Description:  "App the collection belongs to",
+				ValidateFunc: validateStringIdentifier(),
+			},
+			"collection_owner": {
+				Type:         schema.TypeString,
+				Optional:     true,
+				Default:      "nobody",
+				Description:  "Owner of the collection",
+				ValidateFunc: validateStringIdentifier(),
+			},
 			"key": {
 				Type:        schema.TypeString,
 				Optional:    true,
@@ -121,6 +152,20 @@ func ResourceCollectionEntries() *schema.Resource {
 				Type:         schema.TypeString,
 				Required:     true,
 				Description:  "Name of the collection containing this entry",
+				ValidateFunc: validateStringIdentifier(),
+			},
+			"collection_app": {
+				Type:         schema.TypeString,
+				Optional:     true,
+				Default:      "itsi",
+				Description:  "App the collection belongs to",
+				ValidateFunc: validateStringIdentifier(),
+			},
+			"collection_owner": {
+				Type:         schema.TypeString,
+				Optional:     true,
+				Default:      "nobody",
+				Description:  "Owner of the collection",
 				ValidateFunc: validateStringIdentifier(),
 			},
 			"preserve_keys": {
@@ -203,22 +248,44 @@ func unpackRow(in []interface{}) (out map[string]interface{}) {
 
 // ----------------------------------------------------------------------
 
-func getCollectionName(d *schema.ResourceData) string {
-	if name, ok := d.GetOk("name"); ok {
-		return name.(string)
+func getCollectionField(d *schema.ResourceData, field string) (string, error) {
+	if v, ok := d.GetOk(field); ok {
+		return v.(string), nil
 	}
-	if name, ok := d.GetOk("collection_name"); ok {
-		return name.(string)
+	if v, ok := d.GetOk(fmt.Sprintf("collection_%s", field)); ok {
+		return v.(string), nil
 	}
-	panic("could not find collection name in resource")
+	// schema migration
+	if !d.IsNewResource() {
+		switch field {
+		case "app":
+			return "itsi", nil
+		case "owner":
+			return "nobody", nil
+		}
+	}
+	return "", fmt.Errorf("could not find field %s in the collection resource", field)
 }
 
 // Create a "collection API model" that can help us query APIs,
 // passing no body in the query...
 func collection(ctx context.Context, d *schema.ResourceData, object_type string, m interface{}) (config *models.CollectionApi, err error) {
 	clientConfig := m.(models.ClientConfig)
-	name := getCollectionName(d)
-	c := models.NewCollection(clientConfig, name, name, object_type)
+
+	name, err := getCollectionField(d, "name")
+	if err != nil {
+		return
+	}
+	app, err := getCollectionField(d, "app")
+	if err != nil {
+		return
+	}
+	owner, err := getCollectionField(d, "owner")
+	if err != nil {
+		return
+	}
+
+	c := models.NewCollection(clientConfig, name, app, owner, name, object_type)
 
 	data := make(map[string]interface{})
 	data["name"] = name
@@ -247,12 +314,25 @@ func collection(ctx context.Context, d *schema.ResourceData, object_type string,
 // passing no body in the query...
 func collectionEntry(ctx context.Context, d *schema.ResourceData, object_type string, m interface{}) (config *models.CollectionApi, err error) {
 	clientConfig := m.(models.ClientConfig)
-	collection := d.Get("collection_name").(string)
+
+	collection, err := getCollectionField(d, "name")
+	if err != nil {
+		return
+	}
+	app, err := getCollectionField(d, "app")
+	if err != nil {
+		return
+	}
+	owner, err := getCollectionField(d, "owner")
+	if err != nil {
+		return
+	}
+
 	key := d.Get("key").(string)
 	if key == "" {
 		key = d.Id()
 	}
-	c := models.NewCollection(clientConfig, collection, key, object_type)
+	c := models.NewCollection(clientConfig, collection, app, owner, key, object_type)
 
 	data := make(map[string]interface{})
 	data["collection"] = collection
@@ -277,8 +357,21 @@ func collectionEntry(ctx context.Context, d *schema.ResourceData, object_type st
 // passing no body in the query...
 func collectionEntries(ctx context.Context, d *schema.ResourceData, object_type string, m interface{}) (config *models.CollectionApi, err error) {
 	clientConfig := m.(models.ClientConfig)
-	name := d.Get("collection_name").(string)
-	c := models.NewCollection(clientConfig, name, name, object_type)
+
+	name, err := getCollectionField(d, "name")
+	if err != nil {
+		return
+	}
+	app, err := getCollectionField(d, "app")
+	if err != nil {
+		return
+	}
+	owner, err := getCollectionField(d, "owner")
+	if err != nil {
+		return
+	}
+
+	c := models.NewCollection(clientConfig, name, app, owner, name, object_type)
 
 	data := make(map[string]interface{})
 	data["instance"] = d.Get("instance").(string)
@@ -297,8 +390,21 @@ func collectionEntries(ctx context.Context, d *schema.ResourceData, object_type 
 // passing a default body structure in the query...
 func collectionEntriesDataBody(ctx context.Context, d *schema.ResourceData, object_type string, m interface{}) (config *models.CollectionApi, err error) {
 	clientConfig := m.(models.ClientConfig)
-	name := d.Get("collection_name").(string)
-	c := models.NewCollection(clientConfig, name, name, object_type)
+
+	name, err := getCollectionField(d, "name")
+	if err != nil {
+		return
+	}
+	app, err := getCollectionField(d, "app")
+	if err != nil {
+		return
+	}
+	owner, err := getCollectionField(d, "owner")
+	if err != nil {
+		return
+	}
+
+	c := models.NewCollection(clientConfig, name, app, owner, name, object_type)
 
 	data := make(map[string]interface{})
 	instance := d.Get("instance").(string)
@@ -343,14 +449,17 @@ func collectionEntriesDataBody(ctx context.Context, d *schema.ResourceData, obje
 // ----------------------------------------------------------------------
 
 func collectionApiExists(ctx context.Context, d *schema.ResourceData, m interface{}) (api *models.CollectionApi, err error) {
-	tflog.Info(ctx, "RSRC COLLECTION:   exists ("+getCollectionName(d)+")")
+	collection_name, _ := getCollectionField(d, "name")
+	tflog.Info(ctx, "RSRC COLLECTION:   exists ("+collection_name+")")
 	// To check if a collection exists, we use...
 	//   storage/collections/config/{collection} -- GET
 	api, err = collection(ctx, d, "collection_config_no_body", m)
+	api.SetCodeHandle(404, util.Ignore)
+
 	if err != nil {
 		return nil, err
 	}
-	return api.Read(ctx, true)
+	return api.Read(ctx)
 }
 
 // ----------------------------------------------------------------------
@@ -359,7 +468,10 @@ func collectionApiCreate(ctx context.Context, d *schema.ResourceData, m interfac
 	tflog.Info(ctx, "RSRC COLLECTION:   create ("+d.Get("name").(string)+")")
 	// To create a collection, we use...
 	//   storage/collections/config -- POST (body: name=<collection>)
-	api, _ = collection(ctx, d, "collection_config_keyless", m)
+	api, err = collection(ctx, d, "collection_config_keyless", m)
+	if err != nil {
+		return
+	}
 
 	body := url.Values{}
 	body.Set("name", api.RESTKey)
@@ -368,11 +480,26 @@ func collectionApiCreate(ctx context.Context, d *schema.ResourceData, m interfac
 	return api.Create(ctx)
 }
 
+func collectionApiWaitAndRead(ctx context.Context, d *schema.ResourceData, m interface{}) (api *models.CollectionApi, err error) {
+	tflog.Info(ctx, "RSRC COLLECTION:   read ("+d.Get("name").(string)+")")
+	// To read a collection, we use...
+	//   storage/collections/config/{collection} -- GET
+	api, err = collection(ctx, d, "collection_config", m)
+	if err != nil {
+		return
+	}
+	api.SetCodeHandle(404, util.Retry)
+	return api.Read(ctx)
+}
+
 func collectionApiRead(ctx context.Context, d *schema.ResourceData, m interface{}) (api *models.CollectionApi, err error) {
 	tflog.Info(ctx, "RSRC COLLECTION:   read ("+d.Get("name").(string)+")")
 	// To read a collection, we use...
 	//   storage/collections/config/{collection} -- GET
-	api, _ = collection(ctx, d, "collection_config", m)
+	api, err = collection(ctx, d, "collection_config", m)
+	if err != nil {
+		return
+	}
 	return api.Read(ctx)
 }
 
@@ -380,8 +507,10 @@ func collectionApiUpdate(ctx context.Context, d *schema.ResourceData, m interfac
 	tflog.Info(ctx, "RSRC COLLECTION:   update ("+d.Get("name").(string)+")")
 	// To update a collection, we use...
 	//   storage/collections/config/{collection} -- POST
-	api, _ = collection(ctx, d, "collection_config", m)
-
+	api, err = collection(ctx, d, "collection_config", m)
+	if err != nil {
+		return
+	}
 	var qft []string
 	for k, v := range api.Data["field_types"].(map[string]string) {
 		qft = append(qft, fmt.Sprintf("field.%[1]s=%[2]s", k, url.QueryEscape(v)))
@@ -399,7 +528,10 @@ func collectionApiDelete(ctx context.Context, d *schema.ResourceData, m interfac
 	tflog.Info(ctx, "RSRC COLLECTION:   delete ("+d.Get("name").(string)+")")
 	// To delete a collection, we use...
 	//   storage/collections/config/{collection} -- DELETE
-	api, _ = collection(ctx, d, "collection_config", m)
+	api, err = collection(ctx, d, "collection_config", m)
+	if err != nil {
+		return
+	}
 	return api.Delete(ctx)
 }
 
@@ -413,7 +545,9 @@ func collectionApiEntryExists(ctx context.Context, d *schema.ResourceData, m int
 	// To check if a collection entry exists, we use...
 	//   storage/collections/config/{collection}/{key} -- GET
 	api, _ = collectionEntry(ctx, d, "collection_entry_no_body", m)
-	return api.Read(ctx, true)
+	api.SetCodeHandle(404, util.Ignore)
+
+	return api.Read(ctx)
 }
 
 // ----------------------------------------------------------------------
@@ -434,7 +568,9 @@ func collectionApiEntryRead(ctx context.Context, d *schema.ResourceData, m inter
 	// To read a collection entry, we use...
 	//   storage/collections/data/{collection}/{key} -- GET
 	api, _ = collectionEntry(ctx, d, "collection_entry", m)
-	return api.Read(ctx, true)
+	api.SetCodeHandle(404, util.Ignore)
+
+	return api.Read(ctx)
 }
 
 func collectionApiEntryUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) (api *models.CollectionApi, err error) {
@@ -531,44 +667,6 @@ func collectionApiEntriesDeleteOldRows(ctx context.Context, d *schema.ResourceDa
 // Collection Resource
 // ----------------------------------------------------------------------
 
-func collectionCreate(ctx context.Context, d *schema.ResourceData, m interface{}) (diags diag.Diagnostics) {
-	tflog.Info(ctx, "RSRC COLLECTION: CREATE", map[string]interface{}{"d": fmt.Sprintf("%+v", d)})
-
-	existing, err := collectionApiExists(ctx, d, m)
-	if err != nil {
-		diags = append(diags, warnf("Unable to check existence of collection: "+err.Error()))
-		return
-	}
-	if existing == nil {
-		// Create the collection...
-		if _, err := collectionApiCreate(ctx, d, m); err != nil {
-			diags = append(diags, warnf("Unable to create collection: "+err.Error()))
-			return
-		}
-	}
-
-	// Update the collection configuration...
-	if _, err := collectionApiUpdate(ctx, d, m); err != nil {
-		diags = append(diags, warnf("Unable to update collection: "+err.Error()))
-		return
-	}
-
-	// Now read everything back to see what we made...
-	c, err := collectionApiRead(ctx, d, m)
-	if err != nil {
-		diags = append(diags, errorf("Unable to read back collection: "+err.Error()))
-		return
-	}
-	if c == nil {
-		diags = append(diags, errorf("Unable to create object!"))
-		return
-	}
-	if err := populateCollectionResourceData(ctx, c, d); err != nil {
-		diags = append(diags, warnf("Unable to populate resource: "+err.Error()))
-	}
-	return
-}
-
 func collectionRead(ctx context.Context, d *schema.ResourceData, m interface{}) (diags diag.Diagnostics) {
 	tflog.Info(ctx, "RSRC COLLECTION: READ", map[string]interface{}{"d": fmt.Sprintf("%+v", d)})
 
@@ -588,29 +686,28 @@ func collectionRead(ctx context.Context, d *schema.ResourceData, m interface{}) 
 }
 
 func collectionUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) (diags diag.Diagnostics) {
-	tflog.Info(ctx, "RSRC COLLECTION: UPDATE", map[string]interface{}{"d": fmt.Sprintf("%+v", d)})
-
 	// If this collection doesn't exist, create it...
 	existing, err := collectionApiExists(ctx, d, m)
 	if err != nil {
 		diags = append(diags, warnf("Unable to read/dump collection model: "+err.Error()))
 	}
 	if existing == nil {
+		tflog.Info(ctx, "RSRC COLLECTION: CREATE", map[string]interface{}{"d": fmt.Sprintf("%+v", d)})
 		// Create the collection...
 		if _, err := collectionApiCreate(ctx, d, m); err != nil {
 			diags = append(diags, warnf("Unable to create collection: "+err.Error()))
 			return
 		}
+	} else {
+		tflog.Info(ctx, "RSRC COLLECTION: UPDATE", map[string]interface{}{"d": fmt.Sprintf("%+v", d)})
+		// Update the collection configuration...
+		if _, err := collectionApiUpdate(ctx, d, m); err != nil {
+			diags = append(diags, warnf("Unable to update collection: "+err.Error()))
+			return
+		}
 	}
-
-	// Update the collection configuration...
-	if _, err := collectionApiUpdate(ctx, d, m); err != nil {
-		diags = append(diags, warnf("Unable to update collection: "+err.Error()))
-		return
-	}
-
 	// Now read everything back to see what we made...
-	c, err := collectionApiRead(ctx, d, m)
+	c, err := collectionApiWaitAndRead(ctx, d, m)
 	if err != nil {
 		diags = append(diags, errorf("Unable to read back collection: "+err.Error()))
 		return
@@ -726,7 +823,11 @@ func populateCollectionResourceData(ctx context.Context, c *models.CollectionApi
 }
 
 func collectionCheck(ctx context.Context, d *schema.ResourceData, m interface{}) (diags diag.Diagnostics) {
-	collection := getCollectionName(d)
+	collection, err := getCollectionField(d, "name")
+	if err != nil {
+		diags = append(diags, errorf(err.Error()))
+		return
+	}
 	tflog.Info(ctx, "RSRC COLLECTION: CHECK", map[string]interface{}{"collection": collection})
 
 	existing, err := collectionApiExists(ctx, d, m)
@@ -1068,6 +1169,7 @@ func populateCollectionEntriesResourceData(ctx context.Context, c *models.Collec
 	if err = d.Set("collection_name", c.Data["collection_name"]); err != nil {
 		return err
 	}
+
 	if err = d.Set("preserve_keys", c.Data["preserve_keys"]); err != nil {
 		return err
 	}

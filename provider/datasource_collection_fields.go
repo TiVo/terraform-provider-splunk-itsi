@@ -22,6 +22,20 @@ func DatasourceCollectionFields() *schema.Resource {
 				Description:  "Name of the collection",
 				ValidateFunc: validateStringIdentifier(),
 			},
+			"collection_app": {
+				Type:         schema.TypeString,
+				Optional:     true,
+				Default:      "itsi",
+				Description:  "App the collection belongs to",
+				ValidateFunc: validateStringIdentifier(),
+			},
+			"collection_owner": {
+				Type:         schema.TypeString,
+				Optional:     true,
+				Default:      "nobody",
+				Description:  "Owner of the collection",
+				ValidateFunc: validateStringIdentifier(),
+			},
 			"fields": {
 				Type:     schema.TypeList,
 				Computed: true,
