@@ -33,7 +33,9 @@ resource "itsi_splunk_collection" "test_collection" {
 ### Optional
 
 - `accelerations` (List of String) Field acceleration information (see Splunk docs for accelerated_fields in collections.conf)
+- `app` (String) App the collection belongs to Defaults to `itsi`.
 - `field_types` (Map of String) Field type information
+- `owner` (String) Owner of the collection Defaults to `nobody`.
 
 ### Read-Only
 

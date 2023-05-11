@@ -34,6 +34,8 @@ resource "itsi_splunk_collection_entry" "test_collection_sun" {
 
 ### Optional
 
+- `collection_app` (String) App the collection belongs to Defaults to `itsi`.
+- `collection_owner` (String) Owner of the collection Defaults to `nobody`.
 - `key` (String) Value of the key field of this collection entry
 
 ### Read-Only
