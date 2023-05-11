@@ -876,10 +876,7 @@ func serviceUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) (
 	if err != nil {
 		return diag.FromErr(err)
 	}
-	if err = template.Update(ctx); err != nil {
-		return diag.FromErr(err)
-	}
-	return
+	return diag.FromErr(template.UpdateAsync(ctx))
 }
 
 func serviceDelete(ctx context.Context, d *schema.ResourceData, m interface{}) (diags diag.Diagnostics) {
@@ -891,11 +888,7 @@ func serviceDelete(ctx context.Context, d *schema.ResourceData, m interface{}) (
 	if existing == nil {
 		return nil
 	}
-	if err = existing.Delete(ctx); err != nil {
-		return diag.FromErr(err)
-	}
-	return
-
+	return diag.FromErr(existing.Delete(ctx))
 }
 
 func serviceImport(ctx context.Context, d *schema.ResourceData, m interface{}) ([]*schema.ResourceData, error) {

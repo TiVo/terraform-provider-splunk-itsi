@@ -6,11 +6,11 @@ Terraform Provider for Splunk ITSI
 - [ITSI REST API](https://docs.splunk.com/Documentation/ITSI/4.4.1/RESTAPI/ITSIRESTAPIreference)
 
 ## Prerequisites
-- install Terraform (v.1.0.4): https://learn.hashicorp.com/tutorials/terraform/install-cli
-- golang version 1.18 installed
+- install Terraform (>= v1.2): https://learn.hashicorp.com/tutorials/terraform/install-cli
+- golang version 1.20 installed
 - goreleaser: https://goreleaser.com/install/
 
-#### Starting a provider in Debug Mode: 
+#### Starting a provider in Debug Mode:
 It is important to start a provider in debug mode only when you intend to debug it, as its behavior will change in minor ways from normal operation of providers. The main differences are:
 - Terraform will not start the provider process; it must be run manually.
 - The provider's constraints will no longer be checked as part of terraform init.
@@ -42,7 +42,7 @@ $ cat << 'EOF' > terraform-provider-splunk-itsi/.vscode/launch.json
             "request": "launch",
             "mode": "debug",
             "program": "${workspaceFolder}",
-            "env": {"PKG_NAME": "${relativeFileDirname}"}, 
+            "env": {"PKG_NAME": "${relativeFileDirname}"},
             "args": [
                 "--debug",
             ],

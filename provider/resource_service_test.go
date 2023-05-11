@@ -613,6 +613,7 @@ func assertServiceResourceJSONEq(t *testing.T, expected string, actual string, m
 			return kpis[i].(map[string]interface{})["_key"].(string) > kpis[j].(map[string]interface{})["_key"].(string)
 		})
 	}
-
+	delete(actualJSONAsInterface, "_tf_hash")
+	delete(expectedJSONAsInterface, "_tf_hash")
 	return assert.Equal(t, expectedJSONAsInterface, actualJSONAsInterface, msgAndArgs...)
 }
