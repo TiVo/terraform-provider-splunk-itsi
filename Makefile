@@ -13,13 +13,13 @@ endif
 default: build
 
 build: fmt scraper
-	goreleaser build --skip-validate --single-target --rm-dist
+	goreleaser build --skip-validate --single-target --clean
 
 build_all: fmt scraper
-	goreleaser build --skip-validate --rm-dist
+	goreleaser build --skip-validate --clean
 
 release:
-	goreleaser release --rm-dist
+	goreleaser release --clean
 
 clean:
 	rm -rf dist bin
