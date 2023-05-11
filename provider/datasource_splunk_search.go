@@ -2,8 +2,6 @@ package provider
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -355,8 +353,6 @@ func (sr *SplunkRequest) Search(ctx context.Context, s SplunkSearch) (results []
 }
 
 func (sr *SplunkRequest) ID() string {
-	h := sha256.New()
 	b, _ := json.Marshal(sr.searches)
-	h.Write(b)
-	return hex.EncodeToString(h.Sum(nil))
+	return util.Sha256(b)
 }

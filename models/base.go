@@ -12,7 +12,6 @@ import (
 	"log"
 	"net/http"
 	"net/url"
-	"reflect"
 	"sort"
 	"strconv"
 	"strings"
@@ -21,7 +20,13 @@ import (
 	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/lestrrat-go/backoff/v2"
+	"github.com/tivo/terraform-provider-splunk-itsi/provider/util"
 	"gopkg.in/yaml.v3"
+)
+
+const (
+	resourceHashField      = "_tf_hash"
+	asyncUpdateCheckPeriod = 15 * time.Second
 )
 
 var RestConfigs map[string]restConfig
@@ -75,6 +80,7 @@ type Base struct {
 	TFID    string
 	RawJson RawJson
 	Fields  []string
+	Hash    string
 }
 
 func init() {
@@ -131,7 +137,7 @@ func (b *Base) handleConflictOnCreate(ctx context.Context) (responseBody []byte,
 	}
 
 	if b.RESTKey == b_.RESTKey {
-		responseBody = []byte(fmt.Sprintf("{\"_key\": \"%s\"}", b.RESTKey))
+		responseBody = []byte(fmt.Sprintf("{\"%s\": \"%s\"}", b.RestKeyField, b.RESTKey))
 	} else {
 		err = fmt.Errorf("409 Conflict response for create %s request", b.ObjectType)
 	}
@@ -293,15 +299,19 @@ func (b *Base) PopulateRawJSON(ctx context.Context, body map[string]interface{})
 		body[b.RestKeyField] = key
 		b.RESTKey = key
 	}
+	//compute body hash
 	by, err := json.Marshal(body)
 	if err != nil {
 		return err
 	}
-	err = json.Unmarshal(by, &b.RawJson)
+	b.Hash = util.Sha256(by)
+	body[resourceHashField] = b.Hash
+	// populate b.RawJson
+	by, err = json.Marshal(body)
 	if err != nil {
 		return err
 	}
-	return nil
+	return json.Unmarshal(by, &b.RawJson)
 }
 
 func (b *Base) Create(ctx context.Context) (*Base, error) {
@@ -379,7 +389,7 @@ func (b *Base) updateAndWaitForState(ctx context.Context) (err error) {
 		resultCh <- err
 	}()
 
-	ticker := time.NewTicker(15 * time.Second)
+	ticker := time.NewTicker(asyncUpdateCheckPeriod)
 	defer ticker.Stop()
 
 	for {
@@ -387,13 +397,9 @@ func (b *Base) updateAndWaitForState(ctx context.Context) (err error) {
 		case err = <-resultCh:
 			return
 		case <-ticker.C:
-			if b_, err := b.Read(ctx); err == nil && b_ != nil {
-				if ok, err := b.equals(b_); err == nil {
-					if ok {
-						return nil
-					}
-				} else {
-					return err
+			if originHash, err := b.getOriginHash(ctx); err == nil && originHash != "" {
+				if originHash == b.Hash {
+					return nil
 				}
 			} else if err != nil {
 				return err
@@ -610,21 +616,47 @@ func (b *Base) lookupRESTKey(ctx context.Context) error {
 	return nil
 }
 
-func (b *Base) equals(b_ *Base) (bool, error) {
-	m, err := b.RawJson.ToInterfaceMap()
-	if err != nil {
-		return false, err
+func (b *Base) getOriginHash(ctx context.Context) (string, error) {
+	params := url.Values{}
+	params.Add("filter", fmt.Sprintf("{\"%s\":\"%s\"}", b.RestKeyField, b.RESTKey))
+	params.Add("fields", strings.Join([]string{b.RestKeyField, b.TFIDField, resourceHashField}, ","))
+
+	_, respBody, err := b.requestWithRetry(
+		ctx,
+		http.MethodGet,
+		fmt.Sprintf("%s?%s", b.urlBase(), params.Encode()),
+		nil)
+
+	if err != nil || respBody == nil {
+		return "", err
 	}
 
-	m_, err := b_.RawJson.ToInterfaceMap()
-	if err != nil {
-		return false, err
+	var raw []json.RawMessage
+	if err = json.Unmarshal(respBody, &raw); err != nil {
+		return "", err
 	}
-	for f := range m {
-		if !reflect.DeepEqual(m[f], m_[f]) {
-			return false, nil
+
+	if len(raw) > 1 {
+		return "", fmt.Errorf("failed to lookup hash for %s %s: object is not unique", b.ObjectType, b.RESTKey)
+	}
+
+	for _, r := range raw {
+		b_ := b.Clone()
+		if err = b_.Populate(r); err != nil {
+			return "", err
+		}
+
+		m, err := b_.RawJson.ToInterfaceMap()
+		if err != nil {
+			return "", err
+		}
+
+		if iHash, ok := m[resourceHashField]; ok {
+			if hash, ok_ := iHash.(string); ok_ {
+				return hash, nil
+			}
 		}
 	}
 
-	return true, nil
+	return "", nil
 }
