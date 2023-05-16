@@ -1122,7 +1122,7 @@ func collectionEntriesImport(ctx context.Context, d *schema.ResourceData, m inte
 	return []*schema.ResourceData{d}, nil
 }
 
-func populateCollectionEntriesResourceData(ctx context.Context, c *models.CollectionApi, d *schema.ResourceData) (err error) {
+func populateCollectionEntriesData(ctx context.Context, c *models.CollectionApi, d *schema.ResourceData, preserveKeys bool) (err error) {
 	var obj interface{}
 	if obj, err = c.Unmarshal(c.Body); err != nil {
 		return err
@@ -1133,7 +1133,6 @@ func populateCollectionEntriesResourceData(ctx context.Context, c *models.Collec
 	}
 
 	tflog.Trace(ctx, "RSRC COLLECTION:   populate", map[string]interface{}{"arr": arr})
-	preserve_keys, _ := c.Data["preserve_keys"].(bool)
 	data := make([][]map[string]interface{}, 0, len(arr))
 
 	for _, item := range arr {
@@ -1144,7 +1143,7 @@ func populateCollectionEntriesResourceData(ctx context.Context, c *models.Collec
 		row := []map[string]interface{}{}
 		for k, v := range item_ {
 			// Perhaps do not include internal fields...
-			if k[0] != '_' || k == "_idx" || (k == "_key" && preserve_keys) {
+			if k[0] != '_' || k == "_idx" || (k == "_key" && preserveKeys) {
 				m := map[string]interface{}{"name": k}
 				if singleValue, ok := v.(string); ok {
 					m["values"] = []string{singleValue}
@@ -1170,15 +1169,6 @@ func populateCollectionEntriesResourceData(ctx context.Context, c *models.Collec
 		return err
 	}
 
-	if err = d.Set("preserve_keys", c.Data["preserve_keys"]); err != nil {
-		return err
-	}
-	if err = d.Set("generation", c.Data["generation"]); err != nil {
-		return err
-	}
-	if err = d.Set("scope", c.Data["scope"]); err != nil {
-		return err
-	}
 	tflog.Debug(ctx, "RSRC COLLECTION:   populate", map[string]interface{}{"data": data})
 
 	// Reorder the data by our saved index ordering...
@@ -1211,5 +1201,24 @@ func populateCollectionEntriesResourceData(ctx context.Context, c *models.Collec
 	}
 
 	d.SetId(c.RESTKey)
+	return nil
+}
+
+func populateCollectionEntriesResourceData(ctx context.Context, c *models.CollectionApi, d *schema.ResourceData) (err error) {
+	preserve_keys, _ := c.Data["preserve_keys"].(bool)
+
+	err = populateCollectionEntriesData(ctx, c, d, preserve_keys)
+	if err != nil {
+		return err
+	}
+	if err = d.Set("preserve_keys", c.Data["preserve_keys"]); err != nil {
+		return err
+	}
+	if err = d.Set("generation", c.Data["generation"]); err != nil {
+		return err
+	}
+	if err = d.Set("scope", c.Data["scope"]); err != nil {
+		return err
+	}
 	return nil
 }

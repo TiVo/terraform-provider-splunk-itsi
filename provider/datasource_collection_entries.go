@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/url"
-	"sort"
-	"strconv"
 
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
@@ -87,7 +85,7 @@ func collectionEntriesQuery(ctx context.Context, d *schema.ResourceData, m inter
 		d.SetId("")
 		return nil
 	}
-	if err := populateCollectionEntriesDatasource(ctx, c, d); err != nil {
+	if err := populateCollectionEntriesData(ctx, c, d, false); err != nil {
 		diags = append(diags, errorf("Unable to populate resource: "+err.Error()))
 	}
 	return
@@ -133,86 +131,4 @@ func collectionDataEntries(ctx context.Context, d *schema.ResourceData, object_t
 	tflog.Trace(ctx, "RSRC COLLECTION:     api model ("+object_type+")",
 		map[string]interface{}{"key": c.RESTKey, "data": data})
 	return c, nil
-}
-
-func populateCollectionEntriesDatasource(ctx context.Context, c *models.CollectionApi, d *schema.ResourceData) (err error) {
-	var obj interface{}
-	if obj, err = c.Unmarshal(c.Body); err != nil {
-		return err
-	}
-	arr, ok := obj.([]interface{})
-	if !ok {
-		return fmt.Errorf("expected array body return type")
-	}
-
-	tflog.Trace(ctx, "RSRC COLLECTION:   populate", map[string]interface{}{"arr": arr})
-	data := make([][]map[string]interface{}, 0, len(arr))
-
-	for _, item := range arr {
-		item_, ok := item.(map[string]interface{})
-		if !ok {
-			return fmt.Errorf("expected map in array body return type")
-		}
-		row := []map[string]interface{}{}
-		for k, v := range item_ {
-			// Perhaps do not include internal fields...
-			if k[0] != '_' || k == "_idx" || (k == "_key") {
-				m := map[string]interface{}{"name": k}
-				if singleValue, ok := v.(string); ok {
-					m["values"] = []string{singleValue}
-				} else if multiValue, ok := v.([]interface{}); ok {
-					m["values"] = multiValue
-				} else {
-					return fmt.Errorf("invalid collection value %#v", v)
-				}
-
-				row = append(row, m)
-			}
-		}
-		tflog.Trace(ctx, "RSRC COLLECTION:     item", map[string]interface{}{"item": item_, "row": row})
-		data = append(data, row)
-	}
-
-	if c.Data == nil {
-		c.Data = make(map[string]interface{})
-	}
-	c.Data["data"] = data
-
-	if err = d.Set("collection_name", c.Data["collection_name"]); err != nil {
-		return err
-	}
-
-	tflog.Debug(ctx, "RSRC COLLECTION:   populate", map[string]interface{}{"data": data})
-
-	// Reorder the data by our saved index ordering...
-	rowIndex, idxPos := make([]int, len(data)), make([]int, len(data))
-	for i, row := range data {
-		for j, item := range row {
-			if item["name"] == "_idx" {
-				idx, err := strconv.Atoi(item["values"].([]string)[0])
-				if err != nil {
-					return err
-				}
-				rowIndex[i] = idx
-				idxPos[i] = j
-				break
-			}
-		}
-	}
-
-	//Now remove the artificial "_idx" field...
-	for i := 0; i < len(data); i++ {
-		data[i] = append(data[i][:idxPos[i]], data[i][idxPos[i]+1:]...)
-	}
-
-	sort.SliceStable(data, func(i, j int) bool {
-		return rowIndex[i] < rowIndex[j]
-	})
-
-	if err = d.Set("data", data); err != nil {
-		return err
-	}
-
-	d.SetId(c.RESTKey)
-	return nil
 }
