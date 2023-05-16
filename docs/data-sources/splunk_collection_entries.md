@@ -18,11 +18,16 @@ Read KV store collection records.
 ### Required
 
 - `collection_name` (String) Name of the collection containing this entry
-- `data` (List of Set of Object) Collection data for all entries
 - `query` (String) Query to filter the data requested
+
+### Optional
+
+- `collection_app` (String) App the collection belongs to Defaults to `itsi`.
+- `collection_owner` (String) Owner of the collection Defaults to `nobody`.
 
 ### Read-Only
 
+- `data` (List of Set of Object) Collection data for all entries
 - `id` (String) The ID of this resource.
 
 
