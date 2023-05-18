@@ -3,23 +3,25 @@ package provider
 import (
 	"context"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+	"github.com/hashicorp/terraform-plugin-framework/datasource"
+	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/tivo/terraform-provider-splunk-itsi/models"
 )
 
-func DatasourceEntityType() *schema.Resource {
-	return &schema.Resource{
-		Description: "Use this data source to get the ID of an available entity type.",
-		ReadContext: entityTypeRead,
-		Schema: map[string]*schema.Schema{
-			"title": {
-				Type:        schema.TypeString,
-				Required:    true,
-				Description: "The name of the entity type",
-			},
-		},
-	}
+var (
+	_ datasource.DataSource              = &dataSourceEntityType{}
+	_ datasource.DataSourceWithConfigure = &dataSourceEntityType{}
+)
+
+type dataSourceEntityType struct {
+	client models.ClientConfig
+}
+
+type dataSourceEntityTypeModel struct {
+	ID    types.String `tfsdk:"id"`
+	Title types.String `tfsdk:"title"`
 }
 
 func entityTypeBase(clientConfig models.ClientConfig, key string, title string) *models.Base {
@@ -27,16 +29,61 @@ func entityTypeBase(clientConfig models.ClientConfig, key string, title string) 
 	return base
 }
 
-func entityTypeRead(ctx context.Context, d *schema.ResourceData, m interface{}) (diags diag.Diagnostics) {
-	base := entityTypeBase(m.(models.ClientConfig), d.Id(), d.Get("title").(string))
-	b, err := base.Find(ctx)
-	if err != nil {
-		return append(diags, diag.Errorf("%s", err)...)
-	}
-	if b == nil {
-		d.SetId("")
-		return nil
+func NewDataSourceEntityType() datasource.DataSource {
+	return &dataSourceEntityType{}
+}
+
+func (d *dataSourceEntityType) Configure(ctx context.Context, req datasource.ConfigureRequest, _ *datasource.ConfigureResponse) {
+	if req.ProviderData == nil {
+		return
 	}
 
-	return populateEntityTypeResourceData(ctx, b, d)
+	client, ok := req.ProviderData.(models.ClientConfig)
+	if !ok {
+		tflog.Error(ctx, "Unable to prepare client")
+		return
+	}
+	d.client = client
+}
+
+func (d *dataSourceEntityType) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
+	resp.TypeName = req.ProviderTypeName + "_entity_type"
+}
+
+func (d *dataSourceEntityType) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
+	resp.Schema = schema.Schema{
+		Description: "Fetch an entity type id.",
+		Attributes: map[string]schema.Attribute{
+			"id": schema.StringAttribute{
+				Description: "Identifier for this entity type",
+				Computed:    true,
+			},
+			"title": schema.StringAttribute{
+				Description: "The name of the entity type",
+				Required:    true,
+			},
+		},
+	}
+}
+
+func (d *dataSourceEntityType) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
+	tflog.Debug(ctx, "Preparing to read entity type data source")
+	var state dataSourceEntityTypeModel
+
+	resp.Diagnostics.Append(req.Config.Get(ctx, &state)...)
+
+	base := entityTypeBase(d.client, state.ID.ValueString(), state.Title.ValueString())
+	b, err := base.Find(ctx)
+	if err != nil {
+		resp.Diagnostics.AddError("Unable to read Entity Type object", err.Error())
+		return
+	}
+
+	state = dataSourceEntityTypeModel{
+		ID:    types.StringValue(b.RESTKey),
+		Title: types.StringValue(state.Title.String()),
+	}
+
+	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
+	tflog.Debug(ctx, "Finished reading entity type data source", map[string]any{"success": true})
 }
