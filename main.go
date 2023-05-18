@@ -1,8 +1,15 @@
 package main
 
 import (
+	"context"
 	"flag"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/plugin"
+	"log"
+
+	"github.com/hashicorp/terraform-plugin-framework/providerserver"
+	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
+	"github.com/hashicorp/terraform-plugin-go/tfprotov6/tf6server"
+	"github.com/hashicorp/terraform-plugin-mux/tf5to6server"
+	"github.com/hashicorp/terraform-plugin-mux/tf6muxserver"
 	"github.com/tivo/terraform-provider-splunk-itsi/provider"
 )
 
@@ -16,17 +23,46 @@ import (
 // can be customized.
 //go:generate go run github.com/hashicorp/terraform-plugin-docs/cmd/tfplugindocs --rendered-provider-name=itsi --provider-name=itsi
 
-func main() {
-	var debugMode bool
+const providerAddr = "registry.terraform.io/TiVo/splunk-itsi"
 
-	flag.BoolVar(&debugMode, "debug", false, "set to true to run the provider with support for debuggers like delve")
+func main() {
+	ctx := context.Background()
+
+	var debug bool
+
+	flag.BoolVar(&debug, "debug", false, "set to true to run the provider with support for debuggers like delve")
 	flag.Parse()
 
-	opts := &plugin.ServeOpts{
-		Debug:        debugMode,
-		ProviderAddr: "registry.terraform.io/TiVo/splunk-itsi",
-		ProviderFunc: provider.Provider,
+	upgradedSdkServer, err := tf5to6server.UpgradeServer(
+		ctx,
+		provider.Provider().GRPCProvider, // ITSI provider tf5
+	)
+	if err != nil {
+		log.Fatal(err)
 	}
 
-	plugin.Serve(opts)
+	providers := []func() tfprotov6.ProviderServer{
+		providerserver.NewProtocol6(provider.New()), // ITSI provider tf6
+		func() tfprotov6.ProviderServer { return upgradedSdkServer },
+	}
+
+	muxServer, err := tf6muxserver.NewMuxServer(ctx, providers...)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	var serveOpts []tf6server.ServeOpt
+	if debug {
+		serveOpts = append(serveOpts, tf6server.WithManagedDebug())
+	}
+
+	err = tf6server.Serve(
+		providerAddr,
+		muxServer.ProviderServer,
+		serveOpts...,
+	)
+
+	if err != nil {
+		log.Fatal(err)
+	}
 }
