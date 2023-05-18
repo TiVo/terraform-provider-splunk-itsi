@@ -37,7 +37,6 @@ func Provider() *schema.Provider {
 			"port": {
 				Type:     schema.TypeInt,
 				Optional: true,
-				//Default:  8089,
 			},
 			"access_token": {
 				Type:        schema.TypeString,
@@ -53,15 +52,13 @@ func Provider() *schema.Provider {
 				Optional: true,
 			},
 			"timeout": {
-				Type:     schema.TypeInt,
-				Optional: true,
-				//Default:     60,
+				Type:        schema.TypeInt,
+				Optional:    true,
 				Description: "HTTP timeout in seconds for CRUD requests to Splunk/ITSI API. 0 means no timeout. (Terraform resource timeouts still apply)",
 			},
 			"insecure": {
-				Type:     schema.TypeBool,
-				Optional: true,
-				//Default:     false,
+				Type:        schema.TypeBool,
+				Optional:    true,
 				Description: "Whether the API should be accessed without verifying the TLS certificate.",
 			},
 		},
@@ -96,17 +93,17 @@ func providerConfigure(c context.Context, d *schema.ResourceData) (interface{}, 
 	if port, ok := d.Get("port").(int); ok {
 		client.Port = port
 	} else {
-		client.Port = 8089
+		client.Port = defaultPort
 	}
 	if timeout, ok := d.Get("timeout").(int); ok {
 		client.Timeout = timeout
 	} else {
-		client.Timeout = 60
+		client.Timeout = defaultTimeout
 	}
 	client.SkipTLS = d.Get("insecure").(bool)
 	client.RetryPolicy = retryPolicy
 
-	client.Concurrency = client_concurrency
+	client.Concurrency = clientConcurrency
 
 	if client.BearerToken == "" && (client.User == "" || client.Password == "") {
 		return nil, diag.Errorf("ITSI provider configuration failed: missing values for Splunk API access_token or user/password")

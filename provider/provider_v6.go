@@ -17,7 +17,10 @@ import (
 )
 
 const (
-	client_concurrency = 15
+	clientConcurrency = 15
+	defaultTimeout    = 60
+	defaultPort       = 8089
+	cacheSize         = 1000
 )
 
 var retryPolicy backoff.Policy = backoff.Exponential(
@@ -28,12 +31,12 @@ var retryPolicy backoff.Policy = backoff.Exponential(
 )
 
 func init() {
-	models.InitItsiApiLimiter(client_concurrency)
-	InitSplunkSearchLimiter(client_concurrency)
+	models.InitItsiApiLimiter(clientConcurrency)
+	InitSplunkSearchLimiter(clientConcurrency)
 	if os.Getenv("TF_LOG") == "true" {
 		models.Verbose = true
 	}
-	models.Cache = models.NewCache(1000)
+	models.Cache = models.NewCache(cacheSize)
 }
 
 // Ensure the implementation satisfies the expected interfaces
@@ -137,10 +140,10 @@ func (p *itsiProvider) Configure(ctx context.Context, req provider.ConfigureRequ
 	user := config.User.ValueString()
 	password := config.Password.ValueString()
 	insecure := config.InsecureSkipVerify.ValueBool()
-	var timeout int64 = 60
+	var timeout int64 = defaultTimeout
 
 	if port == 0 {
-		port = 8089
+		port = defaultPort
 	}
 
 	if !config.Timeout.IsNull() {
@@ -156,7 +159,7 @@ func (p *itsiProvider) Configure(ctx context.Context, req provider.ConfigureRequ
 	client.Timeout = int(timeout)
 	client.SkipTLS = insecure
 	client.RetryPolicy = retryPolicy
-	client.Concurrency = client_concurrency
+	client.Concurrency = clientConcurrency
 
 	if client.BearerToken == "" && (client.User == "" || client.Password == "") {
 		resp.Diagnostics.AddError(
