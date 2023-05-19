@@ -6,7 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -69,10 +69,10 @@ func (conn SplunkConnection) Search(ctx context.Context, boPolicy backoff.Policy
 				return
 			}
 			defer response.Body.Close()
-			responseBody, err = ioutil.ReadAll(response.Body)
+			responseBody, err = io.ReadAll(response.Body)
 			statusCode = response.StatusCode
 			if statusCode != 200 {
-				err = fmt.Errorf("Splunk search error: %v", response.Status)
+				err = fmt.Errorf("splunk search error: %v", response.Status)
 			}
 			return
 		}()
@@ -80,7 +80,7 @@ func (conn SplunkConnection) Search(ctx context.Context, boPolicy backoff.Policy
 		tflog.Trace(ctx, fmt.Sprintf("POST %v (%v): %v %v [%s]", url, attempt, statusCode, status, time.Since(start).String()), map[string]interface{}{"splunk_search": searchString, "params": params})
 		if err != nil {
 			if statusCode == 400 || statusCode == 401 || statusCode == 403 || statusCode == 404 {
-				return nil, nil, fmt.Errorf("Splunk search error: %v", status)
+				return nil, nil, fmt.Errorf("splunk search error: %v", status)
 			}
 			attempt++
 			continue
@@ -91,8 +91,7 @@ func (conn SplunkConnection) Search(ctx context.Context, boPolicy backoff.Policy
 	lines := strings.Split(string(responseBody), "\n")
 	rows = make(Rows, len(lines))
 	events = make([]string, len(lines))
-	var ni int
-	ni = 0
+	var ni int = 0
 
 	for _, v := range lines {
 		if len(v) == 0 {

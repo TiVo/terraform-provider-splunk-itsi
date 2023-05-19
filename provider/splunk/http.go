@@ -6,7 +6,6 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 )
@@ -30,7 +29,7 @@ func (conn SplunkConnection) httpGet(url string, data *url.Values) (string, erro
 	if response, err := conn.httpCall(url, "GET", data); err != nil {
 		return "", err
 	} else {
-		body, _ := ioutil.ReadAll(response.Body)
+		body, _ := io.ReadAll(response.Body)
 		response.Body.Close()
 		return string(body), nil
 	}
@@ -40,7 +39,7 @@ func (conn SplunkConnection) httpPost(url string, data *url.Values) (string, err
 	if response, err := conn.httpCall(url, "POST", data); err != nil {
 		return "", err
 	} else {
-		body, _ := ioutil.ReadAll(response.Body)
+		body, _ := io.ReadAll(response.Body)
 		response.Body.Close()
 		return string(body), nil
 	}
@@ -57,6 +56,9 @@ func (conn SplunkConnection) httpCallWithContext(ctx context.Context, url string
 	}
 
 	request, err := http.NewRequestWithContext(ctx, method, url, payload)
+	if err != nil {
+		return nil, err
+	}
 	conn.addAuthHeader(request)
 	response, err := conn.client().Do(request)
 

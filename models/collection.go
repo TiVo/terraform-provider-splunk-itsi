@@ -9,7 +9,7 @@ import (
 	"encoding/json"
 	"encoding/xml"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"net/http"
 	"time"
@@ -288,7 +288,7 @@ func (c *CollectionApi) request(ctx context.Context, method string, u string, bo
 		}
 	}
 
-	responseBody, err = ioutil.ReadAll(resp.Body)
+	responseBody, err = io.ReadAll(resp.Body)
 	if err != nil {
 		tflog.Trace(ctx, "COLLECTION:   Response read err",
 			map[string]interface{}{"key": c.RESTKey, "err": err})

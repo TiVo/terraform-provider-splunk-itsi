@@ -6,14 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
-	"github.com/lestrrat-go/backoff/v2"
-	"gopkg.in/yaml.v3"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"regexp"
@@ -22,6 +15,13 @@ import (
 	"strings"
 	"sync"
 	"testing"
+
+	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
+	"github.com/lestrrat-go/backoff/v2"
+	"gopkg.in/yaml.v3"
 
 	assert "github.com/stretchr/testify/assert"
 	mock_models "github.com/tivo/terraform-provider-splunk-itsi/models"
@@ -142,14 +142,14 @@ func TestServiceResourceCreate(t *testing.T) {
 							switch method, body := req.Method, req.Body; {
 							// for destroy after the end of the test plan
 							case method == "DELETE" && path == _SERVICE+"/"+test.ServiceIdToSet:
-								response = ioutil.NopCloser(bytes.NewReader([]byte("{success}")))
+								response = io.NopCloser(bytes.NewReader([]byte("{success}")))
 								assert.Exactly(t, test.ExpectedApiCallsCount, actualApiCallCount, apiCallStackMsg)
 
 							case method == "GET" && path == _KPI_BASE_SEARCH+"/"+test.InputBaseSearchId:
-								response = ioutil.NopCloser(bytes.NewReader([]byte(test.InputBaseSearch)))
+								response = io.NopCloser(bytes.NewReader([]byte(test.InputBaseSearch)))
 
 							case method == "GET" && path == _KPI_THRESHOLD_TEMPLATE+"/"+test.InputThresholdTemplateId:
-								response = ioutil.NopCloser(bytes.NewReader([]byte(test.InputThresholdTemplate)))
+								response = io.NopCloser(bytes.NewReader([]byte(test.InputThresholdTemplate)))
 
 							case method == "GET" && path == _SERVICE+"/"+test.ServiceIdToSet:
 								var serviceAfterCreation map[string]interface{}
@@ -157,11 +157,11 @@ func TestServiceResourceCreate(t *testing.T) {
 								serviceAfterCreation["_key"] = test.ServiceIdToSet
 								newData, _ := json.Marshal(serviceAfterCreation)
 
-								response = ioutil.NopCloser(bytes.NewReader(newData))
+								response = io.NopCloser(bytes.NewReader(newData))
 
 							case method == "POST" && path == _SERVICE:
 								mockAnswer := fmt.Sprintf("{\"_key\" : \"%s\"}", test.ServiceIdToSet)
-								response = ioutil.NopCloser(bytes.NewReader([]byte(mockAnswer)))
+								response = io.NopCloser(bytes.NewReader([]byte(mockAnswer)))
 
 								actualServicePostBody := new(bytes.Buffer)
 								actualServicePostBody.ReadFrom(body)
@@ -216,7 +216,7 @@ func TestServiceCreatePopulateComputed(t *testing.T) {
 						// for destroy after the end of the test plan
 						case method == "DELETE" && strings.Contains(path, _SERVICE+"/"+serviceIdToSet):
 							mock_answer = "{success}"
-							response = ioutil.NopCloser(bytes.NewReader([]byte(mock_answer)))
+							response = io.NopCloser(bytes.NewReader([]byte(mock_answer)))
 
 						case method == "GET" && strings.Contains(path, _SERVICE+"/"+serviceIdToSet):
 							mock_answer = `
@@ -255,11 +255,11 @@ func TestServiceCreatePopulateComputed(t *testing.T) {
                                    "title":"TEST"
                                 }
                             `
-							response = ioutil.NopCloser(bytes.NewReader([]byte(mock_answer)))
+							response = io.NopCloser(bytes.NewReader([]byte(mock_answer)))
 
 						case method == "POST" && strings.Contains(path, _SERVICE):
 							mock_answer := fmt.Sprintf("{\"_key\" : \"%s\"}", serviceIdToSet)
-							response = ioutil.NopCloser(bytes.NewReader([]byte(mock_answer)))
+							response = io.NopCloser(bytes.NewReader([]byte(mock_answer)))
 
 						default:
 							err = errors.New(fmt.Sprintf("Unexpected [%s] Call: %s %s", method, path, body))
@@ -321,17 +321,17 @@ func TestServiceUpdate(t *testing.T) {
 							switch method, body := req.Method, req.Body; {
 							case isDependency:
 								assert.Exactly(t, "GET", method, "dependency expected to be readonly")
-								response = ioutil.NopCloser(bytes.NewReader([]byte(inputDependencyBody)))
+								response = io.NopCloser(bytes.NewReader([]byte(inputDependencyBody)))
 
 							case method == "GET" && path == _SERVICE+"/"+test.ServiceIdToSet:
-								response = ioutil.NopCloser(bytes.NewReader([]byte(test.InputGetServiceBody)))
+								response = io.NopCloser(bytes.NewReader([]byte(test.InputGetServiceBody)))
 
 							case method == "POST":
 								mock_answer := fmt.Sprintf("{\"_key\" : \"%s\"}", test.ServiceIdToSet)
-								response = ioutil.NopCloser(bytes.NewReader([]byte(mock_answer)))
+								response = io.NopCloser(bytes.NewReader([]byte(mock_answer)))
 
 							case method == "DELETE" && strings.Contains(path, _SERVICE+"/"+test.ServiceIdToSet):
-								response = ioutil.NopCloser(bytes.NewReader([]byte("{success}")))
+								response = io.NopCloser(bytes.NewReader([]byte("{success}")))
 
 							default:
 								err = errors.New(fmt.Sprintf("Unexpected [%s] Call: %s %s", method, path, body))
@@ -357,21 +357,21 @@ func TestServiceUpdate(t *testing.T) {
 							switch method, body := req.Method, req.Body; {
 							case isDependency:
 								assert.Exactly(t, "GET", method, "dependency expected to be readonly")
-								response = ioutil.NopCloser(bytes.NewReader([]byte(inputDependencyBody)))
+								response = io.NopCloser(bytes.NewReader([]byte(inputDependencyBody)))
 
 							case method == "GET" && path == _SERVICE+"/"+test.ServiceIdToSet:
-								response = ioutil.NopCloser(bytes.NewReader([]byte(inputCreatedServiceBody)))
+								response = io.NopCloser(bytes.NewReader([]byte(inputCreatedServiceBody)))
 
 							case method == "DELETE" && strings.Contains(path, _SERVICE+"/"+test.ServiceIdToSet):
-								response = ioutil.NopCloser(bytes.NewReader([]byte("{success}")))
+								response = io.NopCloser(bytes.NewReader([]byte("{success}")))
 
 							case method == "POST" && path == _SERVICE:
 								mock_answer := fmt.Sprintf("{\"_key\" : \"%s\"}", test.ServiceIdToSet)
-								response = ioutil.NopCloser(bytes.NewReader([]byte(mock_answer)))
+								response = io.NopCloser(bytes.NewReader([]byte(mock_answer)))
 
 							case method == "PUT" && path == _SERVICE+"/"+test.ServiceIdToSet:
 								mock_answer := fmt.Sprintf("{\"_key\" : \"%s\"}", test.ServiceIdToSet)
-								response = ioutil.NopCloser(bytes.NewReader([]byte(mock_answer)))
+								response = io.NopCloser(bytes.NewReader([]byte(mock_answer)))
 
 								actualServiceBody := new(bytes.Buffer)
 								actualServiceBody.ReadFrom(body)
@@ -428,7 +428,7 @@ func TestCacheHit(t *testing.T) {
 		mock_models.Do = func(req *http.Request) (*http.Response, error) {
 			return &http.Response{
 				StatusCode: 200,
-				Body:       ioutil.NopCloser(bytes.NewReader([]byte(test.CachedThresholdTemplate))),
+				Body:       io.NopCloser(bytes.NewReader([]byte(test.CachedThresholdTemplate))),
 			}, nil
 		}
 		kpiThresholdTemplateBase.Read(mock_models.ContextStub)
@@ -438,7 +438,7 @@ func TestCacheHit(t *testing.T) {
 		mock_models.Do = func(req *http.Request) (*http.Response, error) {
 			return &http.Response{
 				StatusCode: 200,
-				Body:       ioutil.NopCloser(bytes.NewReader([]byte(test.CachedBaseSearch))),
+				Body:       io.NopCloser(bytes.NewReader([]byte(test.CachedBaseSearch))),
 			}, nil
 		}
 		kpiBaseSearchBase.Read(mock_models.ContextStub)
@@ -457,13 +457,13 @@ func TestCacheHit(t *testing.T) {
 
 							switch method, body := req.Method, req.Body; {
 							case method == "DELETE" && path == _SERVICE+"/"+serviceIdToSet:
-								response = ioutil.NopCloser(bytes.NewReader([]byte("{success}")))
+								response = io.NopCloser(bytes.NewReader([]byte("{success}")))
 							case method == "POST" && path == _SERVICE:
 								mock_answer := fmt.Sprintf("{\"_key\" : \"%s\"}", serviceIdToSet)
-								response = ioutil.NopCloser(bytes.NewReader([]byte(mock_answer)))
+								response = io.NopCloser(bytes.NewReader([]byte(mock_answer)))
 
 							case method == "GET" && path == _SERVICE+"/"+serviceIdToSet:
-								response = ioutil.NopCloser(bytes.NewReader([]byte(test.InputGetBody)))
+								response = io.NopCloser(bytes.NewReader([]byte(test.InputGetBody)))
 							default:
 								err = errors.New(fmt.Sprintf("Unexpected [%s] Call: %s %s", method, path, body))
 							}
@@ -523,7 +523,7 @@ func TestSharedDependenciesConcurrentCallCheck(t *testing.T) {
 							switch method, body := req.Method, req.Body; {
 							case method == "DELETE":
 								assert.Contains(t, path, _SERVICE, "Unexpected  API call: ", method, path)
-								response = ioutil.NopCloser(bytes.NewReader([]byte("{success}")))
+								response = io.NopCloser(bytes.NewReader([]byte("{success}")))
 							case method == "POST" && path == _SERVICE:
 
 								// Intention of this test is to check only amount of dependency calls which are concurrent.
@@ -546,21 +546,21 @@ func TestSharedDependenciesConcurrentCallCheck(t *testing.T) {
 								mockAnswers[_SERVICE+"/"+serviceIdToSet] = string(postBodyJsonBytes)
 								mu.Unlock()
 								mockedPostServerAnswer := fmt.Sprintf("{\"_key\" : \"%s\"}", serviceIdToSet)
-								response = ioutil.NopCloser(bytes.NewReader([]byte(mockedPostServerAnswer)))
+								response = io.NopCloser(bytes.NewReader([]byte(mockedPostServerAnswer)))
 
 							case method == "GET" && mockAnswers[path] != "":
-								response = ioutil.NopCloser(bytes.NewReader([]byte(mockAnswers[path])))
+								response = io.NopCloser(bytes.NewReader([]byte(mockAnswers[path])))
 
 							case method == "GET" && path == _KPI_BASE_SEARCH+"/"+test.BaseSearchId:
 								actualKpiBaseSearchApiCalls++
 								assert.Equal(t, 1, actualKpiBaseSearchApiCalls, "Extra kpi base search call")
 
-								response = ioutil.NopCloser(bytes.NewReader([]byte(test.BaseSearch)))
+								response = io.NopCloser(bytes.NewReader([]byte(test.BaseSearch)))
 							case method == "GET" && path == _KPI_THRESHOLD_TEMPLATE+"/"+test.ThresholdTemplateId:
 								actualThresholdTemplateApiCalls++
 								assert.Equal(t, 1, actualThresholdTemplateApiCalls, "Extra threshold_template search call")
 
-								response = ioutil.NopCloser(bytes.NewReader([]byte(test.ThresholdTemplate)))
+								response = io.NopCloser(bytes.NewReader([]byte(test.ThresholdTemplate)))
 
 							default:
 								err = errors.New(fmt.Sprintf("Unexpected [%s] Call: %s %s", method, path, body))
