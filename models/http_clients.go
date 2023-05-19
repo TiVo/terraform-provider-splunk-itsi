@@ -11,6 +11,8 @@ import (
 	"time"
 )
 
+const connectMaxWaitTime = 5 * time.Second
+
 func InitHttpClients() IHttpClients {
 	return &HttpClients{}
 }
@@ -33,9 +35,10 @@ func (hc *HttpClients) Get(config ClientConfig) IHttpClient {
 	}
 
 	tr := (http.DefaultTransport.(*http.Transport)).Clone()
-	tr.Dial = func(network, addr string) (net.Conn, error) {
-		return net.DialTimeout(network, addr, time.Duration(5*time.Second))
-	}
+	tr.DialContext = (&net.Dialer{
+		Timeout: connectMaxWaitTime,
+	}).DialContext
+
 	if config.Concurrency > 0 {
 		tr.MaxIdleConns = config.Concurrency
 		tr.MaxConnsPerHost = config.Concurrency
