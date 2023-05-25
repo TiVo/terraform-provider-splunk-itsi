@@ -6,6 +6,7 @@ require (
 	github.com/akamensky/argparse v1.4.0
 	github.com/aws/aws-sdk-go-v2/config v1.18.25
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.36.4
+	github.com/google/uuid v1.3.0
 	github.com/hashicorp/go-cty v1.4.1-0.20200414143053-d3edf31b6320
 	github.com/hashicorp/go-uuid v1.0.3
 	github.com/hashicorp/golang-lru v0.5.5-0.20210104140557-80c98217689d
@@ -45,7 +46,6 @@ require (
 	github.com/fatih/color v1.13.0 // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/google/go-cmp v0.5.9 // indirect
-	github.com/google/uuid v1.3.0 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-checkpoint v0.5.0 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
