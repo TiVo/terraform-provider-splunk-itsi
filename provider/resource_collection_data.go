@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"reflect"
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -111,7 +112,7 @@ func (d *collectionDataModel) Normalize() (diags diag.Diagnostics) {
 		row := make(map[string]interface{})
 		for k, v := range data {
 			if singleValue, ok := v.(string); ok {
-				row[k] = []string{singleValue}
+				row[k] = singleValue
 			} else if multiValue, ok := v.([]interface{}); ok {
 				row[k] = multiValue
 			} else {
@@ -120,7 +121,7 @@ func (d *collectionDataModel) Normalize() (diags diag.Diagnostics) {
 			}
 		}
 
-		entries[i].Pack(data)
+		entries[i].Pack(row)
 		entries[i].ID = entry.ID
 	}
 
@@ -387,7 +388,8 @@ func (r *resourceCollectionData) Schema(_ context.Context, _ resource.SchemaRequ
 }
 
 /*
-Custom plan handling for collection entries "SetNestedBlock".
+Custom plan handling for collection data:
+1.
 Populates planned entries ID fields using respective IDs from the state,
 if a planned entry's data hash matches an existing entry in the state.
 This reduces the number of entries that are shown in the diff to only those that are actually changing.
@@ -395,20 +397,26 @@ TODO: Review/improve this solution, once the terraform-plugin-framework has a be
 * https://github.com/hashicorp/terraform-plugin-framework/issues/717
 * https://github.com/hashicorp/terraform-plugin-framework/pull/718
 * https://github.com/hashicorp/terraform-plugin-framework/issues/720
+2.
+Normalizes the planned entries JSON data, so that the diff is more readable.
+In particular, it would omit diff if a field value changes between a single value and a list of one value, if that value stays the same.
+3.
+Due to a side effect of the normalization process (that can cause drifts),
+the resource generation value is also computed here on resource updates.
+This is necessary to prevent drifts, where "generation" would be the only field that changes,(causing pointless resource updates).
 */
 func (r *resourceCollectionData) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
 	if req.Plan.Raw.IsNull() {
 		return // destroy plan, nothing to do
-	}
-	if req.State.Raw.IsNull() {
-		return // create plan, nothing to do
 	}
 	tflog.Trace(ctx, "Preparing to modify plan for a collecton data resource")
 
 	var state collectionDataModel
 	var plan collectionDataModel
 
-	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if diags := req.State.Get(ctx, &state); !req.State.Raw.IsNull() {
+		resp.Diagnostics.Append(diags...)
+	}
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 
 	tflog.Trace(ctx, "collection_data ModifyPlan - Parsed req config", map[string]interface{}{"plan": plan, "state": state})
@@ -418,6 +426,11 @@ func (r *resourceCollectionData) ModifyPlan(ctx context.Context, req resource.Mo
 		idByDataHash[state.Entries[i].DataHash()] = state.Entries[i].ID.ValueString()
 	}
 	tflog.Trace(ctx, "collection_data ModifyPlan - idByDataHash", map[string]interface{}{"idByDataHash": idByDataHash})
+
+	diags := plan.Normalize()
+	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
+		return
+	}
 
 	for i := range plan.Entries {
 		if plan.Entries[i].ID.IsUnknown() {
@@ -430,7 +443,22 @@ func (r *resourceCollectionData) ModifyPlan(ctx context.Context, req resource.Mo
 		}
 	}
 
-	diags := resp.Plan.Set(ctx, plan)
+	// diff state vs plan entries, compute "generation" value if resource changes
+
+	stateEntries, planEntries := make(map[string]struct{}), make(map[string]struct{})
+	for _, e := range state.Entries {
+		stateEntries[fmt.Sprintf("%s%s", e.ID, e.DataHash())] = struct{}{}
+	}
+	for _, e := range plan.Entries {
+		planEntries[fmt.Sprintf("%s%s", e.ID, e.DataHash())] = struct{}{}
+	}
+	if state.Scope == plan.Scope && reflect.DeepEqual(stateEntries, planEntries) {
+		plan.Generation = state.Generation
+	} else if !req.State.Raw.IsNull() {
+		plan.Generation = types.Int64Value(state.Generation.ValueInt64() + 1)
+	}
+
+	diags = resp.Plan.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
 	tflog.Trace(ctx, "Finished modifying plan for collecton data resource")
 
@@ -462,6 +490,11 @@ func (r *resourceCollectionData) Create(ctx context.Context, req resource.Create
 	diags = api.Save(ctx)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	diags = plan.Normalize()
+	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
 		return
 	}
 
@@ -509,8 +542,6 @@ func (r *resourceCollectionData) Update(ctx context.Context, req resource.Update
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	tflog.Trace(ctx, "collection_data Update - Parsed req config", map[string]interface{}{"plan": plan, "state": state})
 
-	plan.Generation = types.Int64Value(state.Generation.ValueInt64() + 1)
-
 	api := NewCollectionDataAPI(plan, r.client)
 	exists, diags := api.CollectionExists(ctx, true)
 	resp.Diagnostics.Append(diags...)
@@ -527,6 +558,11 @@ func (r *resourceCollectionData) Update(ctx context.Context, req resource.Update
 	diags = api.deleteOldRows(ctx)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	diags = plan.Normalize()
+	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
 		return
 	}
 
