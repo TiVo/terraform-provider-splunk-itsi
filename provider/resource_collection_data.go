@@ -386,6 +386,16 @@ func (r *resourceCollectionData) Schema(_ context.Context, _ resource.SchemaRequ
 
 }
 
+/*
+Custom plan handling for collection entries "SetNestedBlock".
+Populates planned entries ID fields using respective IDs from the state,
+if a planned entry's data hash matches an existing entry in the state.
+This reduces the number of entries that are shown in the diff to only those that are actually changing.
+TODO: Review/improve this solution, once the terraform-plugin-framework has a better way to handle this.
+* https://github.com/hashicorp/terraform-plugin-framework/issues/717
+* https://github.com/hashicorp/terraform-plugin-framework/pull/718
+* https://github.com/hashicorp/terraform-plugin-framework/issues/720
+*/
 func (r *resourceCollectionData) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
 	if req.Plan.Raw.IsNull() {
 		return // destroy plan, nothing to do
@@ -428,21 +438,21 @@ func (r *resourceCollectionData) ModifyPlan(ctx context.Context, req resource.Mo
 
 func (r *resourceCollectionData) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	tflog.Trace(ctx, "Preparing to create collecton data resource")
-	var state collectionDataModel
+	var plan collectionDataModel
 
-	resp.Diagnostics.Append(req.Plan.Get(ctx, &state)...)
-	tflog.Trace(ctx, "collection_data Create - Parsed req config", map[string]interface{}{"state": state})
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	tflog.Trace(ctx, "collection_data Create - Parsed req config", map[string]interface{}{"plan": plan})
 
-	state.ID = types.StringValue(uuid.New().String())
-	state.Generation = types.Int64Value(0)
+	plan.ID = types.StringValue(uuid.New().String())
+	plan.Generation = types.Int64Value(0)
 
-	for i := range state.Entries {
-		if state.Entries[i].ID.IsUnknown() {
-			state.Entries[i].ID = types.StringValue(uuid.New().String())
+	for i := range plan.Entries {
+		if plan.Entries[i].ID.IsUnknown() {
+			plan.Entries[i].ID = types.StringValue(uuid.New().String())
 		}
 	}
 
-	api := NewCollectionDataAPI(state, r.client)
+	api := NewCollectionDataAPI(plan, r.client)
 	exists, diags := api.CollectionExists(ctx, true)
 	resp.Diagnostics.Append(diags...)
 	if !exists {
@@ -455,7 +465,7 @@ func (r *resourceCollectionData) Create(ctx context.Context, req resource.Create
 		return
 	}
 
-	diags = resp.State.Set(ctx, state)
+	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
 	tflog.Trace(ctx, "Finished creating collecton data resource")
 }
