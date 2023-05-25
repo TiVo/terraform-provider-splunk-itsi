@@ -78,8 +78,8 @@ func (p *itsiProvider) Schema(_ context.Context, _ provider.SchemaRequest, resp 
 				Optional: true,
 			},
 			"access_token": schema.StringAttribute{
-				Optional:    true,
-				Description: "Bearer token used to authenticate HTTP requests to Splunk API",
+				Optional:            true,
+				MarkdownDescription: "Bearer token used to authenticate HTTP requests to Splunk API",
 			},
 			"user": schema.StringAttribute{
 				Optional: true,
@@ -88,12 +88,12 @@ func (p *itsiProvider) Schema(_ context.Context, _ provider.SchemaRequest, resp 
 				Optional: true,
 			},
 			"timeout": schema.Int64Attribute{
-				Optional:    true,
-				Description: "HTTP timeout in seconds for CRUD requests to Splunk/ITSI API. 0 means no timeout. (Terraform resource timeouts still apply)",
+				Optional:            true,
+				MarkdownDescription: "HTTP timeout in seconds for CRUD requests to Splunk/ITSI API. 0 means no timeout. (Terraform resource timeouts still apply)",
 			},
 			"insecure": schema.BoolAttribute{
-				Optional:    true,
-				Description: "Whether the API should be accessed without verifying the TLS certificate.",
+				Optional:            true,
+				MarkdownDescription: "Whether the API should be accessed without verifying the TLS certificate.",
 			},
 		},
 		Blocks: map[string]schema.Block{},
