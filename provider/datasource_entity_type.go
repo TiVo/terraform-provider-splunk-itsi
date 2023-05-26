@@ -52,7 +52,7 @@ func (d *dataSourceEntityType) Metadata(_ context.Context, req datasource.Metada
 
 func (d *dataSourceEntityType) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "Fetch an entity type id.",
+		Description: "Use this data source to get the ID of an available entity type.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Description: "Identifier for this entity type",

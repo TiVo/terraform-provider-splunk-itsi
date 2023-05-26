@@ -9,6 +9,7 @@ import (
 	"reflect"
 
 	"github.com/google/uuid"
+	"github.com/hashicorp/terraform-plugin-framework-validators/objectvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -16,6 +17,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/tivo/terraform-provider-splunk-itsi/models"
@@ -302,7 +304,7 @@ func (api *collectionDataAPI) Delete(ctx context.Context) (diags diag.Diagnostic
 
 // resource methods
 
-func (r *resourceCollectionData) Configure(ctx context.Context, req resource.ConfigureRequest, _ *resource.ConfigureResponse) {
+func (r *resourceCollectionData) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
 	if req.ProviderData == nil {
 		return
 	}
@@ -310,6 +312,7 @@ func (r *resourceCollectionData) Configure(ctx context.Context, req resource.Con
 	client, ok := req.ProviderData.(models.ClientConfig)
 	if !ok {
 		tflog.Error(ctx, "Unable to prepare client")
+		resp.Diagnostics.AddError("Unable to prepare client", "invalid provider data")
 		return
 	}
 	r.client = client
@@ -332,20 +335,24 @@ func (r *resourceCollectionData) Schema(_ context.Context, _ resource.SchemaRequ
 					"name": schema.StringAttribute{
 						Description: "Name of the collection",
 						Required:    true,
+						Validators:  validateStringIdentifier2(),
 					},
 					"app": schema.StringAttribute{
 						Description: "App of the collection",
 						Optional:    true,
 						Computed:    true,
 						Default:     stringdefault.StaticString("itsi"),
+						Validators:  validateStringIdentifier2(),
 					},
 					"owner": schema.StringAttribute{
 						Description: "Owner of the collection",
 						Optional:    true,
 						Computed:    true,
 						Default:     stringdefault.StaticString("nobody"),
+						Validators:  validateStringIdentifier2(),
 					},
 				},
+				Validators: []validator.Object{objectvalidator.IsRequired()},
 			},
 			"entry": schema.SetNestedBlock{
 				Description: "Block representing an entry in the collection",
