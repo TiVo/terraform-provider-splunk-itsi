@@ -41,22 +41,22 @@ func NewResourceCollectionData() resource.Resource {
 // resource terraform models
 
 type collectionModel struct {
-	Name  string `tfsdk:"name"`
-	App   string `tfsdk:"app"`
-	Owner string `tfsdk:"owner"`
+	Name  types.String `tfsdk:"name"`
+	App   types.String `tfsdk:"app"`
+	Owner types.String `tfsdk:"owner"`
 }
 
 func (c *collectionModel) Key() string {
-	return fmt.Sprintf("%s/%s/%s", c.Owner, c.App, c.Name)
+	return fmt.Sprintf("%s/%s/%s", c.Owner.ValueString(), c.App.ValueString(), c.Name.ValueString())
 }
 
 type collectionEntryModel struct {
 	ID   types.String `tfsdk:"id"`
-	Data string       `tfsdk:"data"`
+	Data types.String `tfsdk:"data"`
 }
 
 func (e *collectionEntryModel) DataHash() string {
-	return util.Sha256([]byte(e.Data))
+	return util.Sha256([]byte(e.Data.ValueString()))
 }
 
 func (e *collectionEntryModel) Pack(data map[string]interface{}) (diags diag.Diagnostics) {
@@ -65,14 +65,14 @@ func (e *collectionEntryModel) Pack(data map[string]interface{}) (diags diag.Dia
 		diags.AddError("Failed to marshal collection entry data", err.Error())
 		return
 	}
-	e.Data = string(b)
+	e.Data = types.StringValue(string(b))
 	return
 }
 
 func (e *collectionEntryModel) Unpack() (data map[string]interface{}, diags diag.Diagnostics) {
 	data = make(map[string]interface{})
 	rowMap := make(map[string]interface{})
-	err := json.Unmarshal([]byte(e.Data), &rowMap)
+	err := json.Unmarshal([]byte(e.Data.ValueString()), &rowMap)
 	if err != nil {
 		diags.AddError("Wrong collection entry data",
 			fmt.Sprintf("Unable to unmarshal collection entry data: %s;\n%s", e.Data, err.Error()))
@@ -97,7 +97,7 @@ func (e *collectionEntryModel) Unpack() (data map[string]interface{}, diags diag
 type collectionDataModel struct {
 	ID         types.String           `tfsdk:"id"`
 	Collection collectionModel        `tfsdk:"collection"`
-	Scope      string                 `tfsdk:"scope"`
+	Scope      types.String           `tfsdk:"scope"`
 	Generation types.Int64            `tfsdk:"generation"`
 	Entries    []collectionEntryModel `tfsdk:"entry"`
 }
@@ -106,6 +106,12 @@ func (d *collectionDataModel) Normalize() (diags diag.Diagnostics) {
 	entries := make([]collectionEntryModel, len(d.Entries))
 
 	for i, entry := range d.Entries {
+		entries[i].ID = entry.ID
+		if entry.Data.IsUnknown() {
+			entries[i].Data = entry.Data
+			continue
+		}
+
 		data, diags_ := entry.Unpack()
 		if diags.Append(diags_...); diags.HasError() {
 			return
@@ -124,7 +130,6 @@ func (d *collectionDataModel) Normalize() (diags diag.Diagnostics) {
 		}
 
 		entries[i].Pack(row)
-		entries[i].ID = entry.ID
 	}
 
 	d.Entries = entries
@@ -142,7 +147,13 @@ func NewCollectionAPI(m collectionModel, c models.ClientConfig) *collectionAPI {
 }
 
 func (api *collectionAPI) Model(objectType string) *models.CollectionApi {
-	return models.NewCollection(api.client, api.Name, api.App, api.Owner, api.Name, objectType)
+	return models.NewCollection(
+		api.client,
+		api.Name.ValueString(),
+		api.App.ValueString(),
+		api.Owner.ValueString(),
+		api.Name.ValueString(),
+		objectType)
 }
 
 func (api *collectionAPI) CollectionExists(ctx context.Context, require bool) (exists bool, diags diag.Diagnostics) {
@@ -173,8 +184,8 @@ func NewCollectionDataAPI(m collectionDataModel, c models.ClientConfig) *collect
 
 func (api *collectionDataAPI) Model(includeData bool) (model *models.CollectionApi, diags diag.Diagnostics) {
 	data := map[string]interface{}{
-		"collection_name": api.Collection.Name,
-		"scope":           api.Scope,
+		"collection_name": api.Collection.Name.ValueString(),
+		"scope":           api.Scope.ValueString(),
 		"generation":      api.Generation.ValueInt64(),
 		"instance":        api.ID.ValueString(),
 	}
@@ -186,7 +197,7 @@ func (api *collectionDataAPI) Model(includeData bool) (model *models.CollectionA
 			diags.Append(diags_...)
 			rowMap["_instance"] = api.ID.ValueString()
 			rowMap["_gen"] = api.Generation.ValueInt64()
-			rowMap["_scope"] = api.Scope
+			rowMap["_scope"] = api.Scope.ValueString()
 			rowMap["_key"] = entry.ID.ValueString()
 			entries[i] = rowMap
 		}
@@ -222,7 +233,7 @@ func (api *collectionDataAPI) deleteOldRows(ctx context.Context) (diags diag.Dia
 		return
 	}
 	q := fmt.Sprintf(`{"$or":[{"_instance":null},{"_instance":{"$ne": "%s"}},{"_gen":null},{"_gen":{"$ne": %d}}]}`, api.ID.ValueString(), api.Generation.ValueInt64())
-	q = fmt.Sprintf(`{"$and":[{"_scope":"%s"},%s]}`, api.Scope, q)
+	q = fmt.Sprintf(`{"$and":[{"_scope":"%s"},%s]}`, api.Scope.ValueString(), q)
 	model.Params = "query=" + url.QueryEscape(q)
 
 	_, err := model.Delete(ctx)
@@ -237,7 +248,7 @@ func (api *collectionDataAPI) Read(ctx context.Context) (data []collectionEntryM
 	if diags.Append(diags_...); diags.HasError() {
 		return
 	}
-	model.Params = "query=" + url.QueryEscape(fmt.Sprintf(`{"_scope":"%s"}`, api.Scope))
+	model.Params = "query=" + url.QueryEscape(fmt.Sprintf(`{"_scope":"%s"}`, api.Scope.ValueString()))
 	var err error
 	if model, err = model.Read(ctx); err != nil {
 		diags.AddError(fmt.Sprintf("Unable to read %s collection data", api.Key()), err.Error())
@@ -295,7 +306,7 @@ func (api *collectionDataAPI) Delete(ctx context.Context) (diags diag.Diagnostic
 	if diags.Append(diags_...); diags.HasError() {
 		return
 	}
-	model.Params = "query=" + url.QueryEscape(fmt.Sprintf(`{"_scope":"%s"}`, api.Scope))
+	model.Params = "query=" + url.QueryEscape(fmt.Sprintf(`{"_scope":"%s"}`, api.Scope.ValueString()))
 	if _, err := model.Delete(ctx); err != nil {
 		diags.AddError(fmt.Sprintf("Unable to delete %s collection data", api.Key()), err.Error())
 	}
@@ -445,7 +456,7 @@ func (r *resourceCollectionData) ModifyPlan(ctx context.Context, req resource.Mo
 				plan.Entries[i].ID = types.StringValue(id)
 				tflog.Trace(ctx, "collection_data ModifyPlan - Entry found", map[string]interface{}{"id": id})
 			} else {
-				tflog.Trace(ctx, "collection_data ModifyPlan - Entry not found", map[string]interface{}{"data": plan.Entries[i].Data})
+				tflog.Trace(ctx, "collection_data ModifyPlan - Entry not found", map[string]interface{}{"data": plan.Entries[i].Data.ValueString()})
 			}
 		}
 	}
