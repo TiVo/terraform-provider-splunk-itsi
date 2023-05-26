@@ -3,12 +3,12 @@
 page_title: "itsi_entity_type Data Source - itsi"
 subcategory: ""
 description: |-
-  Fetch an entity type id.
+  Use this data source to get the ID of an available entity type.
 ---
 
 # itsi_entity_type (Data Source)
 
-Fetch an entity type id.
+Use this data source to get the ID of an available entity type.
 
 ## Example Usage
 
