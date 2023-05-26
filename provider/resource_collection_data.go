@@ -429,15 +429,14 @@ func (r *resourceCollectionData) ModifyPlan(ctx context.Context, req resource.Mo
 	}
 	tflog.Trace(ctx, "Preparing to modify plan for a collecton data resource")
 
-	var state collectionDataModel
-	var plan collectionDataModel
-
+	var config, state, plan collectionDataModel
 	if diags := req.State.Get(ctx, &state); !req.State.Raw.IsNull() {
 		resp.Diagnostics.Append(diags...)
 	}
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 
-	tflog.Trace(ctx, "collection_data ModifyPlan - Parsed req config", map[string]interface{}{"plan": plan, "state": state})
+	tflog.Trace(ctx, "collection_data ModifyPlan - Parsed req config", map[string]interface{}{"config": config, "plan": plan, "state": state})
 
 	idByDataHash := make(map[string]string)
 	for i := range state.Entries {
@@ -451,7 +450,7 @@ func (r *resourceCollectionData) ModifyPlan(ctx context.Context, req resource.Mo
 	}
 
 	for i := range plan.Entries {
-		if plan.Entries[i].ID.IsUnknown() {
+		if plan.Entries[i].ID.IsUnknown() && config.Entries[i].ID.IsNull() {
 			if id, ok := idByDataHash[plan.Entries[i].DataHash()]; ok {
 				plan.Entries[i].ID = types.StringValue(id)
 				tflog.Trace(ctx, "collection_data ModifyPlan - Entry found", map[string]interface{}{"id": id})
@@ -484,16 +483,18 @@ func (r *resourceCollectionData) ModifyPlan(ctx context.Context, req resource.Mo
 
 func (r *resourceCollectionData) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	tflog.Trace(ctx, "Preparing to create collecton data resource")
-	var plan collectionDataModel
+	var config, plan collectionDataModel
 
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
-	tflog.Trace(ctx, "collection_data Create - Parsed req config", map[string]interface{}{"plan": plan})
+
+	tflog.Trace(ctx, "collection_data Create - Parsed req config", map[string]interface{}{"config": config, "plan": plan})
 
 	plan.ID = types.StringValue(uuid.New().String())
 	plan.Generation = types.Int64Value(0)
 
 	for i := range plan.Entries {
-		if plan.Entries[i].ID.IsUnknown() {
+		if plan.Entries[i].ID.IsUnknown() && config.Entries[i].ID.IsNull() {
 			plan.Entries[i].ID = types.StringValue(uuid.New().String())
 		}
 	}
@@ -554,11 +555,18 @@ func (r *resourceCollectionData) Read(ctx context.Context, req resource.ReadRequ
 
 func (r *resourceCollectionData) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	tflog.Trace(ctx, "Preparing to update collecton data resource")
-	var state collectionDataModel
-	var plan collectionDataModel
+	var config, state, plan collectionDataModel
+
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
-	tflog.Trace(ctx, "collection_data Update - Parsed req config", map[string]interface{}{"plan": plan, "state": state})
+	tflog.Trace(ctx, "collection_data Update - Parsed req config", map[string]interface{}{"config": config, "plan": plan, "state": state})
+
+	for i := range plan.Entries {
+		if plan.Entries[i].ID.IsUnknown() && config.Entries[i].ID.IsNull() {
+			plan.Entries[i].ID = types.StringValue(uuid.New().String())
+		}
+	}
 
 	api := NewCollectionDataAPI(plan, r.client)
 	exists, diags := api.CollectionExists(ctx, true)
