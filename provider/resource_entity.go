@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"strings"
 
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
@@ -108,9 +109,11 @@ func entity(ctx context.Context, d *schema.ResourceData, clientConfig models.Cli
 	info := d.Get("info").(map[string]interface{})
 
 	for k, v := range aliases {
+		body[k] = strings.Split(v.(string), ",")
 		idFieldsSet[k] = true
-		idValuesSet[v.(string)] = true
-		body[k] = []string{v.(string)}
+		for _, value := range body[k].([]string) {
+			idValuesSet[value] = true
+		}
 	}
 
 	for k := range idFieldsSet {
@@ -122,9 +125,11 @@ func entity(ctx context.Context, d *schema.ResourceData, clientConfig models.Cli
 	}
 
 	for k, v := range info {
+		body[k] = strings.Split(v.(string), ",")
 		infoFieldsSet[k] = true
-		infoValuesSet[v.(string)] = true
-		body[k] = []string{v.(string)}
+		for _, value := range body[k].([]string) {
+			infoValuesSet[value] = true
+		}
 	}
 
 	for k := range infoFieldsSet {
@@ -216,8 +221,11 @@ func populateEntityResourceData(ctx context.Context, b *models.Base, d *schema.R
 				return diag.Errorf("entity resource (%v): missing value for '%v/fields/%v' field", b.RESTKey, itsiField, k.(string))
 
 			}
-
-			tfMap[k.(string)] = itsiValues[0].(string)
+			values := []string{}
+			for _, value := range itsiValues {
+				values = append(values, value.(string))
+			}
+			tfMap[k.(string)] = strings.Join(values, ",")
 		}
 
 		if err = d.Set(tfField, tfMap); err != nil {
