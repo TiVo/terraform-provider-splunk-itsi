@@ -141,6 +141,7 @@ Required:
 Optional:
 
 - `custom_threshold` (Block Set) (see [below for nested schema](#nestedblock--kpi--custom_threshold))
+- `description` (String) User-defined description for the KPI.
 - `search_type` (String) Defaults to `shared_base`.
 - `threshold_template_id` (String)
 - `type` (String) Could be service_health or kpis_primary. Defaults to `kpis_primary`.
