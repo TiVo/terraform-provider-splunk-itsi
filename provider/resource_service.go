@@ -176,6 +176,11 @@ func ResourceService() *schema.Resource {
 			Required:    true,
 			Description: "Name of the kpi. Can be any unique value.",
 		},
+		"description": {
+			Type:        schema.TypeString,
+			Optional:    true,
+			Description: "User-defined description for the KPI. ",
+		},
 		"type": {
 			Type:         schema.TypeString,
 			Optional:     true,
@@ -491,6 +496,10 @@ func service(ctx context.Context, d *schema.ResourceData, clientConfig models.Cl
 			"search_alert_earliest":      kpiSearchInterface["search_alert_earliest"],
 		}
 
+		if description, ok := kpiData["description"]; ok && description != "" {
+			itsiKpi["description"] = description
+		}
+
 		for _, metric := range kpiSearchInterface["metrics"].([]interface{}) {
 			_metric := metric.(map[string]interface{})
 			if _metric["title"].(string) == kpiData["base_search_metric"].(string) {
@@ -802,6 +811,9 @@ func populateServiceResourceData(ctx context.Context, b *models.Base, d *schema.
 						continue
 					}
 					tfKpi["id"] = id
+					if kpiDescription, ok := k["description"]; ok && kpiDescription != "" {
+						tfKpi["description"] = kpiDescription
+					}
 					if kpiThresholdTemplateId, ok := k["kpi_threshold_template_id"]; ok && kpiThresholdTemplateId != "" {
 						tfKpi["threshold_template_id"] = kpiThresholdTemplateId
 					} else {
