@@ -115,19 +115,18 @@ func (p *itsiProvider) Configure(ctx context.Context, req provider.ConfigureRequ
 	if config.Host.IsUnknown() {
 		resp.Diagnostics.AddAttributeError(
 			path.Root("host"),
-			"Unknown Inventory service Host",
-			"The provider cannot create the Inventory API client as there is an unknown configuration value for the Inventory API host. "+
-				"Either target apply the source of the value first, set the value statically in the configuration, or use the INVENTORY_HOST environment variable.",
+			"Unknown Splunk/ITSI REST API Host",
+			"The provider cannot create the Splunk/ITSI API client as there is an unknown configuration value for the Splunk REST API host. "+
+				"Either target apply the source of the value first or set the value statically in the configuration.",
 		)
 	}
 
 	if config.Port.IsUnknown() {
 		resp.Diagnostics.AddAttributeError(
 			path.Root("port"),
-			"Unknown Inventory service Port",
-			"The provider cannot create the Inventory API client as there is an unknown configuration value for the Inventory API port. "+
-				"Either target apply the source of the value first, set the value statically in the configuration, or use the INVENTORY_PORT environment variable.",
-		)
+			"Unknown Splunk/ITSI REST API Port",
+			"The provider cannot create the Splunk/ITSI API client as there is an unknown configuration value for the Splunk REST API port. "+
+				"Either target apply the source of the value first or set the value statically in the configuration.")
 	}
 
 	if resp.Diagnostics.HasError() {
@@ -136,7 +135,7 @@ func (p *itsiProvider) Configure(ctx context.Context, req provider.ConfigureRequ
 
 	host := config.Host.ValueString()
 	port := config.Port.ValueInt64()
-	access_token := config.AccessToken.ValueString()
+	accessToken := config.AccessToken.ValueString()
 	user := config.User.ValueString()
 	password := config.Password.ValueString()
 	insecure := config.InsecureSkipVerify.ValueBool()
@@ -151,7 +150,7 @@ func (p *itsiProvider) Configure(ctx context.Context, req provider.ConfigureRequ
 	}
 
 	client := models.ClientConfig{}
-	client.BearerToken = access_token
+	client.BearerToken = accessToken
 	client.User = user
 	client.Password = password
 	client.Host = host
@@ -168,7 +167,7 @@ func (p *itsiProvider) Configure(ctx context.Context, req provider.ConfigureRequ
 		return
 	}
 
-	// Make the Inventory client available during DataSource and Resource
+	// Make the Splunk/ITSI client available during DataSource and Resource
 	// type Configure methods.
 	resp.DataSourceData = client
 	resp.ResourceData = client
