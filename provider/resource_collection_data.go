@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"reflect"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-framework-validators/objectvalidator"
@@ -22,6 +23,12 @@ import (
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/tivo/terraform-provider-splunk-itsi/models"
 	"github.com/tivo/terraform-provider-splunk-itsi/provider/util"
+)
+
+const (
+	collectionEntryDataDescription = "Collection entry `data` must be JSON encoded map where keys are field names, " +
+		"and values are strings, numbers, booleans, or arrays of those types."
+	collectionEntryInvalidError = "Invalid collection entry data"
 )
 
 // Ensure the implementation satisfies the expected interfaces.
@@ -313,6 +320,121 @@ func (api *collectionDataAPI) Delete(ctx context.Context) (diags diag.Diagnostic
 	return
 }
 
+// validations
+
+type entryDataValidator struct{}
+
+func (v entryDataValidator) Description(ctx context.Context) string {
+	return collectionEntryDataDescription
+}
+
+func (v entryDataValidator) MarkdownDescription(ctx context.Context) string {
+	return v.Description(ctx)
+}
+
+func (v entryDataValidator) isValidType(val interface{}) bool {
+	switch val := val.(type) {
+	case nil, string, bool, float64, int, int64:
+		return true
+	case []interface{}:
+		for _, v_ := range val {
+			if !v.isValidType(v_) {
+				return false
+			}
+		}
+		return true
+	default:
+		valKind := reflect.TypeOf(val).Kind()
+		if valKind == reflect.Slice {
+			s := reflect.ValueOf(val)
+			for i := 0; i < s.Len(); i++ {
+				if !v.isValidType(s.Index(i).Interface()) {
+					return false
+				}
+			}
+			return true
+		}
+		return false
+	}
+}
+
+func (v entryDataValidator) ValidateFieldValue(k, val interface{}) (diags diag.Diagnostics) {
+	if ok := v.isValidType(val); !ok {
+		diags.AddError(
+			collectionEntryInvalidError,
+			fmt.Sprintf("Collection entry field %s contains a value of unsupported type: %#v", k, val),
+		)
+	}
+	return
+}
+
+func (v entryDataValidator) ValidateEntry(data string) (diags diag.Diagnostics) {
+	var obj interface{}
+	if err := json.Unmarshal([]byte(data), &obj); err != nil {
+		diags.AddError(
+			collectionEntryInvalidError,
+			"Collection entry data is not a valid JSON object",
+		)
+		return
+	}
+	objMap, ok := obj.(map[string]interface{})
+	if !ok {
+		diags.AddError(
+			collectionEntryInvalidError,
+			"Collection entry data is not a valid JSON map",
+		)
+		return
+	}
+	for k, val := range objMap {
+		//validate key
+		switch {
+		case strings.EqualFold(k, "_key"):
+			diags.AddError(
+				collectionEntryInvalidError,
+				"Collection entry data object must not have a _key field. "+
+					"Please use the entries `id` field to set _key.",
+			)
+		case strings.EqualFold(k, "_scope"):
+			diags.AddError(
+				collectionEntryInvalidError,
+				"Collection entry data object must not have a _scope field. "+
+					"Please use the collection_data `scope` field to configure entries scope.",
+			)
+		case strings.EqualFold(k, "_gen"):
+			fallthrough
+		case strings.EqualFold(k, "_instance"):
+			fallthrough
+		case strings.EqualFold(k, "_user"):
+			diags.AddError(
+				collectionEntryInvalidError,
+				fmt.Sprintf("Collection entry data object must not have a %s field "+
+					"because it is reserved for internal use. Please use a different field name.", k),
+			)
+		}
+		//validate value
+		diags.Append(v.ValidateFieldValue(k, val)...)
+	}
+
+	return
+}
+
+func (v entryDataValidator) ValidateString(ctx context.Context, req validator.StringRequest, resp *validator.StringResponse) {
+	// If the value is unknown or null, there is nothing to validate.
+	if req.ConfigValue.IsUnknown() || req.ConfigValue.IsNull() {
+		return
+	}
+
+	diags := v.ValidateEntry(req.ConfigValue.ValueString())
+	for _, d := range diags {
+		resp.Diagnostics.Append(diag.WithPath(req.Path, d))
+	}
+
+}
+
+func collectionDataEntryIsValid() entryDataValidator {
+	return entryDataValidator{}
+}
+
 // resource methods
 
 func (r *resourceCollectionData) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
@@ -335,48 +457,49 @@ func (r *resourceCollectionData) Metadata(_ context.Context, req resource.Metada
 
 func (r *resourceCollectionData) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "Collection data resource",
+		MarkdownDescription: "Collection data resource",
 		Blocks: map[string]schema.Block{
 			"collection": schema.SingleNestedBlock{
-				Description: "Block identifying the collection",
+				MarkdownDescription: "Block identifying the collection",
 				PlanModifiers: []planmodifier.Object{
 					objectplanmodifier.RequiresReplace(),
 				},
 				Attributes: map[string]schema.Attribute{
 					"name": schema.StringAttribute{
-						Description: "Name of the collection",
-						Required:    true,
-						Validators:  validateStringIdentifier2(),
+						MarkdownDescription: "Name of the collection",
+						Required:            true,
+						Validators:          validateStringIdentifier2(),
 					},
 					"app": schema.StringAttribute{
-						Description: "App of the collection",
-						Optional:    true,
-						Computed:    true,
-						Default:     stringdefault.StaticString("itsi"),
-						Validators:  validateStringIdentifier2(),
+						MarkdownDescription: "App of the collection",
+						Optional:            true,
+						Computed:            true,
+						Default:             stringdefault.StaticString("itsi"),
+						Validators:          validateStringIdentifier2(),
 					},
 					"owner": schema.StringAttribute{
-						Description: "Owner of the collection",
-						Optional:    true,
-						Computed:    true,
-						Default:     stringdefault.StaticString("nobody"),
-						Validators:  validateStringIdentifier2(),
+						MarkdownDescription: "Owner of the collection",
+						Optional:            true,
+						Computed:            true,
+						Default:             stringdefault.StaticString("nobody"),
+						Validators:          validateStringIdentifier2(),
 					},
 				},
 				Validators: []validator.Object{objectvalidator.IsRequired()},
 			},
 			"entry": schema.SetNestedBlock{
-				Description: "Block representing an entry in the collection",
+				MarkdownDescription: "Block representing an entry in the collection",
 				NestedObject: schema.NestedBlockObject{
 					Attributes: map[string]schema.Attribute{
 						"id": schema.StringAttribute{
-							Description: "_key for the collection entry",
-							Computed:    true,
-							Optional:    true,
+							MarkdownDescription: "_key for the collection entry",
+							Computed:            true,
+							Optional:            true,
 						},
 						"data": schema.StringAttribute{
-							Description: "JSON encoded data of the entry",
-							Required:    true,
+							MarkdownDescription: collectionEntryDataDescription,
+							Required:            true,
+							Validators:          []validator.String{collectionDataEntryIsValid()},
 						},
 					},
 				},
@@ -384,21 +507,21 @@ func (r *resourceCollectionData) Schema(_ context.Context, _ resource.SchemaRequ
 		},
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
-				Description: "Computed instance ID of the resource, used w/ 'generation' to prevent row duplication in a given scope",
-				Computed:    true,
+				MarkdownDescription: "Computed instance ID of the resource, used w/ 'generation' to prevent row duplication in a given scope",
+				Computed:            true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
 			"scope": schema.StringAttribute{
-				Description: "Scope of the collection data",
-				Optional:    true,
-				Computed:    true,
-				Default:     stringdefault.StaticString("default"),
+				MarkdownDescription: "Scope of the collection data",
+				Optional:            true,
+				Computed:            true,
+				Default:             stringdefault.StaticString("default"),
 			},
 			"generation": schema.Int64Attribute{
-				Description: "Computed latest generation of changes",
-				Computed:    true,
+				MarkdownDescription: "Computed latest generation of changes",
+				Computed:            true,
 			},
 		},
 	}
@@ -481,47 +604,6 @@ func (r *resourceCollectionData) ModifyPlan(ctx context.Context, req resource.Mo
 
 }
 
-func (r *resourceCollectionData) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	tflog.Trace(ctx, "Preparing to create collecton data resource")
-	var config, plan collectionDataModel
-
-	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
-	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
-
-	tflog.Trace(ctx, "collection_data Create - Parsed req config", map[string]interface{}{"config": config, "plan": plan})
-
-	plan.ID = types.StringValue(uuid.New().String())
-	plan.Generation = types.Int64Value(0)
-
-	for i := range plan.Entries {
-		if plan.Entries[i].ID.IsUnknown() && config.Entries[i].ID.IsNull() {
-			plan.Entries[i].ID = types.StringValue(uuid.New().String())
-		}
-	}
-
-	api := NewCollectionDataAPI(plan, r.client)
-	exists, diags := api.CollectionExists(ctx, true)
-	resp.Diagnostics.Append(diags...)
-	if !exists {
-		return
-	}
-
-	diags = api.Save(ctx)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	diags = plan.Normalize()
-	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
-		return
-	}
-
-	diags = resp.State.Set(ctx, plan)
-	resp.Diagnostics.Append(diags...)
-	tflog.Trace(ctx, "Finished creating collecton data resource")
-}
-
 func (r *resourceCollectionData) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	tflog.Trace(ctx, "Preparing to read collecton data resource")
 	var state collectionDataModel
@@ -553,6 +635,69 @@ func (r *resourceCollectionData) Read(ctx context.Context, req resource.ReadRequ
 	tflog.Trace(ctx, "Finished reading collecton data resource")
 }
 
+func (r *resourceCollectionData) createOrUpdate(ctx context.Context, config, plan collectionDataModel, update bool) (state collectionDataModel, diags diag.Diagnostics) {
+
+	for i := range plan.Entries {
+		if plan.Entries[i].ID.IsUnknown() && config.Entries[i].ID.IsNull() {
+			plan.Entries[i].ID = types.StringValue(uuid.New().String())
+		}
+		diags.Append(collectionDataEntryIsValid().ValidateEntry(plan.Entries[i].Data.ValueString())...)
+	}
+	if diags.HasError() {
+		return
+	}
+
+	api := NewCollectionDataAPI(plan, r.client)
+	exists, diags := api.CollectionExists(ctx, true)
+	diags.Append(diags...)
+	if !exists {
+		return
+	}
+
+	diags = api.Save(ctx)
+	diags.Append(diags...)
+	if diags.HasError() {
+		return
+	}
+
+	if update {
+		diags = api.deleteOldRows(ctx)
+		if diags.Append(diags...); diags.HasError() {
+			return
+		}
+	}
+
+	diags = plan.Normalize()
+	if diags.Append(diags...); diags.HasError() {
+		return
+	}
+
+	state = plan
+
+	return
+}
+
+func (r *resourceCollectionData) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	tflog.Trace(ctx, "Preparing to create collecton data resource")
+	var config, plan collectionDataModel
+
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+
+	tflog.Trace(ctx, "collection_data Create - Parsed req config", map[string]interface{}{"config": config, "plan": plan})
+
+	plan.ID = types.StringValue(uuid.New().String())
+	plan.Generation = types.Int64Value(0)
+
+	newState, diags := r.createOrUpdate(ctx, config, plan, false)
+	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
+		return
+	}
+
+	resp.Diagnostics.Append(resp.State.Set(ctx, newState)...)
+	tflog.Trace(ctx, "Finished creating collecton data resource")
+}
+
 func (r *resourceCollectionData) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	tflog.Trace(ctx, "Preparing to update collecton data resource")
 	var config, state, plan collectionDataModel
@@ -562,38 +707,12 @@ func (r *resourceCollectionData) Update(ctx context.Context, req resource.Update
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	tflog.Trace(ctx, "collection_data Update - Parsed req config", map[string]interface{}{"config": config, "plan": plan, "state": state})
 
-	for i := range plan.Entries {
-		if plan.Entries[i].ID.IsUnknown() && config.Entries[i].ID.IsNull() {
-			plan.Entries[i].ID = types.StringValue(uuid.New().String())
-		}
-	}
-
-	api := NewCollectionDataAPI(plan, r.client)
-	exists, diags := api.CollectionExists(ctx, true)
-	resp.Diagnostics.Append(diags...)
-	if !exists {
-		return
-	}
-
-	diags = api.Save(ctx)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	diags = api.deleteOldRows(ctx)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	diags = plan.Normalize()
+	newState, diags := r.createOrUpdate(ctx, config, plan, true)
 	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
 		return
 	}
 
-	diags = resp.State.Set(ctx, plan)
-	resp.Diagnostics.Append(diags...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, newState)...)
 	tflog.Trace(ctx, "Finished updating collecton data resource")
 }
 

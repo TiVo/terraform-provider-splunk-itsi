@@ -44,7 +44,7 @@ Optional:
 
 Required:
 
-- `data` (String) JSON encoded data of the entry
+- `data` (String) Collection entry `data` must be JSON encoded map where keys are field names, and values are strings, numbers, booleans, or arrays of those types.
 
 Optional:
 
