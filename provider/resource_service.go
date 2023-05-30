@@ -483,7 +483,6 @@ func service(ctx context.Context, d *schema.ResourceData, clientConfig models.Cl
 		itsiKpi := map[string]interface{}{
 			"title":                      kpiData["title"],
 			"urgency":                    kpiData["urgency"],
-			"description":                kpiData["description"],
 			"search_type":                kpiData["search_type"],
 			"type":                       kpiData["type"],
 			"base_search_id":             restKey,
@@ -495,6 +494,10 @@ func service(ctx context.Context, d *schema.ResourceData, clientConfig models.Cl
 			"alert_period":               kpiSearchInterface["alert_period"],
 			"alert_lag":                  kpiSearchInterface["alert_lag"],
 			"search_alert_earliest":      kpiSearchInterface["search_alert_earliest"],
+		}
+
+		if description, ok := kpiData["description"]; ok && description != "" {
+			itsiKpi["description"] = description
 		}
 
 		for _, metric := range kpiSearchInterface["metrics"].([]interface{}) {
@@ -808,7 +811,7 @@ func populateServiceResourceData(ctx context.Context, b *models.Base, d *schema.
 						continue
 					}
 					tfKpi["id"] = id
-					if kpiDescription, ok := k["description"]; ok {
+					if kpiDescription, ok := k["description"]; ok && kpiDescription != "" {
 						tfKpi["description"] = kpiDescription
 					}
 					if kpiThresholdTemplateId, ok := k["kpi_threshold_template_id"]; ok && kpiThresholdTemplateId != "" {
