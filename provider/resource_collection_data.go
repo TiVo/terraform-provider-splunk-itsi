@@ -109,6 +109,8 @@ type collectionDataModel struct {
 	Entries    []collectionEntryModel `tfsdk:"entry"`
 }
 
+// Normalize func allows for supressing the diff when a fields value changes from
+// a single value to a list of that 1 value or vice versa
 func (d *collectionDataModel) Normalize() (diags diag.Diagnostics) {
 	entries := make([]collectionEntryModel, len(d.Entries))
 
@@ -124,19 +126,7 @@ func (d *collectionDataModel) Normalize() (diags diag.Diagnostics) {
 			return
 		}
 
-		row := make(map[string]interface{})
-		for k, v := range data {
-			if singleValue, ok := v.(string); ok {
-				row[k] = singleValue
-			} else if multiValue, ok := v.([]interface{}); ok {
-				row[k] = multiValue
-			} else {
-				diags.AddError(fmt.Sprintf("Unable to read %s collection data", d.Collection.Key()), fmt.Sprintf("invalid collection value %#v", v))
-				return
-			}
-		}
-
-		entries[i].Pack(row)
+		entries[i].Pack(data)
 	}
 
 	d.Entries = entries
@@ -288,12 +278,13 @@ func (api *collectionDataAPI) Read(ctx context.Context) (data []collectionEntryM
 		for k, v := range item_ {
 			if k == "_key" {
 				entry.ID = types.StringValue(v.(string))
-			} else if k[0] != '_' {
-				if singleValue, ok := v.(string); ok {
-					row[k] = []string{singleValue}
-				} else if multiValue, ok := v.([]interface{}); ok {
-					row[k] = multiValue
-				} else {
+			} else if !strings.HasPrefix(k, "_") {
+				switch val := v.(type) {
+				case nil, string, bool, float64, int, int64:
+					row[k] = []interface{}{val}
+				case []interface{}:
+					row[k] = val
+				default:
 					diags.AddError(fmt.Sprintf("Unable to read %s collection data", api.Key()), fmt.Sprintf("invalid collection value %#v", v))
 					return
 				}
