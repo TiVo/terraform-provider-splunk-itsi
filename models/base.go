@@ -8,7 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"net/http"
 	"net/url"
@@ -250,7 +250,7 @@ func (b *Base) request(ctx context.Context, method string, url string, body []by
 			return
 		}
 	}
-	responseBody, err = ioutil.ReadAll(resp.Body)
+	responseBody, err = io.ReadAll(resp.Body)
 	if err != nil {
 		return resp.StatusCode, nil, fmt.Errorf("%v error: %v", method, resp.Status)
 	}

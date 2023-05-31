@@ -102,7 +102,7 @@ resource "itsi_entity_type" "Kubernetes_Pod" {
 - `dashboard_drilldown` (Block Set) An array of dashboard drilldown objects. Each dashboard drilldown defines an internal or external resource you specify with a URL and parameters that map to one of an entity fields. The parameters are passed to the resource when you open the URL. (see [below for nested schema](#nestedblock--dashboard_drilldown))
 - `data_drilldown` (Block Set) An array of data drilldown objects. Each data drilldown defines filters for raw data associated with entities that belong to the entity type. (see [below for nested schema](#nestedblock--data_drilldown))
 - `description` (String) A description of the entity type. Defaults to ``.
-- `vital_metric` (Block Set) An array of vital metric objects. Vital metrics are statistical calculations based on 
+- `vital_metric` (Block Set) An array of vital metric objects. Vital metrics are statistical calculations based on
 							  SPL searches that represent the overall health of entities of that type. (see [below for nested schema](#nestedblock--vital_metric))
 
 ### Read-Only
@@ -132,7 +132,7 @@ Optional:
 
 Required:
 
-- `entity_field_filter` (Block Set, Min: 1) Further filter down to the raw data associated with the entity 
+- `entity_field_filter` (Block Set, Min: 1) Further filter down to the raw data associated with the entity
 						  based on a set of selected entity alias or informational fields. (see [below for nested schema](#nestedblock--data_drilldown--entity_field_filter))
 - `title` (String) Name of the drilldown.
 - `type` (String) Type of raw data to associate with. Must be either metrics or events.

@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 	"sort"
@@ -300,7 +299,7 @@ func auditFields(fieldsMap map[string]bool, objectType string) error {
 	if err != nil {
 		return err
 	}
-	return ioutil.WriteFile(filename, by, 0644)
+	return os.WriteFile(filename, by, 0644)
 }
 
 func getTokenFromSSM(tokenPath, profile, region string) (accessToken string, err error) {

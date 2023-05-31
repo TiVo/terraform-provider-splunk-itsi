@@ -75,7 +75,7 @@ func ResourceEntityType() *schema.Resource {
 				Elem: &schema.Resource{
 					Schema: getVitalMetricSchema(),
 				},
-				Description: `An array of vital metric objects. Vital metrics are statistical calculations based on 
+				Description: `An array of vital metric objects. Vital metrics are statistical calculations based on
 							  SPL searches that represent the overall health of entities of that type.`,
 			},
 			"dashboard_drilldown": {
@@ -122,7 +122,7 @@ func getDataDrilldownSchema() map[string]*schema.Schema {
 		"entity_field_filter": {
 			Type:     schema.TypeSet,
 			Required: true,
-			Description: `Further filter down to the raw data associated with the entity 
+			Description: `Further filter down to the raw data associated with the entity
 						  based on a set of selected entity alias or informational fields.`,
 			Elem: &schema.Resource{
 				Schema: map[string]*schema.Schema{
@@ -682,4 +682,18 @@ func entityTypeImport(ctx context.Context, data *schema.ResourceData, m interfac
 		return nil, nil
 	}
 	return []*schema.ResourceData{data}, nil
+}
+
+func entityTypeRead(ctx context.Context, d *schema.ResourceData, m interface{}) (diags diag.Diagnostics) {
+	base := entityTypeBase(m.(models.ClientConfig), d.Id(), d.Get("title").(string))
+	b, err := base.Find(ctx)
+	if err != nil {
+		return append(diags, diag.Errorf("%s", err)...)
+	}
+	if b == nil {
+		d.SetId("")
+		return nil
+	}
+
+	return populateEntityTypeResourceData(ctx, b, d)
 }
