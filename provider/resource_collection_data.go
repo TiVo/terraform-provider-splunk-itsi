@@ -126,7 +126,9 @@ func (d *collectionDataModel) Normalize() (diags diag.Diagnostics) {
 			return
 		}
 
-		entries[i].Pack(data)
+		if diags.Append(entries[i].Pack(data)...); diags.HasError() {
+			return
+		}
 	}
 
 	d.Entries = entries
