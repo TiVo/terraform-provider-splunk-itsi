@@ -87,10 +87,10 @@ func (e *collectionEntryModel) Unpack() (data map[string]interface{}, diags diag
 	}
 	for k, v := range rowMap {
 		if slice, ok := v.([]interface{}); ok {
-			if len(slice) > 1 {
-				data[k] = slice
-			} else {
+			if len(slice) == 1 {
 				data[k] = slice[0]
+			} else {
+				data[k] = slice
 			}
 
 		} else {
