@@ -282,13 +282,10 @@ func (api *collectionDataAPI) Read(ctx context.Context) (data []collectionEntryM
 				entry.ID = types.StringValue(v.(string))
 			} else if !strings.HasPrefix(k, "_") {
 				switch val := v.(type) {
-				case nil, string, bool, float64, int, int64:
-					row[k] = []interface{}{val}
 				case []interface{}:
 					row[k] = val
 				default:
-					diags.AddError(fmt.Sprintf("Unable to read %s collection data", api.Key()), fmt.Sprintf("invalid collection value %#v", v))
-					return
+					row[k] = []interface{}{val}
 				}
 			}
 		}
@@ -325,42 +322,6 @@ func (v entryDataValidator) MarkdownDescription(ctx context.Context) string {
 	return v.Description(ctx)
 }
 
-func (v entryDataValidator) isValidType(val interface{}) bool {
-	switch val := val.(type) {
-	case nil, string, bool, float64, int, int64:
-		return true
-	case []interface{}:
-		for _, v_ := range val {
-			if !v.isValidType(v_) {
-				return false
-			}
-		}
-		return true
-	default:
-		valKind := reflect.TypeOf(val).Kind()
-		if valKind == reflect.Slice {
-			s := reflect.ValueOf(val)
-			for i := 0; i < s.Len(); i++ {
-				if !v.isValidType(s.Index(i).Interface()) {
-					return false
-				}
-			}
-			return true
-		}
-		return false
-	}
-}
-
-func (v entryDataValidator) ValidateFieldValue(k, val interface{}) (diags diag.Diagnostics) {
-	if ok := v.isValidType(val); !ok {
-		diags.AddError(
-			collectionEntryInvalidError,
-			fmt.Sprintf("Collection entry field %s contains a value of unsupported type: %#v", k, val),
-		)
-	}
-	return
-}
-
 func (v entryDataValidator) ValidateEntry(data string) (diags diag.Diagnostics) {
 	var obj interface{}
 	if err := json.Unmarshal([]byte(data), &obj); err != nil {
@@ -378,7 +339,7 @@ func (v entryDataValidator) ValidateEntry(data string) (diags diag.Diagnostics) 
 		)
 		return
 	}
-	for k, val := range objMap {
+	for k := range objMap {
 		//validate key
 		switch {
 		case strings.EqualFold(k, "_key"):
@@ -404,8 +365,7 @@ func (v entryDataValidator) ValidateEntry(data string) (diags diag.Diagnostics) 
 					"because it is reserved for internal use. Please use a different field name.", k),
 			)
 		}
-		//validate value
-		diags.Append(v.ValidateFieldValue(k, val)...)
+
 	}
 
 	return
