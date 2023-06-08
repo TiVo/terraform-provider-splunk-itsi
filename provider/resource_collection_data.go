@@ -135,19 +135,23 @@ func (e *collectionEntryModel) Unpack() (data map[string]interface{}, diags diag
 }
 
 type collectionDataModel struct {
-	ID         types.String           `tfsdk:"id"`
-	Collection collectionModel        `tfsdk:"collection"`
-	Scope      types.String           `tfsdk:"scope"`
-	Generation types.Int64            `tfsdk:"generation"`
-	Entries    []collectionEntryModel `tfsdk:"entry"`
+	ID         types.String    `tfsdk:"id"`
+	Collection collectionModel `tfsdk:"collection"`
+	Scope      types.String    `tfsdk:"scope"`
+	Generation types.Int64     `tfsdk:"generation"`
+	Entries    types.Set       `tfsdk:"entry"`
 }
 
 // Normalize func allows for supressing the diff when a fields value changes from
 // a single value to a list of that 1 value or vice versa
-func (d *collectionDataModel) Normalize() (diags diag.Diagnostics) {
-	entries := make([]collectionEntryModel, len(d.Entries))
+func (d *collectionDataModel) Normalize(ctx context.Context) (diags diag.Diagnostics) {
+	var srcEntries []collectionEntryModel
+	if diags.Append(d.Entries.ElementsAs(ctx, &srcEntries, false)...); diags.HasError() {
+		return
+	}
+	entries := make([]collectionEntryModel, len(srcEntries))
 
-	for i, entry := range d.Entries {
+	for i, entry := range srcEntries {
 		entries[i].ID = entry.ID
 		if entry.Data.IsUnknown() {
 			entries[i].Data = entry.Data
@@ -164,7 +168,9 @@ func (d *collectionDataModel) Normalize() (diags diag.Diagnostics) {
 		}
 	}
 
-	d.Entries = entries
+	var diags_ diag.Diagnostics
+	d.Entries, diags_ = types.SetValueFrom(ctx, d.Entries.ElementType(ctx), entries)
+	diags.Append(diags_...)
 	return
 }
 
@@ -233,7 +239,7 @@ func NewCollectionDataAPI(m collectionDataModel, c models.ClientConfig) *collect
 	return &collectionDataAPI{NewCollectionAPI(m.Collection, c), m}
 }
 
-func (api *collectionDataAPI) Model(includeData bool) (model *models.CollectionApi, diags diag.Diagnostics) {
+func (api *collectionDataAPI) Model(ctx context.Context, includeData bool) (model *models.CollectionApi, diags diag.Diagnostics) {
 	data := map[string]interface{}{
 		"collection_name": api.Collection.Name.ValueString(),
 		"scope":           api.Scope.ValueString(),
@@ -242,19 +248,25 @@ func (api *collectionDataAPI) Model(includeData bool) (model *models.CollectionA
 	}
 	if includeData {
 		model = api.collectionAPI.Model("collection_batchsave")
-		entries := make([]map[string]interface{}, len(api.Entries))
-		for i, entry := range api.Entries {
+		var entries []collectionEntryModel
+		if diags = api.Entries.ElementsAs(ctx, &entries, false); diags.HasError() {
+			return
+		}
+
+		rows := make([]map[string]interface{}, len(entries))
+
+		for i, entry := range entries {
 			rowMap, diags_ := entry.Unpack()
 			diags.Append(diags_...)
 			rowMap["_instance"] = api.ID.ValueString()
 			rowMap["_gen"] = api.Generation.ValueInt64()
 			rowMap["_scope"] = api.Scope.ValueString()
 			rowMap["_key"] = entry.ID.ValueString()
-			entries[i] = rowMap
+			rows[i] = rowMap
 		}
-		data["data"] = entries
+		data["data"] = rows
 		var err error
-		model.Body, err = json.Marshal(entries)
+		model.Body, err = json.Marshal(rows)
 		if err != nil {
 			diags.AddError(fmt.Sprintf("Unable to marshal %s collection data", api.Key()), err.Error())
 			return nil, diags
@@ -267,8 +279,8 @@ func (api *collectionDataAPI) Model(includeData bool) (model *models.CollectionA
 }
 
 func (api *collectionDataAPI) Save(ctx context.Context) (diags diag.Diagnostics) {
-	model, diags_ := api.Model(true)
-	if diags.Append(diags_...); diags.HasError() {
+	model, diags := api.Model(ctx, true)
+	if diags.HasError() {
 		return
 	}
 	_, err := model.Create(ctx)
@@ -279,8 +291,8 @@ func (api *collectionDataAPI) Save(ctx context.Context) (diags diag.Diagnostics)
 }
 
 func (api *collectionDataAPI) deleteOldRows(ctx context.Context) (diags diag.Diagnostics) {
-	model, diags_ := api.Model(false)
-	if diags.Append(diags_...); diags.HasError() {
+	model, diags := api.Model(ctx, false)
+	if diags.HasError() {
 		return
 	}
 	q := fmt.Sprintf(`{"$or":[{"_instance":null},{"_instance":{"$ne": "%s"}},{"_gen":null},{"_gen":{"$ne": %d}}]}`, api.ID.ValueString(), api.Generation.ValueInt64())
@@ -340,7 +352,7 @@ func (api *collectionDataAPI) Read(ctx context.Context) (data []collectionEntryM
 }
 
 func (api *collectionDataAPI) Delete(ctx context.Context) (diags diag.Diagnostics) {
-	model, diags_ := api.Model(false)
+	model, diags_ := api.Model(ctx, false)
 	if diags.Append(diags_...); diags.HasError() {
 		return
 	}
@@ -519,8 +531,9 @@ func (r *resourceCollectionData) ModifyPlan(ctx context.Context, req resource.Mo
 	}
 	tflog.Trace(ctx, "Preparing to modify plan for a collecton data resource")
 
+	var diags diag.Diagnostics
 	var config, state, plan collectionDataModel
-	if diags := req.State.Get(ctx, &state); !req.State.Raw.IsNull() {
+	if diags = req.State.Get(ctx, &state); !req.State.Raw.IsNull() {
 		resp.Diagnostics.Append(diags...)
 	}
 	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
@@ -528,38 +541,60 @@ func (r *resourceCollectionData) ModifyPlan(ctx context.Context, req resource.Mo
 
 	tflog.Trace(ctx, "collection_data ModifyPlan - Parsed req config", map[string]interface{}{"config": config, "plan": plan, "state": state})
 
-	idByDataHash := make(map[string]string)
-	for i := range state.Entries {
-		idByDataHash[state.Entries[i].DataHash()] = state.Entries[i].ID.ValueString()
+	if plan.Entries.IsUnknown() {
+		resp.Diagnostics.AddWarning("unknown entries", "collection_data entries are known only after apply")
+		return
 	}
-	tflog.Trace(ctx, "collection_data ModifyPlan - idByDataHash", map[string]interface{}{"idByDataHash": idByDataHash})
-
-	diags := plan.Normalize()
-	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
+	if resp.Diagnostics.Append(plan.Normalize(ctx)...); resp.Diagnostics.HasError() {
 		return
 	}
 
-	for i := range plan.Entries {
-		if plan.Entries[i].ID.IsUnknown() && config.Entries[i].ID.IsNull() {
-			if id, ok := idByDataHash[plan.Entries[i].DataHash()]; ok {
-				plan.Entries[i].ID = types.StringValue(id)
-				tflog.Trace(ctx, "collection_data ModifyPlan - Entry found", map[string]interface{}{"id": id})
-			} else {
-				tflog.Trace(ctx, "collection_data ModifyPlan - Entry not found", map[string]interface{}{"data": plan.Entries[i].Data.ValueString()})
+	var configEntries, stateEntries, planEntries []collectionEntryModel
+	idByDataHash := make(map[string]string)
+
+	for model, entries := range map[*collectionDataModel]*[]collectionEntryModel{&state: &stateEntries, &config: &configEntries, &plan: &planEntries} {
+		if !model.Entries.IsNull() {
+			if resp.Diagnostics.Append(model.Entries.ElementsAs(ctx, entries, false)...); resp.Diagnostics.HasError() {
+				return
 			}
 		}
 	}
 
+	for i := range stateEntries {
+		idByDataHash[stateEntries[i].DataHash()] = stateEntries[i].ID.ValueString()
+	}
+	tflog.Trace(ctx, "collection_data ModifyPlan - idByDataHash", map[string]interface{}{"idByDataHash": idByDataHash})
+
+	for i := range planEntries {
+		if planEntries[i].ID.IsUnknown() && configEntries[i].ID.IsNull() {
+			if id, ok := idByDataHash[planEntries[i].DataHash()]; ok {
+				planEntries[i].ID = types.StringValue(id)
+				tflog.Trace(ctx, "collection_data ModifyPlan - Entry found", map[string]interface{}{"id": id})
+			} else {
+				tflog.Trace(ctx, "collection_data ModifyPlan - Entry not found", map[string]interface{}{"data": planEntries[i].Data.ValueString()})
+			}
+		}
+	}
+
+	if !config.Entries.IsUnknown() {
+		plan.Entries, diags = types.SetValueFrom(ctx, plan.Entries.ElementType(ctx), planEntries)
+		resp.Diagnostics.Append(diags...)
+	}
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
 	// diff state vs plan entries, compute "generation" value if resource changes
 
-	stateEntries, planEntries := make(map[string]struct{}), make(map[string]struct{})
-	for _, e := range state.Entries {
-		stateEntries[fmt.Sprintf("%s%s", e.ID, e.DataHash())] = struct{}{}
+	stateEntriesHash, planEntriesHash := make(map[string]struct{}), make(map[string]struct{})
+	for _, e := range stateEntries {
+		stateEntriesHash[fmt.Sprintf("%s%s", e.ID, e.DataHash())] = struct{}{}
 	}
-	for _, e := range plan.Entries {
-		planEntries[fmt.Sprintf("%s%s", e.ID, e.DataHash())] = struct{}{}
+	for _, e := range planEntries {
+		planEntriesHash[fmt.Sprintf("%s%s", e.ID, e.DataHash())] = struct{}{}
 	}
-	if state.Scope == plan.Scope && reflect.DeepEqual(stateEntries, planEntries) {
+
+	if state.Scope == plan.Scope && reflect.DeepEqual(stateEntriesHash, planEntriesHash) {
 		plan.Generation = state.Generation
 	} else if !req.State.Raw.IsNull() {
 		plan.Generation = types.Int64Value(state.Generation.ValueInt64() + 1)
@@ -590,8 +625,12 @@ func (r *resourceCollectionData) Read(ctx context.Context, req resource.ReadRequ
 
 	tflog.Trace(ctx, "collection_data READ - Read successfull", map[string]interface{}{"entries": entries})
 
-	state.Entries = entries
-	diags = state.Normalize()
+	state.Entries, diags = types.SetValueFrom(ctx, state.Entries.ElementType(ctx), entries)
+	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
+		return
+	}
+
+	diags = state.Normalize(ctx)
 	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
 		return
 	}
@@ -603,39 +642,50 @@ func (r *resourceCollectionData) Read(ctx context.Context, req resource.ReadRequ
 }
 
 func (r *resourceCollectionData) createOrUpdate(ctx context.Context, config, plan collectionDataModel, update bool) (state collectionDataModel, diags diag.Diagnostics) {
+	var planEntries, configEntries []collectionEntryModel
 
-	for i := range plan.Entries {
-		if plan.Entries[i].ID.IsUnknown() && config.Entries[i].ID.IsNull() {
-			plan.Entries[i].ID = types.StringValue(uuid.New().String())
+	if diags.Append(plan.Entries.ElementsAs(ctx, &planEntries, false)...); diags.HasError() {
+		return
+	}
+	if diags.Append(config.Entries.ElementsAs(ctx, &configEntries, false)...); diags.HasError() {
+		return
+	}
+
+	for i := range planEntries {
+		if planEntries[i].ID.IsUnknown() && configEntries[i].ID.IsNull() {
+			planEntries[i].ID = types.StringValue(uuid.New().String())
 		}
-		diags.Append(collectionDataEntryIsValid().ValidateEntry(plan.Entries[i].Data.ValueString())...)
+		diags.Append(collectionDataEntryIsValid().ValidateEntry(planEntries[i].Data.ValueString())...)
 	}
 	if diags.HasError() {
 		return
 	}
 
-	api := NewCollectionDataAPI(plan, r.client)
-	exists, diags := api.CollectionExists(ctx, true)
-	diags.Append(diags...)
-	if !exists {
+	var diags_ diag.Diagnostics
+	plan.Entries, diags_ = types.SetValueFrom(ctx, plan.Entries.ElementType(ctx), planEntries)
+	if diags.Append(diags_...); diags.HasError() {
 		return
 	}
 
-	diags = api.Save(ctx)
-	diags.Append(diags...)
+	api := NewCollectionDataAPI(plan, r.client)
+	exists, diags_ := api.CollectionExists(ctx, true)
+	diags.Append(diags_...)
+	if !exists || diags.HasError() {
+		return
+	}
+
+	diags.Append(api.Save(ctx)...)
 	if diags.HasError() {
 		return
 	}
 
 	if update {
-		diags = api.deleteOldRows(ctx)
-		if diags.Append(diags...); diags.HasError() {
+		if diags.Append(api.deleteOldRows(ctx)...); diags.HasError() {
 			return
 		}
 	}
 
-	diags = plan.Normalize()
-	if diags.Append(diags...); diags.HasError() {
+	if diags.Append(plan.Normalize(ctx)...); diags.HasError() {
 		return
 	}
 

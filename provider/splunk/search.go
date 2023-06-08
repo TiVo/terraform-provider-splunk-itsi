@@ -16,6 +16,12 @@ import (
 	"github.com/lestrrat-go/backoff/v2"
 )
 
+const (
+	bufferDefaultSize = 32 * 1024   // 32KB
+	bufferMaxSize     = 1024 * 1024 // 1MB
+
+)
+
 type Value interface{}
 
 type Row struct {
@@ -88,25 +94,27 @@ func (conn SplunkConnection) Search(ctx context.Context, boPolicy backoff.Policy
 		break
 	}
 
-	lines := strings.Split(string(responseBody), "\n")
-	rows = make(Rows, len(lines))
-	events = make([]string, len(lines))
-	var ni int = 0
-
-	for _, v := range lines {
-		if len(v) == 0 {
+	scanner := bufio.NewScanner(bytes.NewReader(responseBody))
+	scanner.Buffer(make([]byte, bufferDefaultSize), bufferMaxSize)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if len(line) == 0 {
 			continue
 		}
-
-		if r, err := parseLine(v); err != nil {
-			return nil, nil, err
+		var r Row
+		if r, err = parseLine(line); err == nil {
+			rows = append(rows, r)
+			events = append(events, line)
 		} else {
-			rows[ni] = r
-			events[ni] = string(v[:])
-			ni++
+			return
 		}
+
 	}
-	return rows[:ni], events[:ni], ctx.Err()
+	if err = scanner.Err(); err != nil {
+		return
+	}
+	err = ctx.Err()
+	return
 }
 
 func (conn SplunkConnection) SearchStream(searchString string, params ...map[string]string) (events chan *Row, err error) {
