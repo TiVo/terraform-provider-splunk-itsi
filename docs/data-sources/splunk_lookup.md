@@ -41,5 +41,3 @@ output "splunk_lookup_data" {
 
 - `data` (List of Map of String) Lookup data.
 - `id` (String) The ID of this resource.
-
-

@@ -41,5 +41,3 @@ resource "itsi_splunk_collection_entry" "test_collection_sun" {
 ### Read-Only
 
 - `id` (String) The ID of this resource.
-
-

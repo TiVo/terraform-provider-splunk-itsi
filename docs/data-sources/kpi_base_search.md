@@ -22,5 +22,3 @@ Use this data source to get the ID of an available KPI Base Search.
 ### Read-Only
 
 - `id` (String) The ID of this resource.
-
-
