@@ -279,6 +279,9 @@ func (api *collectionDataAPI) Model(ctx context.Context, includeData bool) (mode
 }
 
 func (api *collectionDataAPI) Save(ctx context.Context) (diags diag.Diagnostics) {
+	if len(api.Entries.Elements()) == 0 {
+		return
+	}
 	model, diags := api.Model(ctx, true)
 	if diags.HasError() {
 		return
