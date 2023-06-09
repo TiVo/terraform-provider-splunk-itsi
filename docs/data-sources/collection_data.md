@@ -35,5 +35,3 @@ Optional:
 
 - `app` (String) App of the collection
 - `owner` (String) Owner of the collection
-
-

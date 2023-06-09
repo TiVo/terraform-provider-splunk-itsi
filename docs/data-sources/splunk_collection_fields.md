@@ -34,5 +34,3 @@ resource "itsi_splunk_collection_fields" "test_collection_fields" {
 
 - `fields` (List of String) Collection fields
 - `id` (String) The ID of this resource.
-
-

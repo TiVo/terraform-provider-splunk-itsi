@@ -49,5 +49,3 @@ Required:
 Optional:
 
 - `id` (String) _key for the collection entry
-
-

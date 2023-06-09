@@ -201,5 +201,3 @@ Required:
 - `field` (String)
 - `field_type` (String) Takes values alias, info or title specifying in which category of fields the field attribute is located.
 - `value` (String)
-
-
