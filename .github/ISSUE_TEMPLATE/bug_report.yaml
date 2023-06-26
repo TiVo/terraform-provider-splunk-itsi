@@ -1,0 +1,47 @@
+name: Bug Report
+description: File a bug report. Please search for existing issues first.
+title: "[Bug]: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to fill out this bug report!
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Also tell us, what did you expect to happen?
+      placeholder: Tell us what you see!
+      value: |
+        ## Description
+
+        ## Steps to Reproduce
+
+        ## Expected Behavior
+
+        ## Current Behavior
+
+    validations:
+      required: true
+  - type: input
+    attributes:
+      label: ITSI Terraform Provider version
+      description: What version did you use? (e.g., `v0.11.2`, `v1.0.0-beta.5`, etc)
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Environment information
+      description: Please provide any additional information about your environment.
+      value: |
+        ## Environment
+        Terraform version and OS: (e.g., 1.4.0 Linux)
+        ITSI version (e.g. 4.16.0)
+        Splunk version: (e.g. 9.0.0)
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant log output
+      description: Please copy and paste any relevant log output. This will be automatically formatted into code, so no need for backticks.
+      render: shell

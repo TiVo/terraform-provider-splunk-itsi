@@ -1,0 +1,14 @@
+name: Feature request
+description: Suggest a feature enhancement for this project. Please search for existing issues first.
+labels: ["enhancement", "triage"]
+body:
+  - type: textarea
+    attributes:
+      label: Please Describe The Problem To Be Solved
+      description: Please present a concise description of the problem to be addressed by this feature request.
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Suggest A Solution
+      description: A concise description of your preferred solution.
