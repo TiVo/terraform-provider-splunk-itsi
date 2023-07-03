@@ -2,9 +2,11 @@ package provider
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/tivo/terraform-provider-splunk-itsi/models"
@@ -68,20 +70,28 @@ func (d *dataSourceEntityType) Schema(_ context.Context, _ datasource.SchemaRequ
 
 func (d *dataSourceEntityType) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
 	tflog.Debug(ctx, "Preparing to read entity type data source")
-	var state dataSourceEntityTypeModel
+	var config dataSourceEntityTypeModel
 
-	resp.Diagnostics.Append(req.Config.Get(ctx, &state)...)
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
 
-	base := entityTypeBase(d.client, state.ID.ValueString(), state.Title.ValueString())
+	title := config.Title.ValueString()
+	base := entityTypeBase(d.client, config.ID.ValueString(), title)
 	b, err := base.Find(ctx)
 	if err != nil {
 		resp.Diagnostics.AddError("Unable to read Entity Type object", err.Error())
 		return
 	}
+	if b == nil {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("title"),
+			"Entity type not found",
+			fmt.Sprintf("Entity type %q not found", title))
+		return
+	}
 
-	state = dataSourceEntityTypeModel{
+	state := dataSourceEntityTypeModel{
 		ID:    types.StringValue(b.RESTKey),
-		Title: types.StringValue(state.Title.String()),
+		Title: types.StringValue(title),
 	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
