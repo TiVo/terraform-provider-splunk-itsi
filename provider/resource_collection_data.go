@@ -590,14 +590,21 @@ func (r *resourceCollectionData) ModifyPlan(ctx context.Context, req resource.Mo
 	// diff state vs plan entries, compute "generation" value if resource changes
 
 	stateEntriesHash, planEntriesHash := make(map[string]struct{}), make(map[string]struct{})
+	planHasUnknownValues := false
 	for _, e := range stateEntries {
 		stateEntriesHash[fmt.Sprintf("%s%s", e.ID, e.DataHash())] = struct{}{}
 	}
 	for _, e := range planEntries {
-		planEntriesHash[fmt.Sprintf("%s%s", e.ID, e.DataHash())] = struct{}{}
+		isUnknown := e.Data.IsUnknown()
+		planHasUnknownValues = isUnknown || planHasUnknownValues
+		if !isUnknown {
+			planEntriesHash[fmt.Sprintf("%s%s", e.ID, e.DataHash())] = struct{}{}
+		}
 	}
 
-	if state.Scope == plan.Scope && reflect.DeepEqual(stateEntriesHash, planEntriesHash) {
+	if planHasUnknownValues {
+		plan.Generation = types.Int64Unknown()
+	} else if state.Scope == plan.Scope && reflect.DeepEqual(stateEntriesHash, planEntriesHash) {
 		plan.Generation = state.Generation
 	} else if !req.State.Raw.IsNull() {
 		plan.Generation = types.Int64Value(state.Generation.ValueInt64() + 1)
@@ -671,9 +678,8 @@ func (r *resourceCollectionData) createOrUpdate(ctx context.Context, config, pla
 	}
 
 	api := NewCollectionDataAPI(plan, r.client)
-	exists, diags_ := api.CollectionExists(ctx, true)
-	diags.Append(diags_...)
-	if !exists || diags.HasError() {
+	_, diags_ = api.CollectionExists(ctx, true)
+	if diags.Append(diags_...); diags.HasError() {
 		return
 	}
 
