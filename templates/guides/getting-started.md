@@ -156,7 +156,7 @@ resource "itsi_entity" "guide_itsi_entities" {
     "serverRoles" = try(each.value["server_roles"], "unknown")
   }
 
-  entity_type_ids = [ resource.itsi_entity_type.guide_itsi_host.id]
+  entity_type_ids = [itsi_entity_type.guide_itsi_host.id]
 }
 ```
 The entity type association is performed by declaring [the entity type data source](https://registry.terraform.io/providers/TiVo/splunk-itsi/latest/docs/data-sources/entity_type) and linking it: `entity_type_ids = [ data.itsi_entity_type.guide_itsi_host.id]`. If your entities require a new entity type, this entity type should be created in UI: Configuration > Entity Management > Entity Types > Create Entity Type. There is not (currently) any support for creating entity types with the Splunk ITSI Terraform provider.
