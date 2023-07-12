@@ -71,7 +71,6 @@ func Provider() *schema.Provider {
 			"itsi_kpi_base_search":          DatasourceKPIBaseSearch(),
 		},
 		ResourcesMap: map[string]*schema.Resource{
-			"itsi_kpi_threshold_template":    ResourceKPIThresholdTemplate(),
 			"itsi_kpi_base_search":           ResourceKPIBaseSearch(),
 			"itsi_entity":                    ResourceEntity(),
 			"itsi_entity_type":               ResourceEntityType(),

@@ -196,5 +196,8 @@ func (p *itsiProvider) Resources(_ context.Context) []func() resource.Resource {
 		func() resource.Resource {
 			return NewResourceCollectionData()
 		},
+		func() resource.Resource {
+			return NewResourceKpiThresholdTemplate()
+		},
 	}
 }
