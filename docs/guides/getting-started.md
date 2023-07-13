@@ -138,7 +138,7 @@ splunk_search_data = tolist([
 [The entity data resource](https://registry.terraform.io/providers/TiVo/splunk-itsi/latest/docs/resources/entity) represents the ITSI entity object. The below example shows how to create an entity using the Splunk search defined in [the previous section](https://github.com/TiVo/terraform-provider-splunk-itsi/wiki/Getting-Started-Guide#splunk-search):
 
 ```terraform
-data "itsi_entity_type" "guide_itsi_host" {
+resource "itsi_entity_type" "guide_itsi_host" {
   title = "guide_itsi_host"
 }
 
@@ -156,10 +156,10 @@ resource "itsi_entity" "guide_itsi_entities" {
     "serverRoles" = try(each.value["server_roles"], "unknown")
   }
 
-  entity_type_ids = [ data.itsi_entity_type.guide_itsi_host.id]
+  entity_type_ids = [itsi_entity_type.guide_itsi_host.id]
 }
 ```
-The entity type association is performed by declaring [the entity type data source](https://registry.terraform.io/providers/TiVo/splunk-itsi/latest/docs/data-sources/entity_type) and linking it: `entity_type_ids = [ data.itsi_entity_type.guide_itsi_host.id]`. If your entities require a new entity type, this entity type should be created in UI: Configuration > Entity Management > Entity Types > Create Entity Type. There is not (currently) any support for creating entity types with the Splunk ITSI Terraform provider.
+In this example the entity type association is achieved by creating the `entity_type` resource and linking it in the entity resource: `entity_type_ids = [ itsi_entity_type.guide_itsi_host.id]`. If the entity type already exists, you can instead find its ID by using [the entity type data source](https://registry.terraform.io/providers/TiVo/splunk-itsi/latest/docs/data-sources/entity_type).
 
 Since the search that enriched each entity with `server_roles` info may not cover all hosts, this field is provided a fallback value of 'unknown':`"serverRoles" = try(each.value["server_roles"], "unknown")`. After terraform apply command is done, we can verify entities in UI:
 
