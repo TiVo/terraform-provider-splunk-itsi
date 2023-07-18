@@ -5,6 +5,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
@@ -50,8 +51,9 @@ func kpiThresholdTemplateBase(clientConfig models.ClientConfig, key string, titl
 }
 
 var (
-	_ resource.Resource              = &resourceKpiThresholdTemplate{}
-	_ resource.ResourceWithConfigure = &resourceKpiThresholdTemplate{}
+	_ resource.Resource                = &resourceKpiThresholdTemplate{}
+	_ resource.ResourceWithConfigure   = &resourceKpiThresholdTemplate{}
+	_ resource.ResourceWithImportState = &resourceKpiThresholdTemplate{}
 )
 
 // NewOrderResource is a helper function to simplify the provider implementation.
@@ -409,6 +411,7 @@ func populateKpiThresholdTemplateModel(ctx context.Context, b *models.Base, tfMo
 	tfModelKpiThresholdTemplate.Description = types.StringValue(interfaceMap["description"].(string))
 	tfModelKpiThresholdTemplate.AdaptiveThresholdingTrainingWindow = types.StringValue(interfaceMap["adaptive_thresholding_training_window"].(string))
 	tfModelKpiThresholdTemplate.AdaptiveThresholdsIsEnabled = types.BoolValue(interfaceMap["adaptive_thresholds_is_enabled"].(bool))
+	tfModelKpiThresholdTemplate.TimeVariateThresholds = types.BoolValue(interfaceMap["time_variate_thresholds"].(bool))
 	tfModelKpiThresholdTemplate.SecGrp = types.StringValue(interfaceMap["sec_grp"].(string))
 
 	tfPolicies := []PolicyModel{}
@@ -454,6 +457,23 @@ func populateKpiThresholdTemplateModel(ctx context.Context, b *models.Base, tfMo
 
 	tfModelKpiThresholdTemplate.ID = types.StringValue(b.RESTKey)
 	return
+}
+
+func (r *resourceKpiThresholdTemplate) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	diags := resp.Diagnostics
+	b := kpiThresholdTemplateBase(r.client, "", req.ID)
+	b, err := b.Find(ctx)
+	if err != nil || b == nil {
+		diags.AddError("Failed to find kpi threshold template.", err.Error())
+		resp.Diagnostics.Append(diags...)
+		return
+	}
+
+	req.ID = b.RESTKey
+
+	resp.State.SetAttribute(ctx, path.Root("time_variate_thresholds_specification"), TimeVariateThresholdsSpecificationModel{})
+	// Retrieve import ID and save to id attribute
+	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
 
 /*
