@@ -16,6 +16,7 @@ import (
 	"github.com/tivo/terraform-provider-splunk-itsi/models"
 )
 
+// TODO: uncomment once scrapper will use framework schema reflect approach
 /*func kpiThresholdTemplateTFFormat(b *models.Base) (string, error) {
 	res := ResourceKPIThresholdTemplate()
 	resData := res.Data(nil)
@@ -56,7 +57,6 @@ var (
 	_ resource.ResourceWithImportState = &resourceKpiThresholdTemplate{}
 )
 
-// NewOrderResource is a helper function to simplify the provider implementation.
 func NewResourceKpiThresholdTemplate() resource.Resource {
 	return &resourceKpiThresholdTemplate{}
 }
