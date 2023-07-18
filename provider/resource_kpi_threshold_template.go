@@ -113,8 +113,7 @@ func (r *resourceKpiThresholdTemplate) Configure(ctx context.Context, req resour
 }
 
 func (r *resourceKpiThresholdTemplate) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
-	entity_threshold_settings_blocks, entity_threshold_settings_attributes := getKpiThresholdSettingsBlocksAttrs()
-	aggregate_threshold_settings_blocks, aggregate_threshold_settings_attributes := getKpiThresholdSettingsBlocksAttrs()
+	threshold_settings_blocks, threshold_settings_attributes := getKpiThresholdSettingsBlocksAttrs()
 
 	resp.Schema = schema.Schema{
 		Blocks: map[string]schema.Block{
@@ -140,16 +139,14 @@ func (r *resourceKpiThresholdTemplate) Schema(_ context.Context, _ resource.Sche
 									},
 								},
 								"aggregate_thresholds": schema.SingleNestedBlock{
-									//Required:    true,
 									Description: "User-defined thresholding levels for \"Aggregate\" threshold type. For more information, see KPI Threshold Setting.",
-									Attributes:  aggregate_threshold_settings_attributes,
-									Blocks:      aggregate_threshold_settings_blocks,
+									Attributes:  threshold_settings_attributes,
+									Blocks:      threshold_settings_blocks,
 								},
 								"entity_thresholds": schema.SingleNestedBlock{
 									Description: "User-defined thresholding levels for \"Per Entity\" threshold type. For more information, see KPI Threshold Setting.",
-									//Required:    true,
-									Attributes: entity_threshold_settings_attributes,
-									Blocks:     entity_threshold_settings_blocks,
+									Attributes:  threshold_settings_attributes,
+									Blocks:      threshold_settings_blocks,
 								},
 							},
 							Attributes: map[string]schema.Attribute{
