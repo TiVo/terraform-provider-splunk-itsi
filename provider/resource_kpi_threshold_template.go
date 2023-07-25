@@ -209,14 +209,14 @@ func (r *resourceKpiThresholdTemplate) Schema(_ context.Context, _ resource.Sche
 }
 
 func (r *resourceKpiThresholdTemplate) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	var state modelKpiThresholdTemplate
-	diags := req.Plan.Get(ctx, &state)
+	var plan modelKpiThresholdTemplate
+	diags := req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	template, err := kpiThresholdTemplate(ctx, state, r.client)
+	template, err := kpiThresholdTemplate(ctx, plan, r.client)
 	if err != nil {
 		diags.AddError("Failed to populate kpi threshold template.", err.Error())
 		resp.Diagnostics.Append(diags...)
@@ -229,19 +229,12 @@ func (r *resourceKpiThresholdTemplate) Create(ctx context.Context, req resource.
 		resp.Diagnostics.Append(diags...)
 		return
 	}
-	_, err = b.Read(ctx)
-	if err != nil {
-		diags.AddError("Failed to create kpi threshold template.", err.Error())
-		resp.Diagnostics.Append(diags...)
-		return
-	}
-
-	resp.Diagnostics.Append(populateKpiThresholdTemplateModel(ctx, template, &state)...)
+	resp.Diagnostics.Append(populateKpiThresholdTemplateModel(ctx, b, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	diags = resp.State.Set(ctx, &state)
+	diags = resp.State.Set(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -336,9 +329,12 @@ func (r *resourceKpiThresholdTemplate) Delete(ctx context.Context, req resource.
 	}
 	base := kpiThresholdTemplateBase(r.client, state.ID.ValueString(), state.Title.ValueString())
 	existing, err := base.Find(ctx)
-	if err != nil || existing == nil {
+	if err != nil {
 		diags.AddError("Failed to find kpi threshold template.", err.Error())
 		resp.Diagnostics.Append(diags...)
+		return
+	}
+	if existing == nil {
 		return
 	}
 
