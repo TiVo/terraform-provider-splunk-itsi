@@ -405,7 +405,7 @@ func kpiThresholdTemplate(ctx context.Context, tfKpiThresholdTemplate modelKpiTh
 				if err != nil {
 					return nil, err
 				}
-				policy["aggregate_thresholds"] = entityThresholds
+				policy["entity_thresholds"] = entityThresholds
 			}
 
 			policies[tfpolicy.PolicyName.ValueString()] = policy
