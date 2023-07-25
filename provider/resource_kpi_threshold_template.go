@@ -427,7 +427,7 @@ func populateKpiThresholdTemplateModel(ctx context.Context, b *models.Base, tfMo
 			_timeBlock := timeBlock.([]interface{})
 			tfTimeBlock := TimeBlockModel{
 				Cron:     types.StringValue(_timeBlock[0].(string)),
-				Interval: types.Int64Value(_timeBlock[1].(int64)),
+				Interval: types.Int64Value(int64(_timeBlock[1].(float64))),
 			}
 			tfTimeBlocks = append(tfTimeBlocks, tfTimeBlock)
 		}
