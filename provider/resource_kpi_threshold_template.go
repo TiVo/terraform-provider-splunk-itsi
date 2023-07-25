@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -62,14 +63,14 @@ func NewResourceKpiThresholdTemplate() resource.Resource {
 }
 
 type modelKpiThresholdTemplate struct {
-	ID                                 types.String                            `tfsdk:"id"`
-	Title                              types.String                            `tfsdk:"title"`
-	Description                        types.String                            `tfsdk:"description"`
-	AdaptiveThresholdingTrainingWindow types.String                            `tfsdk:"adaptive_thresholding_training_window"`
-	TimeVariateThresholds              types.Bool                              `tfsdk:"time_variate_thresholds"`
-	TimeVariateThresholdsSpecification TimeVariateThresholdsSpecificationModel `tfsdk:"time_variate_thresholds_specification"`
-	AdaptiveThresholdsIsEnabled        types.Bool                              `tfsdk:"adaptive_thresholds_is_enabled"`
-	SecGrp                             types.String                            `tfsdk:"sec_grp"`
+	ID                                 types.String                              `tfsdk:"id"`
+	Title                              types.String                              `tfsdk:"title"`
+	Description                        types.String                              `tfsdk:"description"`
+	AdaptiveThresholdingTrainingWindow types.String                              `tfsdk:"adaptive_thresholding_training_window"`
+	TimeVariateThresholds              types.Bool                                `tfsdk:"time_variate_thresholds"`
+	TimeVariateThresholdsSpecification []TimeVariateThresholdsSpecificationModel `tfsdk:"time_variate_thresholds_specification"`
+	AdaptiveThresholdsIsEnabled        types.Bool                                `tfsdk:"adaptive_thresholds_is_enabled"`
+	SecGrp                             types.String                              `tfsdk:"sec_grp"`
 }
 
 type TimeVariateThresholdsSpecificationModel struct {
@@ -77,12 +78,12 @@ type TimeVariateThresholdsSpecificationModel struct {
 }
 
 type PolicyModel struct {
-	PolicyName          types.String          `tfsdk:"policy_name"`
-	Title               types.String          `tfsdk:"title"`
-	PolicyType          types.String          `tfsdk:"policy_type"`
-	TimeBlocks          []TimeBlockModel      `tfsdk:"time_blocks"`
-	AggregateThresholds ThresholdSettingModel `tfsdk:"aggregate_thresholds"`
-	EntityThresholds    ThresholdSettingModel `tfsdk:"entity_thresholds"`
+	PolicyName          types.String            `tfsdk:"policy_name"`
+	Title               types.String            `tfsdk:"title"`
+	PolicyType          types.String            `tfsdk:"policy_type"`
+	TimeBlocks          []TimeBlockModel        `tfsdk:"time_blocks"`
+	AggregateThresholds []ThresholdSettingModel `tfsdk:"aggregate_thresholds"`
+	EntityThresholds    []ThresholdSettingModel `tfsdk:"entity_thresholds"`
 }
 
 type TimeBlockModel struct {
@@ -117,53 +118,69 @@ func (r *resourceKpiThresholdTemplate) Schema(_ context.Context, _ resource.Sche
 
 	resp.Schema = schema.Schema{
 		Blocks: map[string]schema.Block{
-			"time_variate_thresholds_specification": schema.SingleNestedBlock{
-				Blocks: map[string]schema.Block{
-					"policies": schema.SetNestedBlock{
-						Description: "Map object of policies keyed by policy_name. ",
-						NestedObject: schema.NestedBlockObject{
-							Blocks: map[string]schema.Block{
-								"time_blocks": schema.SetNestedBlock{
-									//Optional: true,
-									NestedObject: schema.NestedBlockObject{
-										Attributes: map[string]schema.Attribute{
-											"interval": schema.Int64Attribute{
-												Required:    true,
-												Description: "Corresponds to the cron expression in format: {minute} {hour} {\\*} {\\*} {day}",
-											},
-											"cron": schema.StringAttribute{
-												Required:    true,
-												Description: "Corresponds to the cron expression in format: {minute} {hour} {\\*} {\\*} {day}",
+			"time_variate_thresholds_specification": schema.SetNestedBlock{
+				Validators: []validator.Set{
+					setvalidator.SizeBetween(1, 1),
+				},
+				NestedObject: schema.NestedBlockObject{
+					Blocks: map[string]schema.Block{
+						"policies": schema.SetNestedBlock{
+							Description: "Map object of policies keyed by policy_name. ",
+							NestedObject: schema.NestedBlockObject{
+								Blocks: map[string]schema.Block{
+									"time_blocks": schema.SetNestedBlock{
+										//Optional: true,
+										NestedObject: schema.NestedBlockObject{
+											Attributes: map[string]schema.Attribute{
+												"interval": schema.Int64Attribute{
+													Required:    true,
+													Description: "Corresponds to the cron expression in format: {minute} {hour} {\\*} {\\*} {day}",
+												},
+												"cron": schema.StringAttribute{
+													Required:    true,
+													Description: "Corresponds to the cron expression in format: {minute} {hour} {\\*} {\\*} {day}",
+												},
 											},
 										},
 									},
+									"aggregate_thresholds": schema.SetNestedBlock{
+										Validators: []validator.Set{
+											setvalidator.SizeBetween(1, 1),
+										},
+										Description: "User-defined thresholding levels for \"Aggregate\" threshold type. For more information, see KPI Threshold Setting.",
+
+										NestedObject: schema.NestedBlockObject{
+											Attributes: threshold_settings_attributes,
+											Blocks:     threshold_settings_blocks,
+										},
+									},
+									"entity_thresholds": schema.SetNestedBlock{
+										Validators: []validator.Set{
+											setvalidator.SizeBetween(1, 1),
+										},
+										Description: "User-defined thresholding levels for \"Per Entity\" threshold type. For more information, see KPI Threshold Setting.",
+										NestedObject: schema.NestedBlockObject{
+											Attributes: threshold_settings_attributes,
+											Blocks:     threshold_settings_blocks,
+										},
+									},
 								},
-								"aggregate_thresholds": schema.SingleNestedBlock{
-									Description: "User-defined thresholding levels for \"Aggregate\" threshold type. For more information, see KPI Threshold Setting.",
-									Attributes:  threshold_settings_attributes,
-									Blocks:      threshold_settings_blocks,
-								},
-								"entity_thresholds": schema.SingleNestedBlock{
-									Description: "User-defined thresholding levels for \"Per Entity\" threshold type. For more information, see KPI Threshold Setting.",
-									Attributes:  threshold_settings_attributes,
-									Blocks:      threshold_settings_blocks,
-								},
-							},
-							Attributes: map[string]schema.Attribute{
-								"policy_name": schema.StringAttribute{
-									Required:    true,
-									Description: "Internal key value for policy.",
-								},
-								"title": schema.StringAttribute{
-									Required:    true,
-									Description: "The policy title, displayed to the user in the UI. Should be unique per policies object.",
-								},
-								"policy_type": schema.StringAttribute{
-									Required: true,
-									Description: `The algorithm, specified for the current policy threshold level evaluation.
-													Supported values: static, stdev (standard deviation), quantile, range and percentage.`,
-									Validators: []validator.String{
-										stringvalidator.OneOf("static", "stdev", "quantile", "range", "percentage"),
+								Attributes: map[string]schema.Attribute{
+									"policy_name": schema.StringAttribute{
+										Required:    true,
+										Description: "Internal key value for policy.",
+									},
+									"title": schema.StringAttribute{
+										Required:    true,
+										Description: "The policy title, displayed to the user in the UI. Should be unique per policies object.",
+									},
+									"policy_type": schema.StringAttribute{
+										Required: true,
+										Description: `The algorithm, specified for the current policy threshold level evaluation.
+														Supported values: static, stdev (standard deviation), quantile, range and percentage.`,
+										Validators: []validator.String{
+											stringvalidator.OneOf("static", "stdev", "quantile", "range", "percentage"),
+										},
 									},
 								},
 							},
@@ -360,34 +377,41 @@ func kpiThresholdTemplate(ctx context.Context, tfKpiThresholdTemplate modelKpiTh
 	body["sec_grp"] = tfKpiThresholdTemplate.SecGrp.ValueString()
 
 	policies := map[string]interface{}{}
-	for _, tfpolicy := range tfKpiThresholdTemplate.TimeVariateThresholdsSpecification.Policies {
-		policy := map[string]interface{}{}
-		policy["title"] = tfpolicy.Title.ValueString()
-		policy["policy_type"] = tfpolicy.PolicyType.ValueString()
-		timeBlocks := [][]interface{}{}
-		for _, tfTimeBlock := range tfpolicy.TimeBlocks {
-			block := []interface{}{}
-			block = append(block, tfTimeBlock.Cron.ValueString())
-			block = append(block, tfTimeBlock.Interval.ValueInt64())
+	for _, timeVariateSpecification := range tfKpiThresholdTemplate.TimeVariateThresholdsSpecification {
+		for _, tfpolicy := range timeVariateSpecification.Policies {
+			policy := map[string]interface{}{}
+			policy["title"] = tfpolicy.Title.ValueString()
+			policy["policy_type"] = tfpolicy.PolicyType.ValueString()
+			timeBlocks := [][]interface{}{}
+			for _, tfTimeBlock := range tfpolicy.TimeBlocks {
+				block := []interface{}{}
+				block = append(block, tfTimeBlock.Cron.ValueString())
+				block = append(block, tfTimeBlock.Interval.ValueInt64())
 
-			timeBlocks = append(timeBlocks, block)
+				timeBlocks = append(timeBlocks, block)
+			}
+
+			policy["time_blocks"] = timeBlocks
+			if len(tfpolicy.AggregateThresholds) > 0 {
+				aggregateThresholds, err := kpiThresholdThresholdSettingsAttributesToPayload(tfpolicy.AggregateThresholds[0])
+				if err != nil {
+					return nil, err
+				}
+				policy["aggregate_thresholds"] = aggregateThresholds
+			}
+
+			if len(tfpolicy.EntityThresholds) > 0 {
+				entityThresholds, err := kpiThresholdThresholdSettingsAttributesToPayload(tfpolicy.EntityThresholds[0])
+				if err != nil {
+					return nil, err
+				}
+				policy["aggregate_thresholds"] = entityThresholds
+			}
+
+			policies[tfpolicy.PolicyName.ValueString()] = policy
 		}
-
-		policy["time_blocks"] = timeBlocks
-		aggregateThresholds, err := kpiThresholdThresholdSettingsAttributesToPayload(tfpolicy.AggregateThresholds)
-		if err != nil {
-			return nil, err
-		}
-		policy["aggregate_thresholds"] = aggregateThresholds
-
-		entityThresholds, err := kpiThresholdThresholdSettingsAttributesToPayload(tfpolicy.EntityThresholds)
-		if err != nil {
-			return nil, err
-		}
-		policy["entity_thresholds"] = entityThresholds
-
-		policies[tfpolicy.PolicyName.ValueString()] = policy
 	}
+
 	body["time_variate_thresholds_specification"] = map[string]interface{}{
 		"policies": policies,
 	}
@@ -427,29 +451,35 @@ func populateKpiThresholdTemplateModel(ctx context.Context, b *models.Base, tfMo
 			_timeBlock := timeBlock.([]interface{})
 			tfTimeBlock := TimeBlockModel{
 				Cron:     types.StringValue(_timeBlock[0].(string)),
-				Interval: types.Int64Value(_timeBlock[1].(int64)),
+				Interval: types.Int64Value(int64(_timeBlock[1].(float64))),
 			}
 			tfTimeBlocks = append(tfTimeBlocks, tfTimeBlock)
 		}
 		tfPolicy.TimeBlocks = tfTimeBlocks
 		tfAggregatedThresholds := ThresholdSettingModel{}
-		err := kpiThresholdSettingsToModel(policyData["aggregate_thresholds"].(map[string]interface{}), &tfAggregatedThresholds, policyData["policy_type"].(string))
-		if err != nil {
-			diags.AddError("Failed to populate aggregated threshold", err.Error())
+		if aggregateThresholds, ok := policyData["aggregate_thresholds"]; ok {
+			err := kpiThresholdSettingsToModel(aggregateThresholds.(map[string]interface{}), &tfAggregatedThresholds, policyData["policy_type"].(string))
+			if err != nil {
+				diags.AddError("Failed to populate aggregated threshold", err.Error())
+			}
 		}
-		tfPolicy.AggregateThresholds = tfAggregatedThresholds
+		tfPolicy.AggregateThresholds = []ThresholdSettingModel{tfAggregatedThresholds}
 
 		tfEntityThresholds := ThresholdSettingModel{}
-		err = kpiThresholdSettingsToModel(policyData["entity_thresholds"].(map[string]interface{}), &tfEntityThresholds, policyData["policy_type"].(string))
-		if err != nil {
-			diags.AddError("Failed to populate aggregated threshold", err.Error())
+		if entityThresholds, ok := policyData["entity_thresholds"]; ok {
+			err = kpiThresholdSettingsToModel(entityThresholds.(map[string]interface{}), &tfEntityThresholds, policyData["policy_type"].(string))
+			if err != nil {
+				diags.AddError("Failed to populate aggregated threshold", err.Error())
+			}
 		}
-		tfPolicy.EntityThresholds = tfEntityThresholds
+		tfPolicy.EntityThresholds = []ThresholdSettingModel{tfEntityThresholds}
 		tfPolicies = append(tfPolicies, tfPolicy)
 	}
 
-	tfModelKpiThresholdTemplate.TimeVariateThresholdsSpecification = TimeVariateThresholdsSpecificationModel{
-		Policies: tfPolicies,
+	tfModelKpiThresholdTemplate.TimeVariateThresholdsSpecification = []TimeVariateThresholdsSpecificationModel{
+		{
+			Policies: tfPolicies,
+		},
 	}
 
 	tfModelKpiThresholdTemplate.ID = types.StringValue(b.RESTKey)

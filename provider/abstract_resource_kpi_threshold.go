@@ -38,6 +38,7 @@ type KpiThresholdLevelModel struct {
 func getKpiThresholdSettingsBlocksAttrs() (map[string]schema.Block, map[string]schema.Attribute) {
 	return map[string]schema.Block{
 			"threshold_levels": schema.SetNestedBlock{
+				//Optional: true,
 				NestedObject: schema.NestedBlockObject{
 					Attributes: map[string]schema.Attribute{
 						"severity_label": schema.StringAttribute{
@@ -50,7 +51,7 @@ func getKpiThresholdSettingsBlocksAttrs() (map[string]schema.Block, map[string]s
 						"threshold_value": schema.Float64Attribute{
 							Required: true,
 							Description: `Value for the threshold field stats identifying this threshold level. 
-							This is the key value that defines the levels for values derived from the KPI search metrics.`,
+						This is the key value that defines the levels for values derived from the KPI search metrics.`,
 						},
 						"dynamic_param": schema.Float64Attribute{
 							Computed:    true,
