@@ -184,6 +184,9 @@ func (p *itsiProvider) DataSources(_ context.Context) []func() datasource.DataSo
 		func() datasource.DataSource {
 			return NewDataSourceCollectionData()
 		},
+		func() datasource.DataSource {
+			return NewDataSourceKpiThresholdTemplate()
+		},
 	}
 }
 
@@ -192,6 +195,9 @@ func (p *itsiProvider) Resources(_ context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
 		func() resource.Resource {
 			return NewResourceCollectionData()
+		},
+		func() resource.Resource {
+			return NewResourceKpiThresholdTemplate()
 		},
 	}
 }

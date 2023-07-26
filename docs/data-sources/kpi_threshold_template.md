@@ -27,4 +27,4 @@ data "itsi_kpi_threshold_template" "sample_threshold_template" {
 
 ### Read-Only
 
-- `id` (String) The ID of this resource.
+- `id` (String) Identifier for this KPI Threshold template
