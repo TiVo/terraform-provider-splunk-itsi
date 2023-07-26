@@ -539,7 +539,9 @@ func service(ctx context.Context, d *schema.ResourceData, clientConfig models.Cl
 			for _, thresholdKey := range []string{"time_variate_thresholds", "adaptive_thresholds_is_enabled",
 				"adaptive_thresholding_training_window", "aggregate_thresholds", "entity_thresholds",
 				"time_variate_thresholds_specification"} {
-				itsiKpi[thresholdKey] = thresholdTemplateInterface[thresholdKey]
+				if value, ok := thresholdTemplateInterface[thresholdKey]; ok {
+					itsiKpi[thresholdKey] = value
+				}
 			}
 
 			//populate training data from cache
@@ -817,10 +819,30 @@ func populateServiceResourceData(ctx context.Context, b *models.Base, d *schema.
 					if kpiThresholdTemplateId, ok := k["kpi_threshold_template_id"]; ok && kpiThresholdTemplateId != "" {
 						tfKpi["threshold_template_id"] = kpiThresholdTemplateId
 					} else {
-						if k["adaptive_thresholds_is_enabled"].(bool) {
-							return diag.Errorf("Custom threshold doesn't support adaptive: serviceId=%s kpiId=%s", b.RESTKey, id)
-						} else if k["time_variate_thresholds"].(bool) {
-							return diag.Errorf("Custom threshold doesn't support time-variate: serviceId=%s kpiId=%s", b.RESTKey, id)
+						if k["adaptive_thresholds_is_enabled"].(bool) || k["time_variate_thresholds"].(bool) {
+							diags = append(diags, diag.Diagnostic{
+								Severity: diag.Warning,
+								Summary:  fmt.Sprintf("Custom threshold support only static non-time-variate thresholds: serviceId=%s kpiId=%s. Fallback to default", b.RESTKey, id),
+							})
+							defaultSetting := []map[string]interface{}{
+								{
+									"base_severity_label": "normal",
+									"gauge_max":           1,
+									"gauge_min":           0,
+									"is_max_static":       false,
+									"is_min_static":       false,
+									"metric_field":        "",
+									"render_boundary_max": 1,
+									"render_boundary_min": 0,
+									"search":              "",
+								},
+							}
+							tfKpi["custom_threshold"] = []map[string]interface{}{
+								{
+									"entity_thresholds":    defaultSetting,
+									"aggregate_thresholds": defaultSetting,
+								},
+							}
 						} else {
 							entityThresholds, err :=
 								kpiThresholdSettingsToResourceData(k["entity_thresholds"].(map[string]interface{}), "static")

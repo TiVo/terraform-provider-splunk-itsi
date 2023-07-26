@@ -67,12 +67,10 @@ func Provider() *schema.Provider {
 		DataSourcesMap: map[string]*schema.Resource{
 			"itsi_splunk_lookup":            DatasourceSplunkLookup(),
 			"itsi_splunk_search":            DatasourceSplunkSearch(),
-			"itsi_kpi_threshold_template":   DatasourceKPIThresholdTemplate(),
 			"itsi_splunk_collection_fields": DatasourceCollectionFields(),
 			"itsi_kpi_base_search":          DatasourceKPIBaseSearch(),
 		},
 		ResourcesMap: map[string]*schema.Resource{
-			"itsi_kpi_threshold_template":    ResourceKPIThresholdTemplate(),
 			"itsi_kpi_base_search":           ResourceKPIBaseSearch(),
 			"itsi_entity":                    ResourceEntity(),
 			"itsi_entity_type":               ResourceEntityType(),

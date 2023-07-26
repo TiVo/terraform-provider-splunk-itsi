@@ -3,155 +3,196 @@ package provider
 import (
 	"fmt"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
+	schemav2 "github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+	validationv2 "github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
 	"github.com/tivo/terraform-provider-splunk-itsi/provider/util"
+
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/float64default"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-func getKpiThresholdPolicySchema() map[string]*schema.Schema {
-	return map[string]*schema.Schema{
-		"policies": {
-			Required:    true,
-			Type:        schema.TypeSet,
-			Description: "Map object of policies keyed by policy_name. ",
-			Elem: &schema.Resource{
-				Schema: map[string]*schema.Schema{
-					"policy_name": {
-						Type:        schema.TypeString,
-						Required:    true,
-						Description: "Internal key value for policy.",
-					},
-					"title": {
-						Type:        schema.TypeString,
-						Required:    true,
-						Description: "The policy title, displayed to the user in the UI. Should be unique per policies object.",
-					},
-					"policy_type": {
-						Type:     schema.TypeString,
-						Required: true,
-						Description: `The algorithm, specified for the current policy threshold level evaluation.
-									   Supported values: static, stdev (standard deviation), quantile, range and percentage.`,
-						ValidateFunc: validation.StringInSlice([]string{"static", "stdev", "quantile", "range", "percentage"}, false),
-					},
-					"time_blocks": {
-						Type:        schema.TypeSet,
-						Optional:    true,
-						Description: "Determines time periods which the policy is associated with.",
-						Elem: &schema.Resource{
-							Schema: map[string]*schema.Schema{
-								"cron": {
-									Type:        schema.TypeString,
-									Required:    true,
-									Description: "Corresponds to the cron expression in format: {minute} {hour} {\\*} {\\*} {day}",
-								},
-								"interval": {
-									Type:        schema.TypeInt,
-									Required:    true,
-									Description: "The duration in minutes.",
-								},
+type ThresholdSettingModel struct {
+	BaseSeverityLabel types.String             `tfsdk:"base_severity_label"`
+	GaugeMax          types.Float64            `tfsdk:"gauge_max"`
+	GaugeMin          types.Float64            `tfsdk:"gauge_min"`
+	IsMaxStatic       types.Bool               `tfsdk:"is_max_static"`
+	IsMinStatic       types.Bool               `tfsdk:"is_min_static"`
+	MetricField       types.String             `tfsdk:"metric_field"`
+	RenderBoundaryMax types.Float64            `tfsdk:"render_boundary_max"`
+	RenderBoundaryMin types.Float64            `tfsdk:"render_boundary_min"`
+	Search            types.String             `tfsdk:"search"`
+	ThresholdLevels   []KpiThresholdLevelModel `tfsdk:"threshold_levels"`
+}
+
+type KpiThresholdLevelModel struct {
+	SeverityLabel  types.String  `tfsdk:"severity_label"`
+	ThresholdValue types.Float64 `tfsdk:"threshold_value"`
+	DynamicParam   types.Float64 `tfsdk:"dynamic_param"`
+}
+
+func getKpiThresholdSettingsBlocksAttrs() (map[string]schema.Block, map[string]schema.Attribute) {
+	return map[string]schema.Block{
+			"threshold_levels": schema.SetNestedBlock{
+				NestedObject: schema.NestedBlockObject{
+					Attributes: map[string]schema.Attribute{
+						"severity_label": schema.StringAttribute{
+							Required: true,
+							Validators: []validator.String{
+								stringvalidator.OneOf("info", "critical", "high", "medium", "low", "normal"),
 							},
+							Description: "Severity label assigned for this threshold level like info, warning, critical, etc",
 						},
-					},
-					"aggregate_thresholds": {
-						Required:    true,
-						Type:        schema.TypeSet,
-						Description: "User-defined thresholding levels for \"Aggregate\" threshold type. For more information, see KPI Threshold Setting.",
-						Elem: &schema.Resource{
-							Schema: getKpiThresholdSettingsSchema(),
+						"threshold_value": schema.Float64Attribute{
+							Required: true,
+							Description: `Value for the threshold field stats identifying this threshold level. 
+							This is the key value that defines the levels for values derived from the KPI search metrics.`,
 						},
-					},
-					"entity_thresholds": {
-						Required:    true,
-						Type:        schema.TypeSet,
-						Description: "User-defined thresholding levels for \"Per Entity\" threshold type. For more information, see KPI Threshold Setting.",
-						Elem: &schema.Resource{
-							Schema: getKpiThresholdSettingsSchema(),
+						"dynamic_param": schema.Float64Attribute{
+							Computed:    true,
+							Optional:    true,
+							Default:     float64default.StaticFloat64(0),
+							Description: "Value of the dynamic parameter for adaptive thresholds",
 						},
 					},
 				},
 			},
 		},
-	}
+		map[string]schema.Attribute{
+			"base_severity_label": schema.StringAttribute{
+				Optional: true,
+				Computed: true,
+				Default:  stringdefault.StaticString("normal"),
+				Validators: []validator.String{
+					stringvalidator.OneOf("info", "critical", "high", "medium", "low", "normal"),
+				},
+				Description: "Base severity label assigned for the threshold (info, normal, low, medium, high, critical). ",
+			},
+			"gauge_max": schema.Float64Attribute{
+				Optional:    true,
+				Description: "Maximum value for the threshold gauge specified by user",
+			},
+			"gauge_min": schema.Float64Attribute{
+				Optional:    true,
+				Description: "Minimum value for the threshold gauge specified by user.",
+			},
+			"is_max_static": schema.BoolAttribute{
+				Optional:    true,
+				Computed:    true,
+				Default:     booldefault.StaticBool(false),
+				Description: "True when maximum threshold value is a static value, false otherwise. ",
+			},
+			"is_min_static": schema.BoolAttribute{
+				Optional:    true,
+				Computed:    true,
+				Default:     booldefault.StaticBool(false),
+				Description: "True when min threshold value is a static value, false otherwise.",
+			},
+			"metric_field": schema.StringAttribute{
+				Optional:    true,
+				Computed:    true,
+				Default:     stringdefault.StaticString(""),
+				Description: "Thresholding field from the search.",
+			},
+			"render_boundary_max": schema.Float64Attribute{
+				Required:    true,
+				Description: "Upper bound value to use to render the graph for the thresholds.",
+			},
+			"render_boundary_min": schema.Float64Attribute{
+				Required:    true,
+				Description: "Lower bound value to use to render the graph for the thresholds.",
+			},
+			"search": schema.StringAttribute{
+				Optional:    true,
+				Computed:    true,
+				Default:     stringdefault.StaticString(""),
+				Description: "Generated search used to compute the thresholds for this KPI.",
+			},
+		}
 }
 
-func getKpiThresholdSettingsSchema() map[string]*schema.Schema {
-	kpiThresholdLevel := map[string]*schema.Schema{
+func getKpiThresholdSettingsSchema() map[string]*schemav2.Schema {
+	kpiThresholdLevel := map[string]*schemav2.Schema{
 		"severity_label": {
-			Type:         schema.TypeString,
+			Type:         schemav2.TypeString,
 			Required:     true,
-			ValidateFunc: validation.StringInSlice([]string{"info", "critical", "high", "medium", "low", "normal"}, false),
+			ValidateFunc: validationv2.StringInSlice([]string{"info", "critical", "high", "medium", "low", "normal"}, false),
 			Description:  "Severity label assigned for this threshold level like info, warning, critical, etc",
 		},
 		"threshold_value": {
-			Type:     schema.TypeFloat,
+			Type:     schemav2.TypeFloat,
 			Required: true,
 			Description: `Value for the threshold field stats identifying this threshold level. 
 				This is the key value that defines the levels for values derived from the KPI search metrics.`,
 		},
 		"dynamic_param": {
-			Type:        schema.TypeFloat,
+			Type:        schemav2.TypeFloat,
 			Computed:    true,
 			Optional:    true,
 			Description: "Value of the dynamic parameter for adaptive thresholds",
 		},
 	}
 
-	return map[string]*schema.Schema{
+	return map[string]*schemav2.Schema{
 		"base_severity_label": {
-			Type:         schema.TypeString,
+			Type:         schemav2.TypeString,
 			Optional:     true,
 			Default:      "normal",
-			ValidateFunc: validation.StringInSlice([]string{"info", "critical", "high", "medium", "low", "normal"}, false),
+			ValidateFunc: validationv2.StringInSlice([]string{"info", "critical", "high", "medium", "low", "normal"}, false),
 			Description:  "Base severity label assigned for the threshold (info, normal, low, medium, high, critical). ",
 		},
 		"gauge_max": {
-			Type:        schema.TypeFloat,
+			Type:        schemav2.TypeFloat,
 			Optional:    true,
 			Description: "Maximum value for the threshold gauge specified by user",
 		},
 		"gauge_min": {
-			Type:        schema.TypeFloat,
+			Type:        schemav2.TypeFloat,
 			Optional:    true,
 			Description: "Minimum value for the threshold gauge specified by user.",
 		},
 		"is_max_static": {
-			Type:        schema.TypeBool,
+			Type:        schemav2.TypeBool,
 			Optional:    true,
 			Default:     false,
 			Description: "True when maximum threshold value is a static value, false otherwise. ",
 		},
 		"is_min_static": {
-			Type:        schema.TypeBool,
+			Type:        schemav2.TypeBool,
 			Optional:    true,
 			Default:     false,
 			Description: "True when min threshold value is a static value, false otherwise.",
 		},
 		"metric_field": {
-			Type:        schema.TypeString,
+			Type:        schemav2.TypeString,
 			Optional:    true,
 			Default:     "",
 			Description: "Thresholding field from the search.",
 		},
 		"render_boundary_max": {
-			Type:        schema.TypeFloat,
+			Type:        schemav2.TypeFloat,
 			Required:    true,
 			Description: "Upper bound value to use to render the graph for the thresholds.",
 		},
 		"render_boundary_min": {
-			Type:        schema.TypeFloat,
+			Type:        schemav2.TypeFloat,
 			Required:    true,
 			Description: "Lower bound value to use to render the graph for the thresholds.",
 		},
 		"search": {
-			Type:        schema.TypeString,
+			Type:        schemav2.TypeString,
 			Optional:    true,
 			Default:     "",
 			Description: "Generated search used to compute the thresholds for this KPI.",
 		},
 		"threshold_levels": {
-			Type:     schema.TypeSet,
+			Type:     schemav2.TypeSet,
 			Optional: true,
-			Elem: &schema.Resource{
+			Elem: &schemav2.Resource{
 				Schema: kpiThresholdLevel,
 			},
 		},
@@ -191,67 +232,82 @@ func kpiThresholdSettingsToResourceData(sourceThresholdSetting map[string]interf
 	return []interface{}{thresholdSetting}, nil
 }
 
-func kpiThresholdPolicyToResourceData(sourcePolicy map[string]interface{}, policyName string) (interface{}, error) {
-	policy := map[string]interface{}{}
-	policy["policy_name"] = policyName
-	policy["title"] = sourcePolicy["title"]
-	policy["policy_type"] = sourcePolicy["policy_type"]
-	tfTimeBlocks := []interface{}{}
-	for _, timeBlock := range sourcePolicy["time_blocks"].([]interface{}) {
-		_timeBlock := timeBlock.([]interface{})
-		tfTimeBlock := map[string]interface{}{
-			"cron":     _timeBlock[0],
-			"interval": _timeBlock[1],
-		}
-		tfTimeBlocks = append(tfTimeBlocks, tfTimeBlock)
-	}
-	policy["time_blocks"] = tfTimeBlocks
+func kpiThresholdSettingsToModel(apiThresholdSetting map[string]interface{}, tfthresholdSettingModel *ThresholdSettingModel, settingType string) error {
+	tfthresholdSettingModel.BaseSeverityLabel = types.StringValue(apiThresholdSetting["baseSeverityLabel"].(string))
 
-	var err error
-	policy["aggregate_thresholds"], err =
-		kpiThresholdSettingsToResourceData(sourcePolicy["aggregate_thresholds"].(map[string]interface{}), policy["policy_type"].(string))
-	if err != nil {
-		return nil, err
+	tfthresholdSettingModel.GaugeMin = types.Float64Value(apiThresholdSetting["gaugeMin"].(float64))
+	tfthresholdSettingModel.GaugeMax = types.Float64Value(apiThresholdSetting["gaugeMax"].(float64))
+
+	tfthresholdSettingModel.IsMinStatic = types.BoolValue(apiThresholdSetting["isMinStatic"].(bool))
+	tfthresholdSettingModel.IsMaxStatic = types.BoolValue(apiThresholdSetting["isMaxStatic"].(bool))
+
+	tfthresholdSettingModel.MetricField = types.StringValue(apiThresholdSetting["metricField"].(string))
+
+	tfthresholdSettingModel.RenderBoundaryMin = types.Float64Value(apiThresholdSetting["renderBoundaryMin"].(float64))
+	tfthresholdSettingModel.RenderBoundaryMax = types.Float64Value(apiThresholdSetting["renderBoundaryMax"].(float64))
+
+	tfthresholdSettingModel.Search = types.StringValue(apiThresholdSetting["search"].(string))
+
+	thresholdLevels := []KpiThresholdLevelModel{}
+	for _, tData_ := range apiThresholdSetting["thresholdLevels"].([]interface{}) {
+		tData := tData_.(map[string]interface{})
+		thresholdLevel := KpiThresholdLevelModel{}
+		switch tData["dynamicParam"] {
+		case "":
+			if settingType != "static" {
+				return fmt.Errorf("empty dynamic param for adaptive policy %s", settingType)
+			}
+			thresholdLevel.DynamicParam = types.Float64Value(0)
+		default:
+			thresholdLevel.DynamicParam = types.Float64Value(tData["dynamicParam"].(float64))
+		}
+
+		thresholdLevel.SeverityLabel = types.StringValue(tData["severityLabel"].(string))
+		thresholdLevel.ThresholdValue = types.Float64Value(tData["thresholdValue"].(float64))
+		thresholdLevels = append(thresholdLevels, thresholdLevel)
 	}
-	policy["entity_thresholds"], err =
-		kpiThresholdSettingsToResourceData(sourcePolicy["entity_thresholds"].(map[string]interface{}), policy["policy_type"].(string))
-	if err != nil {
-		return nil, err
-	}
-	return policy, nil
+	tfthresholdSettingModel.ThresholdLevels = thresholdLevels
+	return nil
 }
 
-func kpiThresholdPolicyToPayload(sourcePolicy map[string]interface{}) (interface{}, error) {
-	policy := map[string]interface{}{}
-	policy["title"] = sourcePolicy["title"].(string)
-	policy["policy_type"] = sourcePolicy["policy_type"].(string)
-	timeBlocks := [][]interface{}{}
-	for _, b_ := range sourcePolicy["time_blocks"].(*schema.Set).List() {
-		b := b_.(map[string]interface{})
-		block := []interface{}{}
-		block = append(block, b["cron"].(string))
-		block = append(block, b["interval"].(int))
-
-		timeBlocks = append(timeBlocks, block)
+func kpiThresholdThresholdSettingsAttributesToPayload(source ThresholdSettingModel) (interface{}, error) {
+	thresholdSetting := map[string]interface{}{}
+	if severity, ok := util.SeverityMap[source.BaseSeverityLabel.ValueString()]; ok {
+		thresholdSetting["baseSeverityColor"] = severity.SeverityColor
+		thresholdSetting["baseSeverityColorLight"] = severity.SeverityColorLight
+		thresholdSetting["baseSeverityLabel"] = severity.SeverityLabel
+		thresholdSetting["baseSeverityValue"] = severity.SeverityValue
+	} else {
+		return nil, fmt.Errorf("schema Validation broken. Unknown severity %s", source.BaseSeverityLabel.ValueString())
 	}
-	policy["time_blocks"] = timeBlocks
-	for _, sourceAggregateThresholds := range sourcePolicy["aggregate_thresholds"].(*schema.Set).List() {
-		aggregateThresholds, err := kpiThresholdThresholdSettingsToPayload(sourceAggregateThresholds.(map[string]interface{}))
-		if err != nil {
-			return nil, err
+	thresholdSetting["gaugeMax"] = source.GaugeMax.ValueFloat64()
+	thresholdSetting["gaugeMin"] = source.GaugeMin.ValueFloat64()
+	thresholdSetting["isMaxStatic"] = source.IsMaxStatic.ValueBool()
+	thresholdSetting["isMinStatic"] = source.IsMinStatic.ValueBool()
+	thresholdSetting["metricField"] = source.MetricField.ValueString()
+	thresholdSetting["renderBoundaryMax"] = source.RenderBoundaryMax.ValueFloat64()
+	thresholdSetting["renderBoundaryMin"] = source.RenderBoundaryMin.ValueFloat64()
+	thresholdSetting["search"] = source.Search.ValueString()
+	thresholdLevels := []interface{}{}
+	for _, tfThresholdLevel := range source.ThresholdLevels {
+		thresholdLevel := map[string]interface{}{}
+		thresholdLevel["dynamicParam"] = tfThresholdLevel.DynamicParam.ValueFloat64()
+		if severity, ok := util.SeverityMap[tfThresholdLevel.SeverityLabel.ValueString()]; ok {
+			thresholdLevel["severityColor"] = severity.SeverityColor
+			thresholdLevel["severityColorLight"] = severity.SeverityColorLight
+			thresholdLevel["severityLabel"] = severity.SeverityLabel
+			thresholdLevel["severityValue"] = severity.SeverityValue
+		} else {
+			return nil, fmt.Errorf("schema Validation broken. Unknown severity %s", tfThresholdLevel.SeverityLabel.ValueString())
 		}
-		policy["aggregate_thresholds"] = aggregateThresholds
+		thresholdLevel["thresholdValue"] = tfThresholdLevel.ThresholdValue.ValueFloat64()
+		thresholdLevels = append(thresholdLevels, thresholdLevel)
 	}
-	for _, sourceEntityThresholds := range sourcePolicy["entity_thresholds"].(*schema.Set).List() {
-		entityThresholds, err := kpiThresholdThresholdSettingsToPayload(sourceEntityThresholds.(map[string]interface{}))
-		if err != nil {
-			return nil, err
-		}
-		policy["entity_thresholds"] = entityThresholds
-	}
-	return policy, nil
+	thresholdSetting["thresholdLevels"] = thresholdLevels
+	return thresholdSetting, nil
 }
 
+// TODO: remove once service resource is migrated to the new terraform provider framwork
 func kpiThresholdThresholdSettingsToPayload(source map[string]interface{}) (interface{}, error) {
 	thresholdSetting := map[string]interface{}{}
 	if severity, ok := util.SeverityMap[source["base_severity_label"].(string)]; ok {
@@ -271,7 +327,7 @@ func kpiThresholdThresholdSettingsToPayload(source map[string]interface{}) (inte
 	thresholdSetting["renderBoundaryMin"] = source["render_boundary_min"].(float64)
 	thresholdSetting["search"] = source["search"].(string)
 	thresholdLevels := []interface{}{}
-	for _, sourceThresholdLevel_ := range source["threshold_levels"].(*schema.Set).List() {
+	for _, sourceThresholdLevel_ := range source["threshold_levels"].(*schemav2.Set).List() {
 		sourceThresholdLevel := sourceThresholdLevel_.(map[string]interface{})
 		thresholdLevel := map[string]interface{}{}
 		thresholdLevel["dynamicParam"] = sourceThresholdLevel["dynamic_param"].(float64)
