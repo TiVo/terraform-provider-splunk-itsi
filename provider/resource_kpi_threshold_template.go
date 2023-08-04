@@ -93,6 +93,35 @@ type resourceKpiThresholdTemplate struct {
 	client models.ClientConfig
 }
 
+func (r *resourceKpiThresholdTemplate) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
+	var data modelKpiThresholdTemplate
+	diags := req.Config.Get(ctx, &data)
+	resp.Diagnostics.Append(diags...)
+
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	/*for _, policy := range data.TimeVariateThresholdsSpecification.Policies {
+		for _, level := range append(policy.AggregateThresholds.ThresholdLevels, policy.EntityThresholds.ThresholdLevels...) {
+			var isStaticPolicy = policy.PolicyType.ValueString() != "static"
+			if level.DynamicParam.IsNull() && isStaticPolicy {
+				resp.Diagnostics.AddError(
+					"Missing Attribute Configuration",
+					"Expected dynamic_param in case of the non-static thresholds (ex: stdev).",
+				)
+				return
+			} else if !level.DynamicParam.IsNull() && !isStaticPolicy {
+				resp.Diagnostics.AddError(
+					"Wrong Attribute Configuration",
+					"Not expect dynamic_param in case of the static thresholds.",
+				)
+				return
+			}
+		}
+	}*/
+}
+
 // Metadata returns the resource type name.
 func (r *resourceKpiThresholdTemplate) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
 	resp.TypeName = "itsi_kpi_threshold_template"
