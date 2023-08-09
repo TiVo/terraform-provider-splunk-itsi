@@ -11,6 +11,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/float64default"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/float64planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -57,6 +59,9 @@ func getKpiThresholdSettingsBlocksAttrs() (map[string]schema.Block, map[string]s
 							Optional:    true,
 							Default:     float64default.StaticFloat64(0),
 							Description: "Value of the dynamic parameter for adaptive thresholds",
+							PlanModifiers: []planmodifier.Float64{
+								float64planmodifier.UseStateForUnknown(),
+							},
 						},
 					},
 				},
