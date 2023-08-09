@@ -80,7 +80,7 @@ type PolicyModel struct {
 	PolicyName          types.String          `tfsdk:"policy_name"`
 	Title               types.String          `tfsdk:"title"`
 	PolicyType          types.String          `tfsdk:"policy_type"`
-	TimeBlocks          []TimeBlockModel      `tfsdk:"time_blocks"`
+	TimeBlocks          types.Set             `tfsdk:"time_blocks"`
 	AggregateThresholds ThresholdSettingModel `tfsdk:"aggregate_thresholds"`
 	EntityThresholds    ThresholdSettingModel `tfsdk:"entity_thresholds"`
 }
@@ -366,7 +366,11 @@ func kpiThresholdTemplate(ctx context.Context, tfKpiThresholdTemplate modelKpiTh
 		policy["title"] = tfpolicy.Title.ValueString()
 		policy["policy_type"] = tfpolicy.PolicyType.ValueString()
 		timeBlocks := [][]interface{}{}
-		for _, tfTimeBlock := range tfpolicy.TimeBlocks {
+		var timeBlockModels []TimeBlockModel
+		if diags.Append(tfpolicy.TimeBlocks.ElementsAs(ctx, &timeBlockModels, false)...); diags.HasError() {
+			return nil, diags
+		}
+		for _, tfTimeBlock := range timeBlockModels {
 			block := []interface{}{}
 			block = append(block, tfTimeBlock.Cron.ValueString())
 			block = append(block, tfTimeBlock.Interval.ValueInt64())
@@ -437,7 +441,9 @@ func populateKpiThresholdTemplateModel(ctx context.Context, b *models.Base, tfMo
 			}
 			tfTimeBlocks = append(tfTimeBlocks, tfTimeBlock)
 		}
-		tfPolicy.TimeBlocks = tfTimeBlocks
+		var diags_ diag.Diagnostics
+		tfPolicy.TimeBlocks, diags_ = types.SetValueFrom(ctx, tfPolicy.TimeBlocks.ElementType(ctx), tfTimeBlocks)
+		diags.Append(diags_...)
 		tfAggregatedThresholds := ThresholdSettingModel{}
 		err := kpiThresholdSettingsToModel(policyData["aggregate_thresholds"].(map[string]interface{}), &tfAggregatedThresholds, policyData["policy_type"].(string))
 		if err != nil {
