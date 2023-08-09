@@ -73,7 +73,7 @@ type modelKpiThresholdTemplate struct {
 }
 
 type TimeVariateThresholdsSpecificationModel struct {
-	Policies []PolicyModel `tfsdk:"policies"`
+	Policies types.Set `tfsdk:"policies"`
 }
 
 type PolicyModel struct {
@@ -219,9 +219,8 @@ func (r *resourceKpiThresholdTemplate) Create(ctx context.Context, req resource.
 		return
 	}
 
-	template, err := kpiThresholdTemplate(ctx, plan, r.client)
-	if err != nil {
-		diags.AddError("Failed to populate kpi threshold template.", err.Error())
+	template, diags := kpiThresholdTemplate(ctx, plan, r.client)
+	if diags.HasError() {
 		resp.Diagnostics.Append(diags...)
 		return
 	}
@@ -304,9 +303,8 @@ func (r *resourceKpiThresholdTemplate) Update(ctx context.Context, req resource.
 	}
 	plan.ID = types.StringValue(base.RESTKey)
 
-	base, err = kpiThresholdTemplate(ctx, plan, r.client)
-	if err != nil {
-		diags.AddError("Failed to populate kpi threshold template.", err.Error())
+	base, diags = kpiThresholdTemplate(ctx, plan, r.client)
+	if diags.HasError() {
 		resp.Diagnostics.Append(diags...)
 		return
 	}
@@ -348,7 +346,7 @@ func (r *resourceKpiThresholdTemplate) Delete(ctx context.Context, req resource.
 	resp.Diagnostics.Append(diags...)
 }
 
-func kpiThresholdTemplate(ctx context.Context, tfKpiThresholdTemplate modelKpiThresholdTemplate, clientConfig models.ClientConfig) (config *models.Base, err error) {
+func kpiThresholdTemplate(ctx context.Context, tfKpiThresholdTemplate modelKpiThresholdTemplate, clientConfig models.ClientConfig) (config *models.Base, diags diag.Diagnostics) {
 	body := map[string]interface{}{}
 	body["objectType"] = "kpi_threshold_template"
 	body["title"] = tfKpiThresholdTemplate.Title.ValueString()
@@ -359,7 +357,11 @@ func kpiThresholdTemplate(ctx context.Context, tfKpiThresholdTemplate modelKpiTh
 	body["sec_grp"] = tfKpiThresholdTemplate.SecGrp.ValueString()
 
 	policies := map[string]interface{}{}
-	for _, tfpolicy := range tfKpiThresholdTemplate.TimeVariateThresholdsSpecification.Policies {
+	var policieModels []PolicyModel
+	if diags.Append(tfKpiThresholdTemplate.TimeVariateThresholdsSpecification.Policies.ElementsAs(ctx, &policieModels, false)...); diags.HasError() {
+		return nil, diags
+	}
+	for _, tfpolicy := range policieModels {
 		policy := map[string]interface{}{}
 		policy["title"] = tfpolicy.Title.ValueString()
 		policy["policy_type"] = tfpolicy.PolicyType.ValueString()
@@ -375,13 +377,15 @@ func kpiThresholdTemplate(ctx context.Context, tfKpiThresholdTemplate modelKpiTh
 		policy["time_blocks"] = timeBlocks
 		aggregateThresholds, err := kpiThresholdThresholdSettingsAttributesToPayload(tfpolicy.AggregateThresholds)
 		if err != nil {
-			return nil, err
+			diags.AddError("Failed to populate kpi threshold template.", err.Error())
+			return
 		}
 		policy["aggregate_thresholds"] = aggregateThresholds
 
 		entityThresholds, err := kpiThresholdThresholdSettingsAttributesToPayload(tfpolicy.EntityThresholds)
 		if err != nil {
-			return nil, err
+			diags.AddError("Failed to populate kpi threshold template.", err.Error())
+			return
 		}
 		policy["entity_thresholds"] = entityThresholds
 
@@ -392,9 +396,12 @@ func kpiThresholdTemplate(ctx context.Context, tfKpiThresholdTemplate modelKpiTh
 	}
 
 	base := kpiThresholdTemplateBase(clientConfig, tfKpiThresholdTemplate.ID.ValueString(), tfKpiThresholdTemplate.Title.ValueString())
-	err = base.PopulateRawJSON(ctx, body)
-
-	return base, err
+	err := base.PopulateRawJSON(ctx, body)
+	if err != nil {
+		diags.AddError("Failed to populate kpi threshold template.", err.Error())
+		return
+	}
+	return base, nil
 }
 
 func populateKpiThresholdTemplateModel(ctx context.Context, b *models.Base, tfModelKpiThresholdTemplate *modelKpiThresholdTemplate) (diags diag.Diagnostics) {
@@ -446,10 +453,10 @@ func populateKpiThresholdTemplateModel(ctx context.Context, b *models.Base, tfMo
 		tfPolicy.EntityThresholds = tfEntityThresholds
 		tfPolicies = append(tfPolicies, tfPolicy)
 	}
-
-	tfModelKpiThresholdTemplate.TimeVariateThresholdsSpecification = TimeVariateThresholdsSpecificationModel{
-		Policies: tfPolicies,
-	}
+	tfModelKpiThresholdTemplate.TimeVariateThresholdsSpecification = TimeVariateThresholdsSpecificationModel{}
+	var diags_ diag.Diagnostics
+	tfModelKpiThresholdTemplate.TimeVariateThresholdsSpecification.Policies, diags_ = types.SetValueFrom(ctx, tfModelKpiThresholdTemplate.TimeVariateThresholdsSpecification.Policies.ElementType(ctx), tfPolicies)
+	diags.Append(diags_...)
 
 	tfModelKpiThresholdTemplate.ID = types.StringValue(b.RESTKey)
 	return
