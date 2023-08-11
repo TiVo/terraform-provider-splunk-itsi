@@ -204,6 +204,9 @@ func (r *resourceKpiThresholdTemplate) Schema(_ context.Context, _ resource.Sche
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Computed: true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"title": schema.StringAttribute{
 				Required: true,
