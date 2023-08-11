@@ -1,8 +1,11 @@
 package provider
 
 import (
+	"context"
 	"fmt"
 
+	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	schemav2 "github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	validationv2 "github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
 	"github.com/tivo/terraform-provider-splunk-itsi/provider/util"
@@ -17,16 +20,16 @@ import (
 )
 
 type ThresholdSettingModel struct {
-	BaseSeverityLabel types.String             `tfsdk:"base_severity_label"`
-	GaugeMax          types.Float64            `tfsdk:"gauge_max"`
-	GaugeMin          types.Float64            `tfsdk:"gauge_min"`
-	IsMaxStatic       types.Bool               `tfsdk:"is_max_static"`
-	IsMinStatic       types.Bool               `tfsdk:"is_min_static"`
-	MetricField       types.String             `tfsdk:"metric_field"`
-	RenderBoundaryMax types.Float64            `tfsdk:"render_boundary_max"`
-	RenderBoundaryMin types.Float64            `tfsdk:"render_boundary_min"`
-	Search            types.String             `tfsdk:"search"`
-	ThresholdLevels   []KpiThresholdLevelModel `tfsdk:"threshold_levels"`
+	BaseSeverityLabel types.String  `tfsdk:"base_severity_label"`
+	GaugeMax          types.Float64 `tfsdk:"gauge_max"`
+	GaugeMin          types.Float64 `tfsdk:"gauge_min"`
+	IsMaxStatic       types.Bool    `tfsdk:"is_max_static"`
+	IsMinStatic       types.Bool    `tfsdk:"is_min_static"`
+	MetricField       types.String  `tfsdk:"metric_field"`
+	RenderBoundaryMax types.Float64 `tfsdk:"render_boundary_max"`
+	RenderBoundaryMin types.Float64 `tfsdk:"render_boundary_min"`
+	Search            types.String  `tfsdk:"search"`
+	ThresholdLevels   types.Set     `tfsdk:"threshold_levels"`
 }
 
 type KpiThresholdLevelModel struct {
@@ -232,7 +235,7 @@ func kpiThresholdSettingsToResourceData(sourceThresholdSetting map[string]interf
 	return []interface{}{thresholdSetting}, nil
 }
 
-func kpiThresholdSettingsToModel(apiThresholdSetting map[string]interface{}, tfthresholdSettingModel *ThresholdSettingModel, settingType string) error {
+func kpiThresholdSettingsToModel(ctx context.Context, attrName string, policyType basetypes.ObjectType, apiThresholdSetting map[string]interface{}, tfthresholdSettingModel *ThresholdSettingModel, settingType string) (diags diag.Diagnostics) {
 	tfthresholdSettingModel.BaseSeverityLabel = types.StringValue(apiThresholdSetting["baseSeverityLabel"].(string))
 
 	tfthresholdSettingModel.GaugeMin = types.Float64Value(apiThresholdSetting["gaugeMin"].(float64))
@@ -255,7 +258,8 @@ func kpiThresholdSettingsToModel(apiThresholdSetting map[string]interface{}, tft
 		switch tData["dynamicParam"] {
 		case "":
 			if settingType != "static" {
-				return fmt.Errorf("empty dynamic param for adaptive policy %s", settingType)
+				diags.AddError("Failed to populate aggregated threshold", fmt.Sprintf("empty dynamic param for adaptive policy %s", settingType))
+				return
 			}
 			thresholdLevel.DynamicParam = types.Float64Value(0)
 		default:
@@ -266,11 +270,14 @@ func kpiThresholdSettingsToModel(apiThresholdSetting map[string]interface{}, tft
 		thresholdLevel.ThresholdValue = types.Float64Value(tData["thresholdValue"].(float64))
 		thresholdLevels = append(thresholdLevels, thresholdLevel)
 	}
-	tfthresholdSettingModel.ThresholdLevels = thresholdLevels
-	return nil
+	var diags_ diag.Diagnostics
+	tfthresholdSettingModel.ThresholdLevels, diags_ = types.SetValueFrom(ctx, policyType.AttrTypes[attrName].(basetypes.ObjectType).AttrTypes["threshold_levels"].(basetypes.SetType).ElemType, thresholdLevels)
+	diags.Append(diags_...)
+	return diags
 }
 
-func kpiThresholdThresholdSettingsAttributesToPayload(source ThresholdSettingModel) (interface{}, error) {
+func kpiThresholdThresholdSettingsAttributesToPayload(ctx context.Context, source ThresholdSettingModel) (interface{}, diag.Diagnostics) {
+	var diags diag.Diagnostics
 	thresholdSetting := map[string]interface{}{}
 	if severity, ok := util.SeverityMap[source.BaseSeverityLabel.ValueString()]; ok {
 		thresholdSetting["baseSeverityColor"] = severity.SeverityColor
@@ -278,8 +285,10 @@ func kpiThresholdThresholdSettingsAttributesToPayload(source ThresholdSettingMod
 		thresholdSetting["baseSeverityLabel"] = severity.SeverityLabel
 		thresholdSetting["baseSeverityValue"] = severity.SeverityValue
 	} else {
-		return nil, fmt.Errorf("schema Validation broken. Unknown severity %s", source.BaseSeverityLabel.ValueString())
+		diags.AddError("failed to convert threshold setting model to payload", fmt.Sprintf("schema Validation broken. Unknown severity %s", source.BaseSeverityLabel.ValueString()))
+		return nil, diags
 	}
+
 	thresholdSetting["gaugeMax"] = source.GaugeMax.ValueFloat64()
 	thresholdSetting["gaugeMin"] = source.GaugeMin.ValueFloat64()
 	thresholdSetting["isMaxStatic"] = source.IsMaxStatic.ValueBool()
@@ -289,7 +298,11 @@ func kpiThresholdThresholdSettingsAttributesToPayload(source ThresholdSettingMod
 	thresholdSetting["renderBoundaryMin"] = source.RenderBoundaryMin.ValueFloat64()
 	thresholdSetting["search"] = source.Search.ValueString()
 	thresholdLevels := []interface{}{}
-	for _, tfThresholdLevel := range source.ThresholdLevels {
+	var thresholdLevelsModels []KpiThresholdLevelModel
+	if diags.Append(source.ThresholdLevels.ElementsAs(ctx, &thresholdLevelsModels, false)...); diags.HasError() {
+		return nil, diags
+	}
+	for _, tfThresholdLevel := range thresholdLevelsModels {
 		thresholdLevel := map[string]interface{}{}
 		thresholdLevel["dynamicParam"] = tfThresholdLevel.DynamicParam.ValueFloat64()
 		if severity, ok := util.SeverityMap[tfThresholdLevel.SeverityLabel.ValueString()]; ok {
@@ -298,13 +311,14 @@ func kpiThresholdThresholdSettingsAttributesToPayload(source ThresholdSettingMod
 			thresholdLevel["severityLabel"] = severity.SeverityLabel
 			thresholdLevel["severityValue"] = severity.SeverityValue
 		} else {
-			return nil, fmt.Errorf("schema Validation broken. Unknown severity %s", tfThresholdLevel.SeverityLabel.ValueString())
+			diags.AddError("schema Validation broken. Unknown severity %s", tfThresholdLevel.SeverityLabel.ValueString())
+			return nil, diags
 		}
 		thresholdLevel["thresholdValue"] = tfThresholdLevel.ThresholdValue.ValueFloat64()
 		thresholdLevels = append(thresholdLevels, thresholdLevel)
 	}
 	thresholdSetting["thresholdLevels"] = thresholdLevels
-	return thresholdSetting, nil
+	return thresholdSetting, diags
 }
 
 // TODO: remove once service resource is migrated to the new terraform provider framwork
