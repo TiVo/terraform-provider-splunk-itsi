@@ -12,6 +12,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/tivo/terraform-provider-splunk-itsi/models"
 )
@@ -422,6 +423,10 @@ func populateKpiThresholdTemplateModel(ctx context.Context, b *models.Base, tfMo
 	tfModelKpiThresholdTemplate.SecGrp = types.StringValue(interfaceMap["sec_grp"].(string))
 
 	tfPolicies := []PolicyModel{}
+	policySetValue, _diags := tfModelKpiThresholdTemplate.TimeVariateThresholdsSpecification.Policies.ToSetValue(ctx)
+	diags = append(diags, _diags...)
+	policyObjectType := policySetValue.ElementType(ctx).(basetypes.ObjectType)
+
 	timeVariateThresholdsSpecificationData := interfaceMap["time_variate_thresholds_specification"].(map[string]interface{})
 	for policyName, pData := range timeVariateThresholdsSpecificationData["policies"].(map[string]interface{}) {
 		policyData := pData.(map[string]interface{})
@@ -442,21 +447,24 @@ func populateKpiThresholdTemplateModel(ctx context.Context, b *models.Base, tfMo
 			tfTimeBlocks = append(tfTimeBlocks, tfTimeBlock)
 		}
 		var diags_ diag.Diagnostics
-		tfPolicy.TimeBlocks, diags_ = types.SetValueFrom(ctx, tfPolicy.TimeBlocks.ElementType(ctx), tfTimeBlocks)
+		timeBlocksElementType := policyObjectType.AttrTypes["time_blocks"].(basetypes.SetType).ElemType
+		tfPolicy.TimeBlocks, diags_ = types.SetValueFrom(ctx, timeBlocksElementType, tfTimeBlocks)
 		diags.Append(diags_...)
 		tfAggregatedThresholds := ThresholdSettingModel{}
-		diags.Append(kpiThresholdSettingsToModel(ctx, policyData["aggregate_thresholds"].(map[string]interface{}), &tfAggregatedThresholds, policyData["policy_type"].(string))...)
+		diags.Append(kpiThresholdSettingsToModel(ctx, "aggregate_thresholds", policyObjectType,
+			policyData["aggregate_thresholds"].(map[string]interface{}), &tfAggregatedThresholds, policyData["policy_type"].(string))...)
 
 		tfPolicy.AggregateThresholds = tfAggregatedThresholds
 
 		tfEntityThresholds := ThresholdSettingModel{}
-		diags.Append(kpiThresholdSettingsToModel(ctx, policyData["entity_thresholds"].(map[string]interface{}), &tfEntityThresholds, policyData["policy_type"].(string))...)
+		diags.Append(kpiThresholdSettingsToModel(ctx, "entity_thresholds", policyObjectType,
+			policyData["entity_thresholds"].(map[string]interface{}), &tfEntityThresholds, policyData["policy_type"].(string))...)
 		tfPolicy.EntityThresholds = tfEntityThresholds
 		tfPolicies = append(tfPolicies, tfPolicy)
 	}
 	tfModelKpiThresholdTemplate.TimeVariateThresholdsSpecification = TimeVariateThresholdsSpecificationModel{}
 	var diags_ diag.Diagnostics
-	tfModelKpiThresholdTemplate.TimeVariateThresholdsSpecification.Policies, diags_ = types.SetValueFrom(ctx, tfModelKpiThresholdTemplate.TimeVariateThresholdsSpecification.Policies.ElementType(ctx), tfPolicies)
+	tfModelKpiThresholdTemplate.TimeVariateThresholdsSpecification.Policies, diags_ = types.SetValueFrom(ctx, policySetValue.ElementType(ctx), tfPolicies)
 	diags.Append(diags_...)
 
 	tfModelKpiThresholdTemplate.ID = types.StringValue(b.RESTKey)

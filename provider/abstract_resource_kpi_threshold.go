@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	schemav2 "github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	validationv2 "github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
 	"github.com/tivo/terraform-provider-splunk-itsi/provider/util"
@@ -234,7 +235,7 @@ func kpiThresholdSettingsToResourceData(sourceThresholdSetting map[string]interf
 	return []interface{}{thresholdSetting}, nil
 }
 
-func kpiThresholdSettingsToModel(ctx context.Context, apiThresholdSetting map[string]interface{}, tfthresholdSettingModel *ThresholdSettingModel, settingType string) (diags diag.Diagnostics) {
+func kpiThresholdSettingsToModel(ctx context.Context, attrName string, policyType basetypes.ObjectType, apiThresholdSetting map[string]interface{}, tfthresholdSettingModel *ThresholdSettingModel, settingType string) (diags diag.Diagnostics) {
 	tfthresholdSettingModel.BaseSeverityLabel = types.StringValue(apiThresholdSetting["baseSeverityLabel"].(string))
 
 	tfthresholdSettingModel.GaugeMin = types.Float64Value(apiThresholdSetting["gaugeMin"].(float64))
@@ -270,7 +271,7 @@ func kpiThresholdSettingsToModel(ctx context.Context, apiThresholdSetting map[st
 		thresholdLevels = append(thresholdLevels, thresholdLevel)
 	}
 	var diags_ diag.Diagnostics
-	tfthresholdSettingModel.ThresholdLevels, diags_ = types.SetValueFrom(ctx, tfthresholdSettingModel.ThresholdLevels.ElementType(ctx), thresholdLevels)
+	tfthresholdSettingModel.ThresholdLevels, diags_ = types.SetValueFrom(ctx, policyType.AttrTypes[attrName].(basetypes.ObjectType).AttrTypes["threshold_levels"].(basetypes.SetType).ElemType, thresholdLevels)
 	diags.Append(diags_...)
 	return diags
 }
