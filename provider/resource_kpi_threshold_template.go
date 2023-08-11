@@ -379,16 +379,16 @@ func kpiThresholdTemplate(ctx context.Context, tfKpiThresholdTemplate modelKpiTh
 		}
 
 		policy["time_blocks"] = timeBlocks
-		aggregateThresholds, err := kpiThresholdThresholdSettingsAttributesToPayload(tfpolicy.AggregateThresholds)
-		if err != nil {
-			diags.AddError("Failed to populate kpi threshold template.", err.Error())
+		aggregateThresholds, d := kpiThresholdThresholdSettingsAttributesToPayload(ctx, tfpolicy.AggregateThresholds)
+		diags.Append(d...)
+		if diags.HasError() {
 			return
 		}
 		policy["aggregate_thresholds"] = aggregateThresholds
 
-		entityThresholds, err := kpiThresholdThresholdSettingsAttributesToPayload(tfpolicy.EntityThresholds)
-		if err != nil {
-			diags.AddError("Failed to populate kpi threshold template.", err.Error())
+		entityThresholds, d := kpiThresholdThresholdSettingsAttributesToPayload(ctx, tfpolicy.EntityThresholds)
+		diags.Append(d...)
+		if diags.HasError() {
 			return
 		}
 		policy["entity_thresholds"] = entityThresholds
@@ -445,17 +445,12 @@ func populateKpiThresholdTemplateModel(ctx context.Context, b *models.Base, tfMo
 		tfPolicy.TimeBlocks, diags_ = types.SetValueFrom(ctx, tfPolicy.TimeBlocks.ElementType(ctx), tfTimeBlocks)
 		diags.Append(diags_...)
 		tfAggregatedThresholds := ThresholdSettingModel{}
-		err := kpiThresholdSettingsToModel(policyData["aggregate_thresholds"].(map[string]interface{}), &tfAggregatedThresholds, policyData["policy_type"].(string))
-		if err != nil {
-			diags.AddError("Failed to populate aggregated threshold", err.Error())
-		}
+		diags.Append(kpiThresholdSettingsToModel(ctx, policyData["aggregate_thresholds"].(map[string]interface{}), &tfAggregatedThresholds, policyData["policy_type"].(string))...)
+
 		tfPolicy.AggregateThresholds = tfAggregatedThresholds
 
 		tfEntityThresholds := ThresholdSettingModel{}
-		err = kpiThresholdSettingsToModel(policyData["entity_thresholds"].(map[string]interface{}), &tfEntityThresholds, policyData["policy_type"].(string))
-		if err != nil {
-			diags.AddError("Failed to populate aggregated threshold", err.Error())
-		}
+		diags.Append(kpiThresholdSettingsToModel(ctx, policyData["entity_thresholds"].(map[string]interface{}), &tfEntityThresholds, policyData["policy_type"].(string))...)
 		tfPolicy.EntityThresholds = tfEntityThresholds
 		tfPolicies = append(tfPolicies, tfPolicy)
 	}
