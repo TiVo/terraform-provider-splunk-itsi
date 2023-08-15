@@ -12,6 +12,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/tivo/terraform-provider-splunk-itsi/models"
 )
@@ -73,14 +74,14 @@ type modelKpiThresholdTemplate struct {
 }
 
 type TimeVariateThresholdsSpecificationModel struct {
-	Policies []PolicyModel `tfsdk:"policies"`
+	Policies types.Set `tfsdk:"policies"`
 }
 
 type PolicyModel struct {
 	PolicyName          types.String          `tfsdk:"policy_name"`
 	Title               types.String          `tfsdk:"title"`
 	PolicyType          types.String          `tfsdk:"policy_type"`
-	TimeBlocks          []TimeBlockModel      `tfsdk:"time_blocks"`
+	TimeBlocks          types.Set             `tfsdk:"time_blocks"`
 	AggregateThresholds ThresholdSettingModel `tfsdk:"aggregate_thresholds"`
 	EntityThresholds    ThresholdSettingModel `tfsdk:"entity_thresholds"`
 }
@@ -248,9 +249,8 @@ func (r *resourceKpiThresholdTemplate) Create(ctx context.Context, req resource.
 		return
 	}
 
-	template, err := kpiThresholdTemplate(ctx, plan, r.client)
-	if err != nil {
-		diags.AddError("Failed to populate kpi threshold template.", err.Error())
+	template, diags := kpiThresholdTemplate(ctx, plan, r.client)
+	if diags.HasError() {
 		resp.Diagnostics.Append(diags...)
 		return
 	}
@@ -333,9 +333,8 @@ func (r *resourceKpiThresholdTemplate) Update(ctx context.Context, req resource.
 	}
 	plan.ID = types.StringValue(base.RESTKey)
 
-	base, err = kpiThresholdTemplate(ctx, plan, r.client)
-	if err != nil {
-		diags.AddError("Failed to populate kpi threshold template.", err.Error())
+	base, diags = kpiThresholdTemplate(ctx, plan, r.client)
+	if diags.HasError() {
 		resp.Diagnostics.Append(diags...)
 		return
 	}
@@ -377,7 +376,7 @@ func (r *resourceKpiThresholdTemplate) Delete(ctx context.Context, req resource.
 	resp.Diagnostics.Append(diags...)
 }
 
-func kpiThresholdTemplate(ctx context.Context, tfKpiThresholdTemplate modelKpiThresholdTemplate, clientConfig models.ClientConfig) (config *models.Base, err error) {
+func kpiThresholdTemplate(ctx context.Context, tfKpiThresholdTemplate modelKpiThresholdTemplate, clientConfig models.ClientConfig) (config *models.Base, diags diag.Diagnostics) {
 	body := map[string]interface{}{}
 	body["objectType"] = "kpi_threshold_template"
 	body["title"] = tfKpiThresholdTemplate.Title.ValueString()
@@ -388,12 +387,20 @@ func kpiThresholdTemplate(ctx context.Context, tfKpiThresholdTemplate modelKpiTh
 	body["sec_grp"] = tfKpiThresholdTemplate.SecGrp.ValueString()
 
 	policies := map[string]interface{}{}
-	for _, tfpolicy := range tfKpiThresholdTemplate.TimeVariateThresholdsSpecification.Policies {
+	var policieModels []PolicyModel
+	if diags.Append(tfKpiThresholdTemplate.TimeVariateThresholdsSpecification.Policies.ElementsAs(ctx, &policieModels, false)...); diags.HasError() {
+		return nil, diags
+	}
+	for _, tfpolicy := range policieModels {
 		policy := map[string]interface{}{}
 		policy["title"] = tfpolicy.Title.ValueString()
 		policy["policy_type"] = tfpolicy.PolicyType.ValueString()
 		timeBlocks := [][]interface{}{}
-		for _, tfTimeBlock := range tfpolicy.TimeBlocks {
+		var timeBlockModels []TimeBlockModel
+		if diags.Append(tfpolicy.TimeBlocks.ElementsAs(ctx, &timeBlockModels, false)...); diags.HasError() {
+			return nil, diags
+		}
+		for _, tfTimeBlock := range timeBlockModels {
 			block := []interface{}{}
 			block = append(block, tfTimeBlock.Cron.ValueString())
 			block = append(block, tfTimeBlock.Interval.ValueInt64())
@@ -402,15 +409,17 @@ func kpiThresholdTemplate(ctx context.Context, tfKpiThresholdTemplate modelKpiTh
 		}
 
 		policy["time_blocks"] = timeBlocks
-		aggregateThresholds, err := kpiThresholdThresholdSettingsAttributesToPayload(tfpolicy.AggregateThresholds)
-		if err != nil {
-			return nil, err
+		aggregateThresholds, d := kpiThresholdThresholdSettingsAttributesToPayload(ctx, tfpolicy.AggregateThresholds)
+		diags.Append(d...)
+		if diags.HasError() {
+			return
 		}
 		policy["aggregate_thresholds"] = aggregateThresholds
 
-		entityThresholds, err := kpiThresholdThresholdSettingsAttributesToPayload(tfpolicy.EntityThresholds)
-		if err != nil {
-			return nil, err
+		entityThresholds, d := kpiThresholdThresholdSettingsAttributesToPayload(ctx, tfpolicy.EntityThresholds)
+		diags.Append(d...)
+		if diags.HasError() {
+			return
 		}
 		policy["entity_thresholds"] = entityThresholds
 
@@ -421,9 +430,12 @@ func kpiThresholdTemplate(ctx context.Context, tfKpiThresholdTemplate modelKpiTh
 	}
 
 	base := kpiThresholdTemplateBase(clientConfig, tfKpiThresholdTemplate.ID.ValueString(), tfKpiThresholdTemplate.Title.ValueString())
-	err = base.PopulateRawJSON(ctx, body)
-
-	return base, err
+	err := base.PopulateRawJSON(ctx, body)
+	if err != nil {
+		diags.AddError("Failed to populate kpi threshold template.", err.Error())
+		return
+	}
+	return base, nil
 }
 
 func populateKpiThresholdTemplateModel(ctx context.Context, b *models.Base, tfModelKpiThresholdTemplate *modelKpiThresholdTemplate) (diags diag.Diagnostics) {
@@ -440,6 +452,10 @@ func populateKpiThresholdTemplateModel(ctx context.Context, b *models.Base, tfMo
 	tfModelKpiThresholdTemplate.SecGrp = types.StringValue(interfaceMap["sec_grp"].(string))
 
 	tfPolicies := []PolicyModel{}
+	policySetValue, _diags := tfModelKpiThresholdTemplate.TimeVariateThresholdsSpecification.Policies.ToSetValue(ctx)
+	diags = append(diags, _diags...)
+	policyObjectType := policySetValue.ElementType(ctx).(basetypes.ObjectType)
+
 	timeVariateThresholdsSpecificationData := interfaceMap["time_variate_thresholds_specification"].(map[string]interface{})
 	for policyName, pData := range timeVariateThresholdsSpecificationData["policies"].(map[string]interface{}) {
 		policyData := pData.(map[string]interface{})
@@ -459,26 +475,26 @@ func populateKpiThresholdTemplateModel(ctx context.Context, b *models.Base, tfMo
 			}
 			tfTimeBlocks = append(tfTimeBlocks, tfTimeBlock)
 		}
-		tfPolicy.TimeBlocks = tfTimeBlocks
+		var diags_ diag.Diagnostics
+		timeBlocksElementType := policyObjectType.AttrTypes["time_blocks"].(basetypes.SetType).ElemType
+		tfPolicy.TimeBlocks, diags_ = types.SetValueFrom(ctx, timeBlocksElementType, tfTimeBlocks)
+		diags.Append(diags_...)
 		tfAggregatedThresholds := ThresholdSettingModel{}
-		err := kpiThresholdSettingsToModel(policyData["aggregate_thresholds"].(map[string]interface{}), &tfAggregatedThresholds, policyData["policy_type"].(string))
-		if err != nil {
-			diags.AddError("Failed to populate aggregated threshold", err.Error())
-		}
+		diags.Append(kpiThresholdSettingsToModel(ctx, "aggregate_thresholds", policyObjectType,
+			policyData["aggregate_thresholds"].(map[string]interface{}), &tfAggregatedThresholds, policyData["policy_type"].(string))...)
+
 		tfPolicy.AggregateThresholds = tfAggregatedThresholds
 
 		tfEntityThresholds := ThresholdSettingModel{}
-		err = kpiThresholdSettingsToModel(policyData["entity_thresholds"].(map[string]interface{}), &tfEntityThresholds, policyData["policy_type"].(string))
-		if err != nil {
-			diags.AddError("Failed to populate aggregated threshold", err.Error())
-		}
+		diags.Append(kpiThresholdSettingsToModel(ctx, "entity_thresholds", policyObjectType,
+			policyData["entity_thresholds"].(map[string]interface{}), &tfEntityThresholds, policyData["policy_type"].(string))...)
 		tfPolicy.EntityThresholds = tfEntityThresholds
 		tfPolicies = append(tfPolicies, tfPolicy)
 	}
-
-	tfModelKpiThresholdTemplate.TimeVariateThresholdsSpecification = TimeVariateThresholdsSpecificationModel{
-		Policies: tfPolicies,
-	}
+	tfModelKpiThresholdTemplate.TimeVariateThresholdsSpecification = TimeVariateThresholdsSpecificationModel{}
+	var diags_ diag.Diagnostics
+	tfModelKpiThresholdTemplate.TimeVariateThresholdsSpecification.Policies, diags_ = types.SetValueFrom(ctx, policySetValue.ElementType(ctx), tfPolicies)
+	diags.Append(diags_...)
 
 	tfModelKpiThresholdTemplate.ID = types.StringValue(b.RESTKey)
 	return
