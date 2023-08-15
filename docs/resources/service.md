@@ -185,7 +185,7 @@ Optional:
 Required:
 
 - `severity_label` (String) Severity label assigned for this threshold level like info, warning, critical, etc
-- `threshold_value` (Number) Value for the threshold field stats identifying this threshold level. 
+- `threshold_value` (Number) Value for the threshold field stats identifying this threshold level.
 				This is the key value that defines the levels for values derived from the KPI search metrics.
 
 Optional:
@@ -219,7 +219,7 @@ Optional:
 Required:
 
 - `severity_label` (String) Severity label assigned for this threshold level like info, warning, critical, etc
-- `threshold_value` (Number) Value for the threshold field stats identifying this threshold level. 
+- `threshold_value` (Number) Value for the threshold field stats identifying this threshold level.
 				This is the key value that defines the levels for values derived from the KPI search metrics.
 
 Optional:
