@@ -41,3 +41,9 @@ docs: fmt
 local_install: build
 	rm -rf $(TERRAFORM_PLUGIN_PATH) && mkdir -p $(TERRAFORM_PLUGIN_PATH)
 	cp dist/terraform-provider-*/terraform-provider-*  $(TERRAFORM_PLUGIN_PATH)/terraform-provider-splunk-itsi_$(PROVIDER_VERSION)
+
+update: gomod docs build test
+
+gomod:
+	go get -u ./...
+	go mod tidy
