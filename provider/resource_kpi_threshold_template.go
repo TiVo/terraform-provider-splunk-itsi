@@ -73,55 +73,6 @@ type modelKpiThresholdTemplate struct {
 	SecGrp                             types.String                            `tfsdk:"sec_grp"`
 }
 
-/*
-(:̲̅:̲̅:̲̅[̲̅ ]̲̅:̲̅:̲̅:̲̅) Bandaid for a terraform bug introduced in terraform 1.14 and still present in 1.15.5,
-which for some reason every other time reverts the Optional Fields of the KPI threshold template resource to their default values.
-That is the reason why we have to set the default values here, and not in the resource schema definition.
-TODO: move the default values to the KPI threshold template resource schema once the bug is fixed.
-*/
-func (m *modelKpiThresholdTemplate) SetDefaults(ctx context.Context) (diags diag.Diagnostics) {
-	policies := []PolicyModel{}
-	if diags.Append(m.TimeVariateThresholdsSpecification.Policies.ElementsAs(ctx, &policies, false)...); diags.HasError() {
-		return
-	}
-	for i := range policies {
-		for _, t := range []*ThresholdSettingModel{&policies[i].AggregateThresholds, &policies[i].EntityThresholds} {
-			levels := []KpiThresholdLevelModel{}
-			if diags.Append(t.ThresholdLevels.ElementsAs(ctx, &levels, false)...); diags.HasError() {
-				return
-			}
-
-			for i := range levels {
-				if levels[i].DynamicParam.IsUnknown() {
-					levels[i].DynamicParam = types.Float64Value(0.0)
-				}
-			}
-			t.ThresholdLevels, diags = types.SetValueFrom(ctx, t.ThresholdLevels.ElementType(ctx), levels)
-
-			if t.BaseSeverityLabel.IsUnknown() {
-				t.BaseSeverityLabel = types.StringValue("normal")
-			}
-			if t.IsMaxStatic.IsUnknown() {
-				t.IsMaxStatic = types.BoolValue(false)
-			}
-			if t.IsMinStatic.IsUnknown() {
-				t.IsMinStatic = types.BoolValue(false)
-			}
-			if t.MetricField.IsUnknown() {
-				t.MetricField = types.StringValue("")
-			}
-			if t.Search.IsUnknown() {
-				t.Search = types.StringValue("")
-			}
-		}
-	}
-	m.TimeVariateThresholdsSpecification.Policies, diags = types.SetValueFrom(ctx,
-		m.TimeVariateThresholdsSpecification.Policies.ElementType(ctx),
-		policies)
-
-	return
-}
-
 type TimeVariateThresholdsSpecificationModel struct {
 	Policies types.Set `tfsdk:"policies"`
 }
@@ -268,9 +219,6 @@ func (r *resourceKpiThresholdTemplate) Create(ctx context.Context, req resource.
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	if resp.Diagnostics.Append(plan.SetDefaults(ctx)...); resp.Diagnostics.HasError() {
-		return
-	}
 
 	template, diags := kpiThresholdTemplate(ctx, plan, r.client)
 	if diags.HasError() {
@@ -297,7 +245,6 @@ func (r *resourceKpiThresholdTemplate) Create(ctx context.Context, req resource.
 }
 
 func (r *resourceKpiThresholdTemplate) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-
 	var state modelKpiThresholdTemplate
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -332,10 +279,6 @@ func (r *resourceKpiThresholdTemplate) Update(ctx context.Context, req resource.
 	diags := req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	if resp.Diagnostics.Append(plan.SetDefaults(ctx)...); resp.Diagnostics.HasError() {
 		return
 	}
 
