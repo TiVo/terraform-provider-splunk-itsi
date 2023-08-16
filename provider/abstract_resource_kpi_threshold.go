@@ -12,6 +12,10 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/float64planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
@@ -55,6 +59,9 @@ func getKpiThresholdSettingsBlocksAttrs() (map[string]schema.Block, map[string]s
 						"dynamic_param": schema.Float64Attribute{
 							Optional: true,
 							Computed: true,
+							PlanModifiers: []planmodifier.Float64{
+								float64planmodifier.UseStateForUnknown(),
+							},
 							//Default:     float64default.StaticFloat64(0),
 							Description: "Value of the dynamic parameter for adaptive thresholds",
 						},
@@ -67,6 +74,9 @@ func getKpiThresholdSettingsBlocksAttrs() (map[string]schema.Block, map[string]s
 				Optional: true,
 				Computed: true,
 				//Default:  stringdefault.StaticString("normal"),
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 				Validators: []validator.String{
 					stringvalidator.OneOf("info", "critical", "high", "medium", "low", "normal"),
 				},
@@ -83,18 +93,27 @@ func getKpiThresholdSettingsBlocksAttrs() (map[string]schema.Block, map[string]s
 			"is_max_static": schema.BoolAttribute{
 				Optional: true,
 				Computed: true,
+				PlanModifiers: []planmodifier.Bool{
+					boolplanmodifier.UseStateForUnknown(),
+				},
 				//Default:     booldefault.StaticBool(false),
 				Description: "True when maximum threshold value is a static value, false otherwise. ",
 			},
 			"is_min_static": schema.BoolAttribute{
 				Optional: true,
 				Computed: true,
+				PlanModifiers: []planmodifier.Bool{
+					boolplanmodifier.UseStateForUnknown(),
+				},
 				//Default:     booldefault.StaticBool(false),
 				Description: "True when min threshold value is a static value, false otherwise.",
 			},
 			"metric_field": schema.StringAttribute{
 				Optional: true,
 				Computed: true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 				//Default:     stringdefault.StaticString(""),
 				Description: "Thresholding field from the search.",
 			},
@@ -109,6 +128,9 @@ func getKpiThresholdSettingsBlocksAttrs() (map[string]schema.Block, map[string]s
 			"search": schema.StringAttribute{
 				Optional: true,
 				Computed: true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 				//Default:     stringdefault.StaticString(""),
 				Description: "Generated search used to compute the thresholds for this KPI.",
 			},
