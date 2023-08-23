@@ -1,3 +1,4 @@
+# Getting Started
 ## Table of Contents:
 - [Overview](#overview)
 - [Install The Splunk ITSI Plugin](#install-the-splunk-itsi-plugin)
@@ -43,7 +44,7 @@ provider "itsi" {
 ```
 
 </td>
-<td>  
+<td>
 
 ```terraform
 provider "itsi" {
@@ -207,7 +208,7 @@ The schema of the KPI base search maps intuitively to the ITSI UI web form, but 
 <tr>
 <td>
 
-```terraform 
+```terraform
   alert_period = "5"
   search_alert_earliest = "60"
   alert_lag = "60"
@@ -217,7 +218,7 @@ The schema of the KPI base search maps intuitively to the ITSI UI web form, but 
   entity_id_fields = "host"
 ```
 </td>
-<td>  
+<td>
 <img src=https://user-images.githubusercontent.com/10566979/172702322-0128a8f8-8a1f-4890-9af0-77f12f94359e.png></img>
 
 </td>
@@ -279,7 +280,7 @@ To specify that search results should be split by the Splunk app as an entity: d
 <td>
 
 
-```terraform 
+```terraform
   alert_period = "1"
   search_alert_earliest = "30"
   alert_lag = "120"
@@ -289,7 +290,7 @@ To specify that search results should be split by the Splunk app as an entity: d
   entity_id_fields = "host"
 ```
 </td>
-<td>  
+<td>
 <img src=https://user-images.githubusercontent.com/10566979/172702182-d2153757-a692-475e-8f10-6c2af072bd76.png></img>
 </td>
 </tr>
@@ -537,7 +538,7 @@ The entity filtering for the services is configured via the `entity_rules` schem
 <tr>
 <td>
 
-```terraform 
+```terraform
 entity_rules {
   rule {
     field = "host"
@@ -549,13 +550,13 @@ entity_rules {
     field = "entityType"
     field_type = "info"
     rule_type  = "matches"
-    value      = 
+    value      =
      data.itsi_entity_type.guide_itsi_host.title
   }
 }
 ```
 </td>
-<td>  
+<td>
 <img src=https://user-images.githubusercontent.com/10566979/172697021-5289f0ec-5931-4812-b14b-54bb87c7792c.png></img>
 </td>
 </tr>
@@ -587,7 +588,7 @@ aggregate_thresholds {
 ```
 
 </td>
-<td>  
+<td>
 <img src=https://user-images.githubusercontent.com/10566979/172698848-8c08af0c-b7c9-499b-a348-2a38ea550157.png></img>
 </td>
 </tr>
@@ -643,7 +644,7 @@ The below table shows content of the terraform state file's `guide_service_root`
 
 ```
 </td>
-<td>  
+<td>
 <img src=https://user-images.githubusercontent.com/10566979/172704183-c1904ff9-adcd-4fb8-81e1-1e51d9c8fd25.png></img>
 </td>
 </tr>
@@ -685,7 +686,7 @@ provider "splunk" {
 ```
 
 </td>
-<td>  
+<td>
 
 ```terraform
 provider "splunk" {
