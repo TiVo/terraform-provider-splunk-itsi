@@ -10,7 +10,7 @@ require (
 	github.com/hashicorp/go-cty v1.4.1-0.20200414143053-d3edf31b6320
 	github.com/hashicorp/go-uuid v1.0.3
 	github.com/hashicorp/golang-lru v1.0.2
-	github.com/hashicorp/hcl/v2 v2.17.0
+	github.com/hashicorp/hcl/v2 v2.18.0
 	github.com/hashicorp/terraform-plugin-docs v0.16.0
 	github.com/hashicorp/terraform-plugin-framework v1.3.5
 	github.com/hashicorp/terraform-plugin-framework-validators v0.12.0
@@ -31,6 +31,7 @@ require (
 	github.com/ProtonMail/go-crypto v0.0.0-20230217124315-7d5c6f04bbb8 // indirect
 	github.com/agext/levenshtein v1.2.3 // indirect
 	github.com/apparentlymart/go-textseg/v13 v13.0.0 // indirect
+	github.com/apparentlymart/go-textseg/v15 v15.0.0 // indirect
 	github.com/armon/go-radix v1.0.0 // indirect
 	github.com/aws/aws-sdk-go-v2 v1.21.0 // indirect
 	github.com/aws/aws-sdk-go-v2/credentials v1.13.35 // indirect
