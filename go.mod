@@ -14,7 +14,7 @@ require (
 	github.com/hashicorp/terraform-plugin-docs v0.16.0
 	github.com/hashicorp/terraform-plugin-framework v1.3.5
 	github.com/hashicorp/terraform-plugin-framework-validators v0.12.0
-	github.com/hashicorp/terraform-plugin-go v0.18.0
+	github.com/hashicorp/terraform-plugin-go v0.19.0
 	github.com/hashicorp/terraform-plugin-log v0.9.0
 	github.com/hashicorp/terraform-plugin-mux v0.11.2
 	github.com/hashicorp/terraform-plugin-sdk/v2 v2.28.0
@@ -55,7 +55,7 @@ require (
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
 	github.com/hashicorp/go-hclog v1.5.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
-	github.com/hashicorp/go-plugin v1.4.10 // indirect
+	github.com/hashicorp/go-plugin v1.5.1 // indirect
 	github.com/hashicorp/go-version v1.6.0 // indirect
 	github.com/hashicorp/hc-install v0.5.2 // indirect
 	github.com/hashicorp/logutils v1.0.0 // indirect
