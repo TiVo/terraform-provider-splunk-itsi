@@ -42,7 +42,7 @@
         type = "random_string"
       }
     }
-  expected_error: .*kpi\.0\.type to be one of \[kpis_primary service_health\].*
+  expected_error: .*kpi\.0\.type to be one of \[\"kpis_primary\" \"service_health\"\].*
 
 - description: Entity rule validation of the field type
   config: |
