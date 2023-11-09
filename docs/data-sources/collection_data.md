@@ -18,6 +18,7 @@ Collection data
 ### Optional
 
 - `collection` (Block, Optional) Block identifying the collection (see [below for nested schema](#nestedblock--collection))
+- `fields` (Set of String) List of fields to include (1) or exclude (0). A fields value cannot contain both include and exclude specifications except for exclusion of the _key field. If not specified, all fields will be returned
 - `query` (String) Query to filter the data requested
 
 ### Read-Only

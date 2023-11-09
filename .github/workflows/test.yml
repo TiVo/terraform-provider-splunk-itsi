@@ -25,11 +25,11 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v4
         with:
-          go-version: "1.20"
+          go-version: "1.21"
         id: go
 
       - name: Check out code into the Go module directory
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Get dependencies
         run: |
@@ -44,8 +44,8 @@ jobs:
     steps:
       - uses: actions/setup-go@v4
         with:
-          go-version: "1.20"
-      - uses: actions/checkout@v3
+          go-version: "1.21"
+      - uses: actions/checkout@v4
       - run: go generate ./...
       - name: git diff
         run: |
@@ -63,23 +63,23 @@ jobs:
       matrix:
         # list whatever Terraform versions here you would like to support
         terraform:
-          - "1.3.*"
           - "1.4.*"
           - "1.5.*"
+          - "1.6.*"
     steps:
       - name: Set up Go
         uses: actions/setup-go@v4
         with:
-          go-version: "1.20"
+          go-version: "1.21"
         id: go
 
-      - uses: hashicorp/setup-terraform@v2
+      - uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: ${{ matrix.terraform }}
           terraform_wrapper: false
 
       - name: Check out code into the Go module directory
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Format
         run: if [ "$(gofmt -s -l . | wc -l)" -gt 0 ]; then exit 1; fi

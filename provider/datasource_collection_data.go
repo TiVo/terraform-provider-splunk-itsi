@@ -23,6 +23,7 @@ type dataSourceCollectionData struct {
 type dataSourceCollectionDataModel struct {
 	Collection collectionModel `tfsdk:"collection"`
 	Query      types.String    `tfsdk:"query"`
+	Fields     types.Set       `tfsdk:"fields"`
 	Data       types.String    `tfsdk:"data"`
 }
 
@@ -58,6 +59,11 @@ func (d *dataSourceCollectionData) Schema(_ context.Context, _ datasource.Schema
 				MarkdownDescription: "Query to filter the data requested",
 				Optional:            true,
 			},
+			"fields": schema.SetAttribute{
+				MarkdownDescription: "List of fields to include (1) or exclude (0). A fields value cannot contain both include and exclude specifications except for exclusion of the _key field. If not specified, all fields will be returned",
+				ElementType:         types.StringType,
+				Optional:            true,
+			},
 			"data": schema.StringAttribute{
 				MarkdownDescription: "JSON encoded entries",
 				Computed:            true,
@@ -78,7 +84,13 @@ func (d *dataSourceCollectionData) Read(ctx context.Context, req datasource.Read
 	}
 
 	api := NewCollectionAPI(state.Collection, d.client)
-	obj, diags := api.Query(ctx, state.Query.ValueString())
+
+	var fields []string
+	if resp.Diagnostics.Append(state.Fields.ElementsAs(ctx, &fields, false)...); resp.Diagnostics.HasError() {
+		return
+	}
+
+	obj, diags := api.Query(ctx, state.Query.ValueString(), fields)
 	resp.Diagnostics.Append(diags...)
 
 	data, err := json.Marshal(obj)
