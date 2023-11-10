@@ -398,6 +398,7 @@ Optional:
 - `notable_owner_change` (String)
 - `notable_severity_change` (String)
 - `notable_status_change` (String)
+- `pagerduty_v2` (Block Set, Max: 1) Send a Stateful PagerDuty Alert (see [below for nested schema](#nestedblock--rule--actions--item--pagerduty_v2))
 - `script` (Block Set, Max: 1) Run a script stored in $SPLUNK_HOME/bin/scripts. Note: DEPRECATED (see [below for nested schema](#nestedblock--rule--actions--item--script))
 - `slack_adv` (Block Set, Max: 1) Send an advanced message to a Slack channel (see [below for nested schema](#nestedblock--rule--actions--item--slack_adv))
 
@@ -468,6 +469,36 @@ Required:
 Optional:
 
 - `host_to_ping` (String) Type the event field that contains the host that you want to ping in the Host field. For example, %server%. Defaults to `%orig_host%`.
+
+
+<a id="nestedblock--rule--actions--item--pagerduty_v2"></a>
+### Nested Schema for `rule.actions.item.pagerduty_v2`
+
+Required:
+
+- `dedup_key` (String) Deduplication key for correlating events.
+- `severity` (String) Severity of the described event; one of critical, error, warning, info, or ok (all clear)
+- `source` (String) Unique location of the affected system, often a hostname or FQDN
+- `summary` (String) Text summary of the event
+
+Optional:
+
+- `custom_details` (String) Additional details about the event and affected system. Must be valid JSON.
+							Other standard Events v2 API parameters (timestamp, component, group, class, images, links)
+							may be included in this JSON and will be properly sent. Defaults to ``.
+- `integration_url` (String) Defaults to `https://events.pagerduty.com/v2/enqueue`.
+- `pagerduty_service` (String) Technical Service in PagerDuty to which events should be routed Defaults to `unknown`.
+- `routing_key` (String) Override the integration for this alert by entering the App Key of another integration in PagerDuty
+- `trigger_state` (String) The "trigger state" for this run of the alert check. This is used to implement stateful alerting.
+							This parameter should contain a value that changes if and only if an update event should be sent to PagerDuty.
+							If left empty, the value of the severity parameter will be used.
+							Another common implementation is to compute the trigger condition (true or false) in SPL and place that value in a field that is specified here (eg. "$result.trigger$").
+							If you wish to send updates to PagerDuty upon other changes as well (besides the threshold condition), you can concatenate the values of those additional fields here also. 
+							For example, if you set this to "$result.threshold$,$result.severity$" then you can send updates to PagerDuty when the trigger threshold remains exceeded, but the severity increases (or decreases). Defaults to ``.
+
+Read-Only:
+
+- `default_routing_key` (String) Default Integration for this alert by entering the App Key of another integration in PagerDuty
 
 
 <a id="nestedblock--rule--actions--item--script"></a>
