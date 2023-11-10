@@ -292,19 +292,19 @@ func ResourceNotableEventAggregationPolicy() *schema.Resource {
 						Optional: true,
 						Default:  "",
 						Description: `Additional details about the event and affected system. Must be valid JSON.
-									Other standard Events v2 API parameters (timestamp, component, group, class, images, links)
-									may be included in this JSON and will be properly sent.`,
+							Other standard Events v2 API parameters (timestamp, component, group, class, images, links)
+							may be included in this JSON and will be properly sent.`,
 					},
 					"trigger_state": {
 						Type:     schema.TypeString,
 						Optional: true,
 						Default:  "",
 						Description: `The "trigger state" for this run of the alert check. This is used to implement stateful alerting.
-									This parameter should contain a value that changes if and only if an update event should be sent to PagerDuty.
-									If left empty, the value of the severity parameter will be used.
-									Another common implementation is to compute the trigger condition (true or false) in SPL and place that value in a field that is specified here (eg. "$result.trigger$").
-									If you wish to send updates to PagerDuty upon other changes as well (besides the threshold condition), you can concatenate the values of those additional fields here also. 
-									For example, if you set this to "$result.threshold$,$result.severity$" then you can send updates to PagerDuty when the trigger threshold remains exceeded, but the severity increases (or decreases).`,
+							This parameter should contain a value that changes if and only if an update event should be sent to PagerDuty.
+							If left empty, the value of the severity parameter will be used.
+							Another common implementation is to compute the trigger condition (true or false) in SPL and place that value in a field that is specified here (eg. "$result.trigger$").
+							If you wish to send updates to PagerDuty upon other changes as well (besides the threshold condition), you can concatenate the values of those additional fields here also. 
+							For example, if you set this to "$result.threshold$,$result.severity$" then you can send updates to PagerDuty when the trigger threshold remains exceeded, but the severity increases (or decreases).`,
 					},
 					"pagerduty_service": {
 						Type:        schema.TypeString,
