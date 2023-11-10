@@ -27,7 +27,6 @@ var supported_execute_actions = map[string]struct{}{
 	"itsi_event_action_link_url":        {},
 	"itsi_sample_event_action_ping":     {},
 	"script":                            {},
-	"pagerduty_v2":                      {},
 }
 
 type SDK_ISSUE_588 struct {
@@ -241,76 +240,6 @@ func ResourceNotableEventAggregationPolicy() *schema.Resource {
 						Elem: &schema.Schema{
 							Type: schema.TypeString,
 						},
-					},
-				},
-			},
-		},
-		"pagerduty_v2": {
-			Type:        schema.TypeSet,
-			Description: "Send a Stateful PagerDuty Alert",
-			MaxItems:    1,
-			Optional:    true,
-			Elem: &schema.Resource{
-				Schema: map[string]*schema.Schema{
-					"integration_url": {
-						Type:     schema.TypeString,
-						Optional: true,
-						Default:  "https://events.pagerduty.com/v2/enqueue",
-					},
-					"default_routing_key": {
-						Type:        schema.TypeString,
-						Computed:    true,
-						Description: "Default Integration for this alert by entering the App Key of another integration in BigPanda",
-					},
-					"routing_key": {
-						Type:        schema.TypeString,
-						Optional:    true,
-						Description: "Override the integration for this alert by entering the App Key of another integration in BigPanda",
-					},
-					"source": {
-						Type:        schema.TypeString,
-						Required:    true,
-						Description: "Unique location of the affected system, often a hostname or FQDN",
-					},
-					"dedup_key": {
-						Type:        schema.TypeString,
-						Required:    true,
-						Description: "Deduplication key for correlating events.",
-					},
-					"severity": {
-						Type:        schema.TypeString,
-						Required:    true,
-						Description: "Severity of the described event; one of critical, error, warning, info, or ok (all clear)",
-					},
-					"summary": {
-						Type:        schema.TypeString,
-						Required:    true,
-						Description: "Text summary of the event",
-					},
-					"custom_details": {
-						Type:     schema.TypeString,
-						Optional: true,
-						Default:  "",
-						Description: `Additional details about the event and affected system. Must be valid JSON.
-									Other standard Events v2 API parameters (timestamp, component, group, class, images, links)
-									may be included in this JSON and will be properly sent.`,
-					},
-					"trigger_state": {
-						Type:     schema.TypeString,
-						Optional: true,
-						Default:  "",
-						Description: `The "trigger state" for this run of the alert check. This is used to implement stateful alerting.
-									This parameter should contain a value that changes if and only if an update event should be sent to PagerDuty.
-									If left empty, the value of the severity parameter will be used.
-									Another common implementation is to compute the trigger condition (true or false) in SPL and place that value in a field that is specified here (eg. "$result.trigger$").
-									If you wish to send updates to PagerDuty upon other changes as well (besides the threshold condition), you can concatenate the values of those additional fields here also. 
-									For example, if you set this to "$result.threshold$,$result.severity$" then you can send updates to PagerDuty when the trigger threshold remains exceeded, but the severity increases (or decreases).`,
-					},
-					"pagerduty_service": {
-						Type:        schema.TypeString,
-						Optional:    true,
-						Default:     "unknown",
-						Description: `Technical Service in PagerDuty to which events should be routed`,
 					},
 				},
 			},
