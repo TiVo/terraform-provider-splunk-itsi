@@ -488,7 +488,7 @@ Optional:
 							may be included in this JSON and will be properly sent. Defaults to ``.
 - `integration_url` (String) Defaults to `https://events.pagerduty.com/v2/enqueue`.
 - `pagerduty_service` (String) Technical Service in PagerDuty to which events should be routed Defaults to `unknown`.
-- `routing_key` (String) Override the integration for this alert by entering the App Key of another integration in BigPanda
+- `routing_key` (String) Override the integration for this alert by entering the App Key of another integration in PagerDuty
 - `trigger_state` (String) The "trigger state" for this run of the alert check. This is used to implement stateful alerting.
 							This parameter should contain a value that changes if and only if an update event should be sent to PagerDuty.
 							If left empty, the value of the severity parameter will be used.
@@ -498,7 +498,7 @@ Optional:
 
 Read-Only:
 
-- `default_routing_key` (String) Default Integration for this alert by entering the App Key of another integration in BigPanda
+- `default_routing_key` (String) Default Integration for this alert by entering the App Key of another integration in PagerDuty
 
 
 <a id="nestedblock--rule--actions--item--script"></a>

@@ -260,12 +260,12 @@ func ResourceNotableEventAggregationPolicy() *schema.Resource {
 					"default_routing_key": {
 						Type:        schema.TypeString,
 						Computed:    true,
-						Description: "Default Integration for this alert by entering the App Key of another integration in BigPanda",
+						Description: "Default Integration for this alert by entering the App Key of another integration in PagerDuty",
 					},
 					"routing_key": {
 						Type:        schema.TypeString,
 						Optional:    true,
-						Description: "Override the integration for this alert by entering the App Key of another integration in BigPanda",
+						Description: "Override the integration for this alert by entering the App Key of another integration in PagerDuty",
 					},
 					"source": {
 						Type:        schema.TypeString,
