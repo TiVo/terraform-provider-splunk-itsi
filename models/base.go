@@ -479,7 +479,6 @@ func (b *Base) Find(ctx context.Context) (result *Base, err error) {
 			}
 		}
 		item.base, err = b_.Read(ctx)
-		return
 	})
 
 	if err == nil {
@@ -610,7 +609,6 @@ func (b *Base) lookupRESTKey(ctx context.Context) error {
 		}
 		Cache.restKey.Update(b.RestInterface, b.ObjectType, b.TFID, b.RESTKey)
 		b.RESTKey = b_.RESTKey
-		return nil
 	}
 
 	return nil
