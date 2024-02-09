@@ -10,7 +10,7 @@ func (conn SplunkConnection) InstallApp(path string, update bool) (string, error
 	data.Add("name", path)
 
 	update_app := "false"
-	if update == true {
+	if update {
 		update_app = "true"
 	}
 
