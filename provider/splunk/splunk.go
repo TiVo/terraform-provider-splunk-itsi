@@ -41,7 +41,7 @@ func (conn SplunkConnection) Login() (key SessionKey, err error) {
 
 	conn.sessionKey = key
 	if !conn.HasSessionKey() {
-		err = fmt.Errorf("Login Failed. No session key received.")
+		err = fmt.Errorf("Login Failed. No session key received")
 	}
 	return
 }

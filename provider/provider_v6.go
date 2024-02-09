@@ -187,6 +187,9 @@ func (p *itsiProvider) DataSources(_ context.Context) []func() datasource.DataSo
 		func() datasource.DataSource {
 			return NewDataSourceKpiThresholdTemplate()
 		},
+		func() datasource.DataSource {
+			return NewDataSourceSplunkSearch()
+		},
 	}
 }
 
