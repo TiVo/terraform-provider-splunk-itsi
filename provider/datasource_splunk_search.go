@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"regexp"
+	"sort"
 	"strconv"
 	"sync"
 
@@ -220,6 +221,8 @@ func (d *dataSourceSplunkSearch) Read(ctx context.Context, req datasource.ReadRe
 	if resp.Diagnostics.Append(state.JoinFields.ElementsAs(ctx, &joinFields, false)...); resp.Diagnostics.HasError() {
 		return
 	}
+
+	sort.Strings(joinFields)
 
 	splunkreq := NewSplunkRequest(d.client, searches, int(state.SearchConcurrency.ValueInt64()), joinFields, true, " ")
 
