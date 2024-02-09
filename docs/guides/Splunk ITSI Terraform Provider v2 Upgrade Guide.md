@@ -12,7 +12,7 @@ The splunk_search data source has undergone notable schema changes:
 
 * The key update is that the `results` data structure is now encoded as a JSON string, enhancing performance when handling large result sets.
 * Searches returning no results will now fail by default. A new boolean option `allow_no_results` have been introduced in case such behavior should be allowed.
-* `is_mv` field has been removed, leveraging the JSON structure for more flexible results handling
+* `is_mv` and `mv_separator` fields have been removed, leveraging the JSON structure for more flexible results handling.
 
 Please refer to the [splunk_search](https://registry.terraform.io/providers/TiVo/splunk-itsi/2.0.0/docs/data-sources/splunk_search) for the full schema reference and usage examples.
 
