@@ -49,7 +49,7 @@ func NewResourceCollectionData() resource.Resource {
 
 // resource terraform models
 
-type collectionModel struct {
+type collectionIDModel struct {
 	Name  types.String `tfsdk:"name"`
 	App   types.String `tfsdk:"app"`
 	Owner types.String `tfsdk:"owner"`
@@ -86,7 +86,7 @@ func collectionSchema() schema.SingleNestedBlock {
 	}
 }
 
-func (c *collectionModel) Key() string {
+func (c *collectionIDModel) Key() string {
 	return fmt.Sprintf("%s/%s/%s", c.Owner.ValueString(), c.App.ValueString(), c.Name.ValueString())
 }
 
@@ -135,11 +135,11 @@ func (e *collectionEntryModel) Unpack() (data map[string]interface{}, diags diag
 }
 
 type collectionDataModel struct {
-	ID         types.String    `tfsdk:"id"`
-	Collection collectionModel `tfsdk:"collection"`
-	Scope      types.String    `tfsdk:"scope"`
-	Generation types.Int64     `tfsdk:"generation"`
-	Entries    types.Set       `tfsdk:"entry"`
+	ID         types.String      `tfsdk:"id"`
+	Collection collectionIDModel `tfsdk:"collection"`
+	Scope      types.String      `tfsdk:"scope"`
+	Generation types.Int64       `tfsdk:"generation"`
+	Entries    types.Set         `tfsdk:"entry"`
 }
 
 // Normalize func allows for supressing the diff when a fields value changes from
@@ -176,11 +176,11 @@ func (d *collectionDataModel) Normalize(ctx context.Context) (diags diag.Diagnos
 
 // collectionAPI client
 type collectionAPI struct {
-	collectionModel
+	collectionIDModel
 	client models.ClientConfig
 }
 
-func NewCollectionAPI(m collectionModel, c models.ClientConfig) *collectionAPI {
+func NewCollectionAPI(m collectionIDModel, c models.ClientConfig) *collectionAPI {
 	return &collectionAPI{m, c}
 }
 

@@ -21,10 +21,10 @@ type dataSourceCollectionData struct {
 }
 
 type dataSourceCollectionDataModel struct {
-	Collection collectionModel `tfsdk:"collection"`
-	Query      types.String    `tfsdk:"query"`
-	Fields     types.Set       `tfsdk:"fields"`
-	Data       types.String    `tfsdk:"data"`
+	Collection collectionIDModel `tfsdk:"collection"`
+	Query      types.String      `tfsdk:"query"`
+	Fields     types.Set         `tfsdk:"fields"`
+	Data       types.String      `tfsdk:"data"`
 }
 
 func NewDataSourceCollectionData() datasource.DataSource {
