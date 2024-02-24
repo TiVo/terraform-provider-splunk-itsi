@@ -197,6 +197,9 @@ func (p *itsiProvider) DataSources(_ context.Context) []func() datasource.DataSo
 func (p *itsiProvider) Resources(_ context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
 		func() resource.Resource {
+			return NewResouceCollection()
+		},
+		func() resource.Resource {
 			return NewResourceCollectionData()
 		},
 		func() resource.Resource {

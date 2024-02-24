@@ -52,7 +52,7 @@ func (d *dataSourceCollectionData) Schema(_ context.Context, _ datasource.Schema
 	resp.Schema = schema.Schema{
 		MarkdownDescription: "Collection data",
 		Blocks: map[string]schema.Block{
-			"collection": collectionSchema(),
+			"collection": collectionIDSchema(),
 		},
 		Attributes: map[string]schema.Attribute{
 			"query": schema.StringAttribute{
