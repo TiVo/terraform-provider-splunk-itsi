@@ -34,5 +34,5 @@ Required:
 
 Optional:
 
-- `app` (String) App of the collection
-- `owner` (String) Owner of the collection
+- `app` (String) App of the collection. Defaults to 'itsi'.
+- `owner` (String) Owner of the collection. Defaults to 'nobody'.

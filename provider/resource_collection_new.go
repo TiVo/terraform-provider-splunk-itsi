@@ -94,6 +94,14 @@ func (c *collectionConfigModel) Normalize() (m collectionConfigModel) {
 
 // COLLECTION RESOURCE IMPLEMENTATION
 
+var resourceCollectionMarkdownDescription = strings.Replace(`
+Manages a KV store collection in Splunk.
+
+~> Due to Splunk API limitations removing an item from {{.BT}}field_types{{.BT}} or {{.BT}}accelerations{{.BT}} requires collection recreation, leading to data loss.
+Adding or modifying these configurations, however is supported and will not affect existing data.
+The terraform provider will issue a warning at plan time if a collection is set to be replaced due to these modifications. Practitioners should exercise caution when modifying these fields.
+`, "{{.BT}}", "`", -1)
+
 // Ensure the implementation satisfies the expected interfaces.
 var (
 	_ resource.Resource = &resourceCollection{}
@@ -140,7 +148,7 @@ func collectionIDSchema() schema.SingleNestedBlock {
 			},
 			"app": schema.StringAttribute{
 				PlanModifiers:       []planmodifier.String{stringplanmodifier.RequiresReplace()},
-				MarkdownDescription: "App of the collection",
+				MarkdownDescription: "App of the collection. Defaults to 'itsi'.",
 				Optional:            true,
 				Computed:            true,
 				Default:             stringdefault.StaticString(collectionDefaultApp),
@@ -148,7 +156,7 @@ func collectionIDSchema() schema.SingleNestedBlock {
 			},
 			"owner": schema.StringAttribute{
 				PlanModifiers:       []planmodifier.String{stringplanmodifier.RequiresReplace()},
-				MarkdownDescription: "Owner of the collection",
+				MarkdownDescription: "Owner of the collection. Defaults to 'nobody'.",
 				Optional:            true,
 				Computed:            true,
 				Default:             stringdefault.StaticString(collectionDefaultUser),
@@ -166,7 +174,7 @@ func (r *resourceCollection) Schema(_ context.Context, _ resource.SchemaRequest,
 			PlanModifiers: []planmodifier.Map{
 				fieldTypesPlanModifier{},
 			},
-			MarkdownDescription: "Field name -> field type mapping for the collection's columns. Field types are used to determine the data type of the column in the collection. Supported field types are: `array`, `number`, `boolean`, `time`, `string` and `cidr`.",
+			MarkdownDescription: "Field name -> field type mapping for the collection's columns. Field types are used to determine the data type of the column in the collection. Supported field types are: `array`, `number`, `bool`, `time`, `string` and `cidr`.",
 			Validators: []validator.Map{
 				mapvalidator.ValueStringsAre(stringvalidator.OneOf("array", "number", "bool", "time", "string", "cidr")),
 			},
@@ -190,7 +198,7 @@ func (r *resourceCollection) Schema(_ context.Context, _ resource.SchemaRequest,
 	})
 
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "Manages a KV store collection resource in Splunk.",
+		MarkdownDescription: resourceCollectionMarkdownDescription,
 		Attributes:          attrs,
 	}
 }

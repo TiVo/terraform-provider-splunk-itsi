@@ -3,12 +3,19 @@
 page_title: "itsi_splunk_collection Resource - itsi"
 subcategory: ""
 description: |-
-  Manages a KV store collection resource in Splunk.
+  Manages a KV store collection in Splunk.
+  ~> Due to Splunk API limitations removing an item from field_types or accelerations requires collection recreation, leading to data loss.
+  Adding or modifying these configurations, however is supported and will not affect existing data.
+  The terraform provider will issue a warning at plan time if a collection is set to be replaced due to these modifications. Practitioners should exercise caution when modifying these fields.
 ---
 
 # itsi_splunk_collection (Resource)
 
-Manages a KV store collection resource in Splunk.
+Manages a KV store collection in Splunk.
+
+~> Due to Splunk API limitations removing an item from `field_types` or `accelerations` requires collection recreation, leading to data loss.
+Adding or modifying these configurations, however is supported and will not affect existing data.
+The terraform provider will issue a warning at plan time if a collection is set to be replaced due to these modifications. Practitioners should exercise caution when modifying these fields.
 
 ## Example Usage
 
@@ -32,21 +39,15 @@ resource "itsi_splunk_collection" "test_collection" {
 
 ### Optional
 
-- `accelerations` (List of String) Field acceleration information (see Splunk docs for accelerated_fields in collections.conf)
-- `app` (String) App the collection belongs to Defaults to `itsi`.
-- `field_types` (Map of String) Field type information
-- `owner` (String) Owner of the collection Defaults to `nobody`.
-
-### Read-Only
-
-- `id` (String) The ID of this resource.
+- `accelerations` (List of String)
+- `app` (String) App of the collection. Defaults to 'itsi'.
+- `field_types` (Map of String) Field name -> field type mapping for the collection's columns. Field types are used to determine the data type of the column in the collection. Supported field types are: `array`, `number`, `bool`, `time`, `string` and `cidr`.
+- `owner` (String) Owner of the collection. Defaults to 'nobody'.
 
 ## Import
 
 Import is supported using the following syntax:
 
 ```shell
-terraform import itsi_service.example {{id}}
-#OR
-terraform import itsi_service.example {{title}}
+terraform import itsi_splunk_collection.example {{owner}}/{{app}}/{{name}}
 ```
