@@ -4,12 +4,14 @@ import (
 	"context"
 	"fmt"
 	"maps"
+	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/mapvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/objectvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -35,6 +37,19 @@ type collectionIDModel struct {
 
 func (c *collectionIDModel) Key() string {
 	return fmt.Sprintf("%s/%s/%s", c.Owner.ValueString(), c.App.ValueString(), c.Name.ValueString())
+}
+
+func collectionIDModelFromString(key string) (c collectionIDModel, diags diag.Diagnostics) {
+	cleanKey := strings.TrimSpace(key)
+	parts := strings.Split(strings.TrimSpace(cleanKey), "/")
+	if len(parts) != 3 {
+		diags.AddError(fmt.Sprintf("Invalid collection key '%s'", cleanKey), "Collection key must be in the format 'owner/app/name'")
+		return
+	}
+	c.Owner = types.StringValue(parts[0])
+	c.App = types.StringValue(parts[1])
+	c.Name = types.StringValue(parts[2])
+	return
 }
 
 type collectionConfigModel struct {
@@ -241,6 +256,27 @@ func (r *resourceCollection) Delete(ctx context.Context, req resource.DeleteRequ
 	api := NewCollectionConfigAPI(state, r.client)
 	resp.Diagnostics.Append(api.Delete(ctx)...)
 	tflog.Trace(ctx, "Finished deleting collecton resource")
+}
+
+func (r *resourceCollection) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	collectionID, diags := collectionIDModelFromString(req.ID)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	state := collectionConfigModel{
+		Owner: collectionID.Owner,
+		App:   collectionID.App,
+		Name:  collectionID.Name,
+	}
+
+	api := NewCollectionConfigAPI(state, r.client)
+	if resp.Diagnostics.Append(api.Read(ctx)...); resp.Diagnostics.HasError() {
+		return
+	}
+
+	resp.Diagnostics.Append(resp.State.Set(ctx, api.config)...)
 }
 
 // PLAN MODIFIERS
