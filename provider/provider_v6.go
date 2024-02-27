@@ -182,6 +182,9 @@ func (p *itsiProvider) DataSources(_ context.Context) []func() datasource.DataSo
 			return NewDataSourceEntityType()
 		},
 		func() datasource.DataSource {
+			return NewDataSourceCollection()
+		},
+		func() datasource.DataSource {
 			return NewDataSourceCollectionData()
 		},
 		func() datasource.DataSource {
