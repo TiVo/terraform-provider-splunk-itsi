@@ -76,13 +76,13 @@ func (d *dataSourceCollection) Schema(_ context.Context, _ datasource.SchemaRequ
 				MarkdownDescription: "App of the collection. Defaults to 'itsi'.",
 				Optional:            true,
 				Computed:            true,
-				Validators:          validateStringIdentifier2(),
+				Validators:          validateStringIdentifier(),
 			},
 			"owner": schema.StringAttribute{
 				MarkdownDescription: "Owner of the collection. Defaults to 'nobody'.",
 				Optional:            true,
 				Computed:            true,
-				Validators:          validateStringIdentifier2(),
+				Validators:          validateStringIdentifier(),
 			},
 			"field_types": schema.MapAttribute{
 				MarkdownDescription: "Field name -> field type mapping for the collection's columns. ",
