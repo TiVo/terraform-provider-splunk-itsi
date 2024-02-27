@@ -1,3 +1,1 @@
-terraform import itsi_service.example {{id}}
-#OR
-terraform import itsi_service.example {{title}}
+terraform import itsi_splunk_collection.example {{owner}}/{{app}}/{{name}}

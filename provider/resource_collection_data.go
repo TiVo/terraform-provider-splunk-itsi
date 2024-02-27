@@ -4,17 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/http"
-	"net/url"
 	"reflect"
 	"strings"
 
 	"github.com/google/uuid"
-	"github.com/hashicorp/terraform-plugin-framework-validators/objectvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/objectplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
@@ -45,49 +41,6 @@ type resourceCollectionData struct {
 
 func NewResourceCollectionData() resource.Resource {
 	return &resourceCollectionData{}
-}
-
-// resource terraform models
-
-type collectionModel struct {
-	Name  types.String `tfsdk:"name"`
-	App   types.String `tfsdk:"app"`
-	Owner types.String `tfsdk:"owner"`
-}
-
-func collectionSchema() schema.SingleNestedBlock {
-	return schema.SingleNestedBlock{
-		MarkdownDescription: "Block identifying the collection",
-		PlanModifiers: []planmodifier.Object{
-			objectplanmodifier.RequiresReplace(),
-		},
-		Attributes: map[string]schema.Attribute{
-			"name": schema.StringAttribute{
-				MarkdownDescription: "Name of the collection",
-				Required:            true,
-				Validators:          validateStringIdentifier2(),
-			},
-			"app": schema.StringAttribute{
-				MarkdownDescription: "App of the collection",
-				Optional:            true,
-				Computed:            true,
-				Default:             stringdefault.StaticString(collectionDefaultApp),
-				Validators:          validateStringIdentifier2(),
-			},
-			"owner": schema.StringAttribute{
-				MarkdownDescription: "Owner of the collection",
-				Optional:            true,
-				Computed:            true,
-				Default:             stringdefault.StaticString(collectionDefaultUser),
-				Validators:          validateStringIdentifier2(),
-			},
-		},
-		Validators: []validator.Object{objectvalidator.IsRequired()},
-	}
-}
-
-func (c *collectionModel) Key() string {
-	return fmt.Sprintf("%s/%s/%s", c.Owner.ValueString(), c.App.ValueString(), c.Name.ValueString())
 }
 
 type collectionEntryModel struct {
@@ -135,11 +88,11 @@ func (e *collectionEntryModel) Unpack() (data map[string]interface{}, diags diag
 }
 
 type collectionDataModel struct {
-	ID         types.String    `tfsdk:"id"`
-	Collection collectionModel `tfsdk:"collection"`
-	Scope      types.String    `tfsdk:"scope"`
-	Generation types.Int64     `tfsdk:"generation"`
-	Entries    types.Set       `tfsdk:"entry"`
+	ID         types.String      `tfsdk:"id"`
+	Collection collectionIDModel `tfsdk:"collection"`
+	Scope      types.String      `tfsdk:"scope"`
+	Generation types.Int64       `tfsdk:"generation"`
+	Entries    types.Set         `tfsdk:"entry"`
 }
 
 // Normalize func allows for supressing the diff when a fields value changes from
@@ -171,209 +124,6 @@ func (d *collectionDataModel) Normalize(ctx context.Context) (diags diag.Diagnos
 	var diags_ diag.Diagnostics
 	d.Entries, diags_ = types.SetValueFrom(ctx, d.Entries.ElementType(ctx), entries)
 	diags.Append(diags_...)
-	return
-}
-
-// collectionAPI client
-type collectionAPI struct {
-	collectionModel
-	client models.ClientConfig
-}
-
-func NewCollectionAPI(m collectionModel, c models.ClientConfig) *collectionAPI {
-	return &collectionAPI{m, c}
-}
-
-func (api *collectionAPI) Model(objectType string) *models.CollectionApi {
-	return models.NewCollection(
-		api.client,
-		api.Name.ValueString(),
-		api.App.ValueString(),
-		api.Owner.ValueString(),
-		api.Name.ValueString(),
-		objectType)
-}
-
-func (api *collectionAPI) CollectionExists(ctx context.Context, require bool) (exists bool, diags diag.Diagnostics) {
-	collection := api.Model("collection_config_no_body")
-	collection.SetCodeHandle(http.StatusNotFound, util.Ignore)
-	collection_, err := collection.Read(ctx)
-	if err != nil {
-		diags.AddError(fmt.Sprintf("Unable to read %s collection config", api.Key()), err.Error())
-		return
-	}
-	if exists = collection_ != nil; require && !exists {
-		diags.AddError("collection not found",
-			fmt.Sprintf("Collection %s does not exist", api.Key()))
-	}
-	return
-}
-
-func (api *collectionAPI) Query(ctx context.Context, query string, fields []string) (obj interface{}, diags diag.Diagnostics) {
-	collection := api.Model("collection_data")
-	var params, queryParams, fieldsParams string
-
-	if strings.TrimSpace(query) != "" {
-		queryParams = "query=" + url.QueryEscape(query)
-	}
-	if len(fields) > 0 {
-		urlEscapedFields := make([]string, len(fields))
-		for i, field := range fields {
-			urlEscapedFields[i] = url.QueryEscape(field)
-		}
-		fieldsParams = "fields=" + strings.Join(urlEscapedFields, ",")
-	}
-	params = strings.Join([]string{queryParams, fieldsParams}, "&")
-	collection.Params = params
-
-	var err error
-	if collection, err = collection.Read(ctx); err != nil {
-		diags.AddError(fmt.Sprintf("Unable to read %s collection data", api.Key()), err.Error())
-		return
-	}
-
-	if obj, err = collection.Unmarshal(collection.Body); err != nil {
-		diags.AddError(fmt.Sprintf("Unable to unmarshal %s collection data", api.Key()), err.Error())
-	}
-
-	return
-}
-
-// collectionDataAPI client
-
-type collectionDataAPI struct {
-	*collectionAPI
-	collectionDataModel
-}
-
-func NewCollectionDataAPI(m collectionDataModel, c models.ClientConfig) *collectionDataAPI {
-	return &collectionDataAPI{NewCollectionAPI(m.Collection, c), m}
-}
-
-func (api *collectionDataAPI) Model(ctx context.Context, includeData bool) (model *models.CollectionApi, diags diag.Diagnostics) {
-	data := map[string]interface{}{
-		"collection_name": api.Collection.Name.ValueString(),
-		"scope":           api.Scope.ValueString(),
-		"generation":      api.Generation.ValueInt64(),
-		"instance":        api.ID.ValueString(),
-	}
-	if includeData {
-		model = api.collectionAPI.Model("collection_batchsave")
-		var entries []collectionEntryModel
-		if diags = api.Entries.ElementsAs(ctx, &entries, false); diags.HasError() {
-			return
-		}
-
-		rows := make([]map[string]interface{}, len(entries))
-
-		for i, entry := range entries {
-			rowMap, diags_ := entry.Unpack()
-			diags.Append(diags_...)
-			rowMap["_instance"] = api.ID.ValueString()
-			rowMap["_gen"] = api.Generation.ValueInt64()
-			rowMap["_scope"] = api.Scope.ValueString()
-			rowMap["_key"] = entry.ID.ValueString()
-			rows[i] = rowMap
-		}
-		data["data"] = rows
-		var err error
-		model.Body, err = json.Marshal(rows)
-		if err != nil {
-			diags.AddError(fmt.Sprintf("Unable to marshal %s collection data", api.Key()), err.Error())
-			return nil, diags
-		}
-	} else {
-		model = api.collectionAPI.Model("collection_data")
-	}
-	model.Data = data
-	return
-}
-
-func (api *collectionDataAPI) Save(ctx context.Context) (diags diag.Diagnostics) {
-	if len(api.Entries.Elements()) == 0 {
-		return
-	}
-	model, diags := api.Model(ctx, true)
-	if diags.HasError() {
-		return
-	}
-	_, err := model.Create(ctx)
-	if err != nil {
-		diags.AddError(fmt.Sprintf("Unable to save %s collection data", api.Key()), err.Error())
-	}
-	return
-}
-
-func (api *collectionDataAPI) deleteOldRows(ctx context.Context) (diags diag.Diagnostics) {
-	model, diags := api.Model(ctx, false)
-	if diags.HasError() {
-		return
-	}
-	q := fmt.Sprintf(`{"$or":[{"_instance":null},{"_instance":{"$ne": "%s"}},{"_gen":null},{"_gen":{"$ne": %d}}]}`, api.ID.ValueString(), api.Generation.ValueInt64())
-	q = fmt.Sprintf(`{"$and":[{"_scope":"%s"},%s]}`, api.Scope.ValueString(), q)
-	model.Params = "query=" + url.QueryEscape(q)
-
-	_, err := model.Delete(ctx)
-	if err != nil {
-		diags.AddError(fmt.Sprintf("Unable to delete %s collection data", api.Key()), err.Error())
-	}
-	return
-}
-
-func (api *collectionDataAPI) Read(ctx context.Context) (data []collectionEntryModel, diags diag.Diagnostics) {
-	q := fmt.Sprintf(`{"_scope":"%s"}`, api.Scope.ValueString())
-	obj, diags := api.Query(ctx, q, []string{})
-	if diags.Append(diags...); diags.HasError() {
-		return
-	}
-
-	arr, ok := obj.([]interface{})
-	if !ok {
-		diags.AddError(fmt.Sprintf("Unable to read %s collection data", api.Key()), "expected array body return type")
-		return
-	}
-
-	data = make([]collectionEntryModel, len(arr))
-
-	for i, item := range arr {
-		var entry collectionEntryModel
-
-		item_, ok := item.(map[string]interface{})
-		if !ok {
-			diags.AddError(fmt.Sprintf("Unable to read %s collection data", api.Key()), "expected map in array body return type")
-		}
-		row := map[string]interface{}{}
-
-		for k, v := range item_ {
-			if k == "_key" {
-				entry.ID = types.StringValue(v.(string))
-			} else if !strings.HasPrefix(k, "_") {
-				switch val := v.(type) {
-				case []interface{}:
-					row[k] = val
-				default:
-					row[k] = []interface{}{val}
-				}
-			}
-		}
-		if diags.Append(entry.Pack(row)...); diags.HasError() {
-			return
-		}
-		data[i] = entry
-	}
-
-	return
-}
-
-func (api *collectionDataAPI) Delete(ctx context.Context) (diags diag.Diagnostics) {
-	model, diags_ := api.Model(ctx, false)
-	if diags.Append(diags_...); diags.HasError() {
-		return
-	}
-	model.Params = "query=" + url.QueryEscape(fmt.Sprintf(`{"_scope":"%s"}`, api.Scope.ValueString()))
-	if _, err := model.Delete(ctx); err != nil {
-		diags.AddError(fmt.Sprintf("Unable to delete %s collection data", api.Key()), err.Error())
-	}
 	return
 }
 
@@ -479,7 +229,7 @@ func (r *resourceCollectionData) Schema(_ context.Context, _ resource.SchemaRequ
 	resp.Schema = schema.Schema{
 		MarkdownDescription: "Collection data resource",
 		Blocks: map[string]schema.Block{
-			"collection": collectionSchema(),
+			"collection": collectionIDSchema(),
 			"entry": schema.SetNestedBlock{
 				MarkdownDescription: "Block representing an entry in the collection",
 				NestedObject: schema.NestedBlockObject{
