@@ -267,7 +267,7 @@ func (api *collectionConfigAPI) Read(ctx context.Context) (diags diag.Diagnostic
 	}
 	var err error
 	if model, err = model.Read(ctx); err != nil {
-		diags.AddError("Failed to read collection config", err.Error())
+		diags.AddError(fmt.Sprintf("Failed to read collection config for '%s' collection", api.collectionIDModel.Key()), err.Error())
 		return
 	}
 	api.config, diags = collectionConfigModelFromAPIModel(ctx, model)
