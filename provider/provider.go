@@ -74,7 +74,6 @@ func Provider() *schema.Provider {
 			"itsi_entity_type":               ResourceEntityType(),
 			"itsi_service":                   ResourceService(),
 			"itsi_neap":                      ResourceNotableEventAggregationPolicy(),
-			"itsi_splunk_collection":         ResourceCollection(),
 			"itsi_splunk_collection_entry":   ResourceCollectionEntry(),
 			"itsi_splunk_collection_entries": ResourceCollectionEntries(),
 		},

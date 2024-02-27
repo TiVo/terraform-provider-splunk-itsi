@@ -60,6 +60,14 @@ collection_config:
     rest_key_field:                  name
     tfid_field:                      name
 
+collection_config_update:
+    path:                            storage/collections/config
+    api_key_in_url:                  true
+    body_format:                     XML
+    api_ignore_response_body:        true
+    rest_key_field:                  name
+    tfid_field:                      name
+
 collection_config_no_body:
     path:                            storage/collections/config
     api_key_in_url:                  true

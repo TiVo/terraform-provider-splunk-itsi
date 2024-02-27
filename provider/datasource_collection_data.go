@@ -21,10 +21,10 @@ type dataSourceCollectionData struct {
 }
 
 type dataSourceCollectionDataModel struct {
-	Collection collectionModel `tfsdk:"collection"`
-	Query      types.String    `tfsdk:"query"`
-	Fields     types.Set       `tfsdk:"fields"`
-	Data       types.String    `tfsdk:"data"`
+	Collection collectionIDModel `tfsdk:"collection"`
+	Query      types.String      `tfsdk:"query"`
+	Fields     types.Set         `tfsdk:"fields"`
+	Data       types.String      `tfsdk:"data"`
 }
 
 func NewDataSourceCollectionData() datasource.DataSource {
@@ -52,7 +52,7 @@ func (d *dataSourceCollectionData) Schema(_ context.Context, _ datasource.Schema
 	resp.Schema = schema.Schema{
 		MarkdownDescription: "Collection data",
 		Blocks: map[string]schema.Block{
-			"collection": collectionSchema(),
+			"collection": collectionIDSchema(),
 		},
 		Attributes: map[string]schema.Attribute{
 			"query": schema.StringAttribute{
