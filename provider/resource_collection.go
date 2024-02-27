@@ -2,1248 +2,368 @@ package provider
 
 import (
 	"context"
-	"encoding/xml"
 	"fmt"
-	"net/url"
-	"regexp"
-	"sort"
-	"strconv"
+	"maps"
 	"strings"
 
-	"github.com/hashicorp/go-uuid"
+	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
+	"github.com/hashicorp/terraform-plugin-framework-validators/mapvalidator"
+	"github.com/hashicorp/terraform-plugin-framework-validators/objectvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+	"github.com/hashicorp/terraform-plugin-framework/attr"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/path"
+	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listdefault"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/mapdefault"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/objectplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
 	"github.com/tivo/terraform-provider-splunk-itsi/models"
-	"github.com/tivo/terraform-provider-splunk-itsi/provider/util"
 )
 
-var validateStringID = struct {
-	MinLength, MaxLength int
-	RE                   *regexp.Regexp
-	RegexpDescription    string
-}{
-	1, 255,
-	regexp.MustCompile(`^[a-zA-Z][-_0-9a-zA-Z]*$`),
-	"must begin with a letter and contain only alphanumerics, hyphens and underscores",
+// COLLECTION MODELS
+
+type collectionIDModel struct {
+	Name  types.String `tfsdk:"name"`
+	App   types.String `tfsdk:"app"`
+	Owner types.String `tfsdk:"owner"`
 }
 
-func validateStringIdentifier() schema.SchemaValidateFunc {
-	return validation.All(
-		validation.StringLenBetween(validateStringID.MinLength, validateStringID.MaxLength),
-		validation.StringMatch(
-			validateStringID.RE,
-			validateStringID.RegexpDescription,
-		),
-	)
+func (c *collectionIDModel) Key() string {
+	return fmt.Sprintf("%s/%s/%s", c.Owner.ValueString(), c.App.ValueString(), c.Name.ValueString())
 }
 
-func validateStringIdentifier2() []validator.String {
-	return []validator.String{
-		stringvalidator.LengthBetween(validateStringID.MinLength, validateStringID.MaxLength),
-		stringvalidator.RegexMatches(
-			validateStringID.RE,
-			validateStringID.RegexpDescription,
-		),
+func collectionIDModelFromString(key string) (c collectionIDModel, diags diag.Diagnostics) {
+	cleanKey := strings.TrimSpace(key)
+	parts := strings.Split(strings.TrimSpace(cleanKey), "/")
+	if len(parts) != 3 {
+		diags.AddError(fmt.Sprintf("Invalid collection key '%s'", cleanKey), "Collection key must be in the format 'owner/app/name'")
+		return
 	}
-}
-
-func validateFieldTypes() schema.SchemaValidateFunc {
-	arr := []string{"array", "number", "bool", "string", "cidr", "time"}
-	return validation.StringInSlice(arr, true)
-}
-
-func ResourceCollection() *schema.Resource {
-	return &schema.Resource{
-		Description:   "Manages a KV store collection resource in Splunk.",
-		CreateContext: collectionUpdate,
-		ReadContext:   collectionRead,
-		UpdateContext: collectionUpdate,
-		DeleteContext: collectionDelete,
-		Importer: &schema.ResourceImporter{
-			StateContext: collectionImport,
-		},
-		Schema: map[string]*schema.Schema{
-			"name": {
-				Type:         schema.TypeString,
-				Required:     true,
-				Description:  "Name of the collection",
-				ValidateFunc: validateStringIdentifier(),
-			},
-			"app": {
-				Type:         schema.TypeString,
-				Optional:     true,
-				Default:      "itsi",
-				ForceNew:     true,
-				Description:  "App the collection belongs to",
-				ValidateFunc: validateStringIdentifier(),
-			},
-			"owner": {
-				Type:         schema.TypeString,
-				Optional:     true,
-				Default:      "nobody",
-				ForceNew:     true,
-				Description:  "Owner of the collection",
-				ValidateFunc: validateStringIdentifier(),
-			},
-			"field_types": {
-				Type:     schema.TypeMap,
-				Optional: true,
-				ForceNew: true,
-				Elem: &schema.Schema{
-					Type:         schema.TypeString,
-					ValidateFunc: validateFieldTypes(),
-				},
-				Description: "Field type information",
-			},
-			"accelerations": {
-				Type:     schema.TypeList,
-				Optional: true,
-				ForceNew: true,
-				Elem: &schema.Schema{
-					Type:         schema.TypeString,
-					ValidateFunc: validation.StringIsJSON,
-				},
-				Description: "Field acceleration information (see Splunk docs for accelerated_fields in collections.conf)",
-			},
-		},
-	}
-}
-
-func ResourceCollectionEntry() *schema.Resource {
-	return &schema.Resource{
-		Description:   "Manages a KV store collection record.",
-		CreateContext: collectionEntryCreate,
-		ReadContext:   collectionEntryRead,
-		UpdateContext: collectionEntryUpdate,
-		DeleteContext: collectionEntryDelete,
-		Importer: &schema.ResourceImporter{
-			StateContext: collectionEntryImport,
-		},
-		Schema: map[string]*schema.Schema{
-			"collection_name": {
-				Type:         schema.TypeString,
-				Required:     true,
-				Description:  "Name of the collection containing this entry",
-				ValidateFunc: validateStringIdentifier(),
-			},
-			"collection_app": {
-				Type:         schema.TypeString,
-				Optional:     true,
-				Default:      "itsi",
-				Description:  "App the collection belongs to",
-				ValidateFunc: validateStringIdentifier(),
-			},
-			"collection_owner": {
-				Type:         schema.TypeString,
-				Optional:     true,
-				Default:      "nobody",
-				Description:  "Owner of the collection",
-				ValidateFunc: validateStringIdentifier(),
-			},
-			"key": {
-				Type:        schema.TypeString,
-				Optional:    true,
-				Description: "Value of the key field of this collection entry",
-				ForceNew:    true,
-			},
-			"data": {
-				Type:     schema.TypeMap,
-				Required: true,
-				Elem: &schema.Schema{
-					Type: schema.TypeString,
-				},
-				Description: "Collection entry data, fields and their values",
-			},
-		},
-	}
-}
-
-func ResourceCollectionEntries() *schema.Resource {
-	return &schema.Resource{
-		Description:   "Manages KV store collection records.",
-		CreateContext: collectionEntriesCreate,
-		ReadContext:   collectionEntriesRead,
-		UpdateContext: collectionEntriesUpdate,
-		DeleteContext: collectionEntriesDelete,
-		Importer: &schema.ResourceImporter{
-			StateContext: collectionEntriesImport,
-		},
-		Schema: map[string]*schema.Schema{
-			"collection_name": {
-				Type:         schema.TypeString,
-				Required:     true,
-				Description:  "Name of the collection containing this entry",
-				ValidateFunc: validateStringIdentifier(),
-			},
-			"collection_app": {
-				Type:         schema.TypeString,
-				Optional:     true,
-				Default:      "itsi",
-				Description:  "App the collection belongs to",
-				ValidateFunc: validateStringIdentifier(),
-			},
-			"collection_owner": {
-				Type:         schema.TypeString,
-				Optional:     true,
-				Default:      "nobody",
-				Description:  "Owner of the collection",
-				ValidateFunc: validateStringIdentifier(),
-			},
-			"preserve_keys": {
-				Type:        schema.TypeBool,
-				Optional:    true,
-				Default:     false,
-				Description: "Should the _key field be preserved?",
-			},
-			"instance": {
-				Type:        schema.TypeString,
-				Computed:    true,
-				Description: "Computed instance ID of the resource, used w/ 'generation' to prevent row duplication in a given scope",
-			},
-			"generation": {
-				Type:        schema.TypeInt,
-				Computed:    true,
-				Description: "Computed latest generation of changes",
-			},
-			"scope": {
-				Type:        schema.TypeString,
-				Optional:    true,
-				Default:     "default_scope",
-				Description: "Scope of ownership of this collection entry",
-			},
-			"data": {
-				Type:     schema.TypeList,
-				Required: true,
-				Elem: &schema.Schema{
-					Type: schema.TypeSet,
-					Elem: &schema.Resource{
-						Schema: map[string]*schema.Schema{
-							"name": {
-								Type:        schema.TypeString,
-								Required:    true,
-								Description: "Name of the field",
-							},
-							"values": {
-								Type:        schema.TypeList,
-								Required:    true,
-								Description: "Values of the field",
-								Elem: &schema.Schema{
-									Type: schema.TypeString,
-								},
-							},
-						},
-					},
-				},
-				Description: "Collection data for all entries",
-			},
-		},
-	}
-}
-
-// ----------------------------------------------------------------------
-
-// Helper functions in the spirit of diag.Errorf()...
-func errorf(summary string) diag.Diagnostic {
-	return diag.Diagnostic{Severity: diag.Error, Summary: summary}
-}
-func warnf(summary string) diag.Diagnostic {
-	return diag.Diagnostic{Severity: diag.Warning, Summary: summary}
-}
-
-func unpackRow(in []interface{}) (out map[string]interface{}) {
-	out = make(map[string]interface{})
-	for _, f := range in {
-		m := f.(map[string]interface{})
-
-		multiValue, ok := m["values"].([]interface{})
-		if ok && len(multiValue) > 0 {
-			if len(multiValue) == 1 {
-				out[m["name"].(string)] = multiValue[0]
-			} else {
-				out[m["name"].(string)] = multiValue
-			}
-		}
-	}
+	c.Owner = types.StringValue(parts[0])
+	c.App = types.StringValue(parts[1])
+	c.Name = types.StringValue(parts[2])
 	return
 }
 
-// ----------------------------------------------------------------------
+type collectionConfigModel struct {
+	//collectionIDModel    #TODO: <--- use the embedded struct, once this is supported by the terraform-plugin-framework ( https://github.com/hashicorp/terraform-plugin-framework/issues/242 )
 
-func getCollectionField(d *schema.ResourceData, field string) (string, error) {
-	if v, ok := d.GetOk(field); ok {
-		return v.(string), nil
-	}
-	if v, ok := d.GetOk(fmt.Sprintf("collection_%s", field)); ok {
-		return v.(string), nil
-	}
-	// schema migration
-	if !d.IsNewResource() {
-		switch field {
-		case "app":
-			return "itsi", nil
-		case "owner":
-			return "nobody", nil
-		}
-	}
-	return "", fmt.Errorf("could not find field %s in the collection resource", field)
+	Name          types.String `tfsdk:"name"`
+	App           types.String `tfsdk:"app"`
+	Owner         types.String `tfsdk:"owner"`
+	FieldTypes    types.Map    `tfsdk:"field_types"`
+	Accelerations types.List   `tfsdk:"accelerations"`
 }
 
-// Create a "collection API model" that can help us query APIs,
-// passing no body in the query...
-func collection(ctx context.Context, d *schema.ResourceData, object_type string, m interface{}) (config *models.CollectionApi, err error) {
-	clientConfig := m.(models.ClientConfig)
-
-	name, err := getCollectionField(d, "name")
-	if err != nil {
-		return
+func (c *collectionConfigModel) CollectionIDModel() collectionIDModel {
+	return collectionIDModel{
+		Name:  c.Name,
+		App:   c.App,
+		Owner: c.Owner,
 	}
-	app, err := getCollectionField(d, "app")
-	if err != nil {
-		return
-	}
-	owner, err := getCollectionField(d, "owner")
-	if err != nil {
-		return
-	}
-
-	c := models.NewCollection(clientConfig, name, app, owner, name, object_type)
-
-	data := make(map[string]interface{})
-	data["name"] = name
-	if field_types, ok := d.GetOk("field_types"); ok {
-		if data["field_types"], err = unpackResourceMap[string](field_types.(map[string]interface{})); err != nil {
-			return
-		}
-	} else {
-		data["field_types"] = make(map[string]string)
-	}
-	if accelerations, ok := d.GetOk("accelerations"); ok {
-		if data["accelerations"], err = unpackResourceList[string](accelerations.([]interface{})); err != nil {
-			return
-		}
-	} else {
-		data["accelerations"] = []string{}
-	}
-	c.Data = data
-
-	tflog.Trace(ctx, "RSRC COLLECTION:     api model ("+object_type+")",
-		map[string]interface{}{"key": c.RESTKey, "data": data})
-	return c, nil
 }
 
-// Create a "collection API model" that can help us query APIs,
-// passing no body in the query...
-func collectionEntry(ctx context.Context, d *schema.ResourceData, object_type string, m interface{}) (config *models.CollectionApi, err error) {
-	clientConfig := m.(models.ClientConfig)
+func (c *collectionConfigModel) Normalize() (m collectionConfigModel) {
+	m = *c
 
-	collection, err := getCollectionField(d, "name")
-	if err != nil {
-		return
+	if m.App.IsNull() || m.App.ValueString() == "" {
+		m.App = types.StringValue(collectionDefaultApp)
 	}
-	app, err := getCollectionField(d, "app")
-	if err != nil {
-		return
+
+	if m.Owner.IsNull() || m.Owner.ValueString() == "" {
+		m.Owner = types.StringValue(collectionDefaultUser)
 	}
-	owner, err := getCollectionField(d, "owner")
-	if err != nil {
+
+	if m.FieldTypes.IsNull() || len(m.FieldTypes.Elements()) == 0 {
+		m.FieldTypes, _ = types.MapValue(types.StringType, map[string]attr.Value{})
+	}
+
+	if m.Accelerations.IsNull() || len(m.Accelerations.Elements()) == 0 {
+		m.Accelerations, _ = types.ListValue(types.StringType, []attr.Value{})
+	}
+
+	return m
+}
+
+// COLLECTION RESOURCE IMPLEMENTATION
+
+var resourceCollectionMarkdownDescription = strings.Replace(`
+Manages a KV store collection in Splunk.
+
+~> Due to Splunk API limitations removing an item from {{.BT}}field_types{{.BT}} or {{.BT}}accelerations{{.BT}} requires collection recreation, leading to data loss.
+Adding or modifying these configurations, however is supported and will not affect existing data.
+The terraform provider will issue a warning at plan time if a collection is set to be replaced due to these modifications. Practitioners should exercise caution when modifying these fields.
+`, "{{.BT}}", "`", -1)
+
+// Ensure the implementation satisfies the expected interfaces.
+var (
+	_ resource.Resource = &resourceCollection{}
+)
+
+type resourceCollection struct {
+	client models.ClientConfig
+}
+
+func NewResouceCollection() resource.Resource {
+	return &resourceCollection{}
+}
+
+func (r *resourceCollection) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
+	if req.ProviderData == nil {
 		return
 	}
 
-	key := d.Get("key").(string)
-	if key == "" {
-		key = d.Id()
-	}
-	c := models.NewCollection(clientConfig, collection, app, owner, key, object_type)
-
-	data := make(map[string]interface{})
-	data["collection"] = collection
-	data["key"] = key
-
-	dataMap, err := unpackResourceMap[string](d.Get("data").(map[string]interface{}))
-	if err != nil {
-		return
-	}
-	dataMap["_key"] = data["key"].(string)
-	tflog.Trace(ctx, "RSRC COLLECTION:     data", map[string]interface{}{"map": dataMap})
-
-	data["data"] = dataMap
-	c.Data = data
-
-	tflog.Trace(ctx, "RSRC COLLECTION:     api model ("+object_type+")",
-		map[string]interface{}{"key": c.RESTKey, "data": data})
-	return c, nil
-}
-
-// Create a "collection API model" that can help us query APIs,
-// passing no body in the query...
-func collectionEntries(ctx context.Context, d *schema.ResourceData, object_type string, m interface{}) (config *models.CollectionApi, err error) {
-	clientConfig := m.(models.ClientConfig)
-
-	name, err := getCollectionField(d, "name")
-	if err != nil {
-		return
-	}
-	app, err := getCollectionField(d, "app")
-	if err != nil {
-		return
-	}
-	owner, err := getCollectionField(d, "owner")
-	if err != nil {
-		return
-	}
-
-	c := models.NewCollection(clientConfig, name, app, owner, name, object_type)
-
-	data := make(map[string]interface{})
-	data["instance"] = d.Get("instance").(string)
-	data["collection_name"] = d.Get("collection_name").(string)
-	data["preserve_keys"] = d.Get("preserve_keys").(bool)
-	data["generation"] = d.Get("generation").(int)
-	data["scope"] = d.Get("scope").(string)
-	c.Data = data
-
-	tflog.Trace(ctx, "RSRC COLLECTION:     api model ("+object_type+")",
-		map[string]interface{}{"key": c.RESTKey, "data": data})
-	return c, nil
-}
-
-// Create a "collection API model" that can help us query APIs,
-// passing a default body structure in the query...
-func collectionEntriesDataBody(ctx context.Context, d *schema.ResourceData, object_type string, m interface{}) (config *models.CollectionApi, err error) {
-	clientConfig := m.(models.ClientConfig)
-
-	name, err := getCollectionField(d, "name")
-	if err != nil {
-		return
-	}
-	app, err := getCollectionField(d, "app")
-	if err != nil {
-		return
-	}
-	owner, err := getCollectionField(d, "owner")
-	if err != nil {
-		return
-	}
-
-	c := models.NewCollection(clientConfig, name, app, owner, name, object_type)
-
-	data := make(map[string]interface{})
-	instance := d.Get("instance").(string)
-	data["instance"] = instance
-	data["collection_name"] = d.Get("collection_name").(string)
-	data["preserve_keys"] = d.Get("preserve_keys").(bool)
-	gen := d.Get("generation").(int)
-	data["generation"] = gen
-	scope := d.Get("scope").(string)
-	data["scope"] = scope
-
-	dataRes := d.Get("data").([]interface{})
-	dataList := make([]map[string]interface{}, 0, len(dataRes))
-
-	tflog.Trace(ctx, "RSRC COLLECTION:     save", map[string]interface{}{"arr": dataRes})
-	for i, row := range dataRes {
-		rowMap := unpackRow(row.(*schema.Set).List())
-		rowMap["_instance"] = instance
-		// Add ordering information so that we can reorders
-		// after rereading from Splunk...s
-		rowMap["_idx"] = fmt.Sprintf("%d", i)
-		// Add generational information so that we can delete
-		// out of date entries efficiently...
-		rowMap["_gen"] = gen
-		// Add scope information so that we can manage a
-		// subset of the entries...
-		rowMap["_scope"] = scope
-		tflog.Trace(ctx, "RSRC COLLECTION:       item", map[string]interface{}{"item": rowMap})
-		dataList = append(dataList, rowMap)
-	}
-	data["data"] = dataList
-
-	c.Data = data
-
-	tflog.Trace(ctx, "RSRC COLLECTION:   api model ("+object_type+")",
-		map[string]interface{}{"key": c.RESTKey, "err": err})
-	return c, nil
-}
-
-// ----------------------------------------------------------------------
-// Basic API Calls
-// ----------------------------------------------------------------------
-
-func collectionApiExists(ctx context.Context, d *schema.ResourceData, m interface{}) (api *models.CollectionApi, err error) {
-	collection_name, _ := getCollectionField(d, "name")
-	tflog.Info(ctx, "RSRC COLLECTION:   exists ("+collection_name+")")
-	// To check if a collection exists, we use...
-	//   storage/collections/config/{collection} -- GET
-	api, err = collection(ctx, d, "collection_config_no_body", m)
-	api.SetCodeHandle(404, util.Ignore)
-
-	if err != nil {
-		return nil, err
-	}
-	return api.Read(ctx)
-}
-
-// ----------------------------------------------------------------------
-
-func collectionApiCreate(ctx context.Context, d *schema.ResourceData, m interface{}) (api *models.CollectionApi, err error) {
-	tflog.Info(ctx, "RSRC COLLECTION:   create ("+d.Get("name").(string)+")")
-	// To create a collection, we use...
-	//   storage/collections/config -- POST (body: name=<collection>)
-	api, err = collection(ctx, d, "collection_config_keyless", m)
-	if err != nil {
-		return
-	}
-
-	body := url.Values{}
-	body.Set("name", api.RESTKey)
-	api.Body = []byte(body.Encode())
-
-	return api.Create(ctx)
-}
-
-func collectionApiWaitAndRead(ctx context.Context, d *schema.ResourceData, m interface{}) (api *models.CollectionApi, err error) {
-	tflog.Info(ctx, "RSRC COLLECTION:   read ("+d.Get("name").(string)+")")
-	// To read a collection, we use...
-	//   storage/collections/config/{collection} -- GET
-	api, err = collection(ctx, d, "collection_config", m)
-	if err != nil {
-		return
-	}
-	api.SetCodeHandle(404, util.Retry)
-	return api.Read(ctx)
-}
-
-func collectionApiRead(ctx context.Context, d *schema.ResourceData, m interface{}) (api *models.CollectionApi, err error) {
-	tflog.Info(ctx, "RSRC COLLECTION:   read ("+d.Get("name").(string)+")")
-	// To read a collection, we use...
-	//   storage/collections/config/{collection} -- GET
-	api, err = collection(ctx, d, "collection_config", m)
-	if err != nil {
-		return
-	}
-	return api.Read(ctx)
-}
-
-func collectionApiUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) (api *models.CollectionApi, err error) {
-	tflog.Info(ctx, "RSRC COLLECTION:   update ("+d.Get("name").(string)+")")
-	// To update a collection, we use...
-	//   storage/collections/config/{collection} -- POST
-	api, err = collection(ctx, d, "collection_config", m)
-	if err != nil {
-		return
-	}
-	var qft []string
-	for k, v := range api.Data["field_types"].(map[string]string) {
-		qft = append(qft, fmt.Sprintf("field.%[1]s=%[2]s", k, url.QueryEscape(v)))
-	}
-	var qaf []string
-	for i, s := range api.Data["accelerations"].([]string) {
-		qaf = append(qaf, fmt.Sprintf("accelerated_fields.accel_%03d=%s", i, url.QueryEscape(s)))
-	}
-	api.Params = strings.Join(qft, "&") + "&" + strings.Join(qaf, "&")
-
-	return api.Update(ctx)
-}
-
-func collectionApiDelete(ctx context.Context, d *schema.ResourceData, m interface{}) (api *models.CollectionApi, err error) {
-	tflog.Info(ctx, "RSRC COLLECTION:   delete ("+d.Get("name").(string)+")")
-	// To delete a collection, we use...
-	//   storage/collections/config/{collection} -- DELETE
-	api, err = collection(ctx, d, "collection_config", m)
-	if err != nil {
-		return
-	}
-	return api.Delete(ctx)
-}
-
-// ----------------------------------------------------------------------
-
-func collectionApiEntryExists(ctx context.Context, d *schema.ResourceData, m interface{}) (api *models.CollectionApi, err error) {
-	tflog.Info(ctx, "RSRC COLLECTION:   entry exists ("+d.Get("key").(string)+")")
-	if d.Get("key").(string) == "" {
-		return
-	}
-	// To check if a collection entry exists, we use...
-	//   storage/collections/config/{collection}/{key} -- GET
-	api, _ = collectionEntry(ctx, d, "collection_entry_no_body", m)
-	api.SetCodeHandle(404, util.Ignore)
-
-	return api.Read(ctx)
-}
-
-// ----------------------------------------------------------------------
-
-func collectionApiEntryCreate(ctx context.Context, d *schema.ResourceData, m interface{}) (api *models.CollectionApi, err error) {
-	tflog.Info(ctx, "RSRC COLLECTION:   entry create ("+d.Get("key").(string)+")")
-	// To create a collection entry, we use...
-	//   storage/collections/data/{collection} -- POST
-	api, _ = collectionEntry(ctx, d, "collection_entry_keyless", m)
-	if api.Body, err = api.Marshal(api.Data["data"]); err != nil {
-		return nil, err
-	}
-	return api.Create(ctx)
-}
-
-func collectionApiEntryRead(ctx context.Context, d *schema.ResourceData, m interface{}) (api *models.CollectionApi, err error) {
-	tflog.Info(ctx, "RSRC COLLECTION:   entry read ("+d.Get("key").(string)+")")
-	// To read a collection entry, we use...
-	//   storage/collections/data/{collection}/{key} -- GET
-	api, _ = collectionEntry(ctx, d, "collection_entry", m)
-	api.SetCodeHandle(404, util.Ignore)
-
-	return api.Read(ctx)
-}
-
-func collectionApiEntryUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) (api *models.CollectionApi, err error) {
-	tflog.Info(ctx, "RSRC COLLECTION:   entry update ("+d.Get("key").(string)+")")
-	// To create a collection, we use...
-	//   storage/collections/data/{collection}/{key} -- POST
-	api, _ = collectionEntry(ctx, d, "collection_entry", m)
-	if api.Body, err = api.Marshal(api.Data["data"]); err != nil {
-		return nil, err
-	}
-	return api.Update(ctx)
-}
-
-func collectionApiEntryDelete(ctx context.Context, d *schema.ResourceData, m interface{}) (api *models.CollectionApi, err error) {
-	tflog.Info(ctx, "RSRC COLLECTION:   entry delete ("+d.Get("key").(string)+")")
-	// To delete a collection, we use...
-	//   storage/collections/config/{collection} -- DELETE
-	api, _ = collectionEntry(ctx, d, "collection_entry", m)
-	return api.Delete(ctx)
-}
-
-// ----------------------------------------------------------------------
-
-func collectionApiEntriesRead(ctx context.Context, d *schema.ResourceData, m interface{}) (api *models.CollectionApi, err error) {
-	tflog.Info(ctx, "RSRC COLLECTION:   entries read ("+d.Get("collection_name").(string)+")")
-	// To read the contents of a collection, we use...
-	//   storage/collections/data/{collection} -- GET
-	api, _ = collectionEntries(ctx, d, "collection_data", m)
-
-	scope := api.Data["scope"].(string)
-	q := fmt.Sprintf("{\"_scope\":\"%s\"}", scope)
-	api.Params = "query=" + url.QueryEscape(q)
-
-	return api.Read(ctx)
-}
-
-func collectionApiEntriesSave(ctx context.Context, d *schema.ResourceData, m interface{}) (api *models.CollectionApi, err error) {
-	tflog.Info(ctx, "RSRC COLLECTION:   entries save ("+d.Get("collection_name").(string)+")")
-	// To update entries in a collection, we use...
-	//   storage/collections/data/{collection}/batch_save -- POST (body: <row data>)
-
-	instance := d.Get("instance")
-	if instance == "" {
-		if instance, err = uuid.GenerateUUID(); err != nil {
-			return
-		}
-		if err = d.Set("instance", instance); err != nil {
-			return
-		}
-	}
-
-	// Increment the generation counter...
-	gen := d.Get("generation").(int) + 1
-	if err := d.Set("generation", gen); err != nil {
-		return nil, err
-	}
-
-	api, _ = collectionEntriesDataBody(ctx, d, "collection_batchsave", m)
-	if api.Body, err = api.Marshal(api.Data["data"]); err != nil {
-		return nil, err
-	}
-	return api.Create(ctx)
-}
-
-func collectionApiEntriesDeleteAllRows(ctx context.Context, d *schema.ResourceData, m interface{}) (api *models.CollectionApi, err error) {
-	tflog.Info(ctx, "RSRC COLLECTION:   entries delete all rows ("+d.Get("collection_name").(string)+")")
-	// To delete all entries in a collection, we use...
-	//   storage/collections/data/{collection} -- DELETE
-	api, _ = collectionEntries(ctx, d, "collection_data", m)
-
-	scope := api.Data["scope"].(string)
-	q := fmt.Sprintf("{\"_scope\":\"%s\"}", scope)
-	api.Params = "query=" + url.QueryEscape(q)
-
-	return api.Delete(ctx)
-}
-
-func collectionApiEntriesDeleteOldRows(ctx context.Context, d *schema.ResourceData, m interface{}) (api *models.CollectionApi, err error) {
-	tflog.Info(ctx, "RSRC COLLECTION:   entries delete old rows ("+d.Get("collection_name").(string)+")")
-	// To delete entries not matching our keys in a collection, we use...
-	//   storage/collections/data/{collection} -- DELETE
-	api, _ = collectionEntries(ctx, d, "collection_data", m)
-	instance := api.Data["instance"].(string)
-	gen := api.Data["generation"].(int)
-	scope := api.Data["scope"].(string)
-	q := fmt.Sprintf("{\"$or\":[{\"_instance\":null},{\"_instance\":{\"$ne\": \"%s\"}},{\"_gen\":null},{\"_gen\":{\"$ne\": %d}}]}", instance, gen)
-	q = fmt.Sprintf("{\"$and\":[{\"_scope\":\"%s\"},%s]}", scope, q)
-	api.Params = "query=" + url.QueryEscape(q)
-
-	return api.Delete(ctx)
-}
-
-// ----------------------------------------------------------------------
-// Collection Resource
-// ----------------------------------------------------------------------
-
-func collectionRead(ctx context.Context, d *schema.ResourceData, m interface{}) (diags diag.Diagnostics) {
-	tflog.Info(ctx, "RSRC COLLECTION: READ", map[string]interface{}{"d": fmt.Sprintf("%+v", d)})
-
-	c, err := collectionApiRead(ctx, d, m)
-	if err != nil {
-		diags = append(diags, errorf("Unable to read/dump collection model: "+err.Error()))
-		return
-	}
-	if c == nil || c.Data == nil {
-		d.SetId("")
-		return nil
-	}
-	if err := populateCollectionResourceData(ctx, c, d); err != nil {
-		diags = append(diags, errorf("Unable to populate resource: "+err.Error()))
-	}
-	return
-}
-
-func collectionUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) (diags diag.Diagnostics) {
-	// If this collection doesn't exist, create it...
-	existing, err := collectionApiExists(ctx, d, m)
-	if err != nil {
-		diags = append(diags, warnf("Unable to read/dump collection model: "+err.Error()))
-	}
-	if existing == nil {
-		tflog.Info(ctx, "RSRC COLLECTION: CREATE", map[string]interface{}{"d": fmt.Sprintf("%+v", d)})
-		// Create the collection...
-		if _, err := collectionApiCreate(ctx, d, m); err != nil {
-			diags = append(diags, warnf("Unable to create collection: "+err.Error()))
-			return
-		}
-	} else {
-		tflog.Info(ctx, "RSRC COLLECTION: UPDATE", map[string]interface{}{"d": fmt.Sprintf("%+v", d)})
-		// Update the collection configuration...
-		if _, err := collectionApiUpdate(ctx, d, m); err != nil {
-			diags = append(diags, warnf("Unable to update collection: "+err.Error()))
-			return
-		}
-	}
-	// Now read everything back to see what we made...
-	c, err := collectionApiWaitAndRead(ctx, d, m)
-	if err != nil {
-		diags = append(diags, errorf("Unable to read back collection: "+err.Error()))
-		return
-	}
-	if c == nil {
-		diags = append(diags, errorf("Unable to update object, it is missing!"))
-		return
-	}
-	if err := populateCollectionResourceData(ctx, c, d); err != nil {
-		diags = append(diags, warnf("Unable to populate resource: "+err.Error()))
-	}
-	return
-}
-
-func collectionDelete(ctx context.Context, d *schema.ResourceData, m interface{}) (diags diag.Diagnostics) {
-	tflog.Info(ctx, "RSRC COLLECTION: DELETE", map[string]interface{}{"d": fmt.Sprintf("%+v", d)})
-
-	if _, err := collectionApiDelete(ctx, d, m); err != nil {
-		diags = append(diags, errorf("Unable to delete collection: "+err.Error()))
-	}
-	return
-}
-
-func collectionImport(ctx context.Context, d *schema.ResourceData, m interface{}) ([]*schema.ResourceData, error) {
-	tflog.Info(ctx, "RSRC COLLECTION: IMPORT", map[string]interface{}{"d": fmt.Sprintf("%+v", d)})
-	c, err := collectionApiRead(ctx, d, m)
-	if err != nil {
-		return nil, err
-	}
-	if c == nil {
-		return nil, nil
-	}
-
-	if err = populateCollectionResourceData(ctx, c, d); err != nil {
-		return nil, err
-	}
-	if d.Id() == "" {
-		return nil, nil
-	}
-	return []*schema.ResourceData{d}, nil
-}
-
-func populateCollectionResourceData(ctx context.Context, c *models.CollectionApi, d *schema.ResourceData) (err error) {
-	type Key struct {
-		XmlName xml.Name
-		Name    string `xml:"name,attr"`
-		Value   string `xml:",chardata"`
-	}
-	type Dict struct {
-		XmlName xml.Name
-		Attrs   []xml.Attr `xml:",any,attr"`
-		Keys    []Key      `xml:"http://dev.splunk.com/ns/rest key"`
-	}
-	type Content struct {
-		XmlName xml.Name
-		Type    string `xml:"type,attr"`
-		Dicts   []Dict `xml:"http://dev.splunk.com/ns/rest dict"`
-	}
-	type Feed struct {
-		XmlName xml.Name
-		Attrs   []xml.Attr `xml:",any,attr"`
-		Content []Content  `xml:"entry>content"`
-	}
-
-	// Unmarshal the XML body...
-	var feed Feed
-	if err := xml.Unmarshal(c.Body, &feed); err != nil {
-		return err
-	}
-	keys := feed.Content[0].Dicts[0].Keys
-	tflog.Trace(ctx, "RSRC COLLECTION:   content",
-		map[string]interface{}{"num": len(keys), "keys": fmt.Sprintf("%+v", keys)})
-
-	// Iterate through the feed finding field_types and
-	// accelerations...
-	field_types := map[string]string{}
-	accelerations := make([]string, 0, len(keys))
-	for _, key := range keys {
-		if strings.HasPrefix(key.Name, "field.") {
-			k := strings.TrimPrefix(key.Name, "field.")
-			field_types[k] = key.Value
-		} else if strings.HasPrefix(key.Name, "accelerated_fields.accel_") {
-			s := strings.TrimPrefix(key.Name, "accelerated_fields.accel_")
-			if i, err := strconv.Atoi(s); err == nil && i < cap(keys) {
-				accelerations = accelerations[0 : i+1]
-				accelerations[i] = key.Value
-			}
-		}
-	}
-
-	c.Data["field_types"] = field_types
-	c.Data["accelerations"] = accelerations
-	tflog.Trace(ctx, "RSRC COLLECTION:   field types", map[string]interface{}{"field_types": field_types})
-	tflog.Trace(ctx, "RSRC COLLECTION:   accelerations", map[string]interface{}{"accelerations": accelerations})
-
-	if len(field_types) > 0 {
-		if err = d.Set("field_types", c.Data["field_types"]); err != nil {
-			return err
-		}
-	}
-	if len(accelerations) > 0 {
-		if err = d.Set("accelerations", c.Data["accelerations"]); err != nil {
-			return err
-		}
-	}
-	if err = d.Set("name", c.Data["name"]); err != nil {
-		return err
-	}
-	tflog.Debug(ctx, "RSRC COLLECTION:   populate", map[string]interface{}{"data": c.Data})
-
-	d.SetId(c.RESTKey)
-	return nil
-}
-
-func collectionCheck(ctx context.Context, d *schema.ResourceData, m interface{}) (diags diag.Diagnostics) {
-	collection, err := getCollectionField(d, "name")
-	if err != nil {
-		diags = append(diags, errorf(err.Error()))
-		return
-	}
-	tflog.Info(ctx, "RSRC COLLECTION: CHECK", map[string]interface{}{"collection": collection})
-
-	existing, err := collectionApiExists(ctx, d, m)
-	if err != nil {
-		diags = append(diags, warnf("Unable to read collection entry model: "+err.Error()))
-		return
-	}
-	if existing == nil {
-		s := fmt.Sprintf("Referenced collection (%s) does not exist; you should reference a collection resource or create it manually", collection)
-		diags = append(diags, warnf(s))
-	}
-	return
-}
-
-// ----------------------------------------------------------------------
-// Collection Entry Resource
-// ----------------------------------------------------------------------
-
-func collectionEntryCreate(ctx context.Context, d *schema.ResourceData, m interface{}) (diags diag.Diagnostics) {
-	tflog.Info(ctx, "RSRC COLLECTION: ENTRY CREATE", map[string]interface{}{"d": fmt.Sprintf("%+v", d)})
-	if diags = collectionCheck(ctx, d, m); diags != nil {
-		return
-	}
-
-	var c *models.CollectionApi
-	existing, err := collectionApiEntryExists(ctx, d, m)
-	if err != nil {
-		diags = append(diags, errorf("Unable to read collection entry model: "+err.Error()))
-	}
-	if existing == nil {
-		if c, err = collectionApiEntryCreate(ctx, d, m); err != nil {
-			diags = append(diags, errorf("Unable to create entry: "+err.Error()))
-		}
-	} else {
-		if c, err = collectionApiEntryUpdate(ctx, d, m); err != nil {
-			diags = append(diags, errorf("Unable to update entry: "+err.Error()))
-		}
-	}
-
-	if err := populateCollectionEntryResourceData(ctx, c, d); err != nil {
-		diags = append(diags, errorf("Unable to populate entry resource: "+err.Error()))
-	}
-	return
-}
-
-func collectionEntryRead(ctx context.Context, d *schema.ResourceData, m interface{}) (diags diag.Diagnostics) {
-	tflog.Info(ctx, "RSRC COLLECTION: ENTRY READ", map[string]interface{}{"d": fmt.Sprintf("%+v", d)})
-	if diags = collectionCheck(ctx, d, m); diags != nil {
-		return
-	}
-
-	c, err := collectionApiEntryRead(ctx, d, m)
-	if err != nil {
-		diags = append(diags, errorf("Unable to read/dump entry model: "+err.Error()))
-		return
-	}
-	if c == nil || c.Data == nil {
-		d.SetId("")
-		return nil
-	}
-	if err := populateCollectionEntryResourceData(ctx, c, d); err != nil {
-		diags = append(diags, errorf("Unable to populate entry resource: "+err.Error()))
-	}
-	return
-}
-
-func collectionEntryUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) (diags diag.Diagnostics) {
-	tflog.Info(ctx, "RSRC COLLECTION: ENTRY UPDATE", map[string]interface{}{"d": fmt.Sprintf("%+v", d)})
-	if diags = collectionCheck(ctx, d, m); diags != nil {
-		return
-	}
-
-	existing, err := collectionApiEntryExists(ctx, d, m)
-	if err != nil {
-		diags = append(diags, errorf("Unable to read collection entry model: "+err.Error()))
-	}
-	if existing == nil {
-		if _, err := collectionApiEntryCreate(ctx, d, m); err != nil {
-			diags = append(diags, errorf("Unable to create entry: "+err.Error()))
-		}
-	} else {
-		if _, err := collectionApiEntryUpdate(ctx, d, m); err != nil {
-			diags = append(diags, errorf("Unable to update entry: "+err.Error()))
-		}
-	}
-
-	// Now read everything back to see what we made...
-	c, err := collectionApiEntryRead(ctx, d, m)
-	if err != nil {
-		diags = append(diags, errorf("Unable to read back entry: "+err.Error()))
-		return
-	}
-	if c == nil {
-		diags = append(diags, errorf("Unable to update object, it is missing!"))
-		return
-	}
-	if err := populateCollectionEntryResourceData(ctx, c, d); err != nil {
-		diags = append(diags, errorf("Unable to populate entry resource: "+err.Error()))
-	}
-	return
-}
-
-func collectionEntryDelete(ctx context.Context, d *schema.ResourceData, m interface{}) (diags diag.Diagnostics) {
-	tflog.Info(ctx, "RSRC COLLECTION: ENTRY DELETE", map[string]interface{}{"d": fmt.Sprintf("%+v", d)})
-	if diags = collectionCheck(ctx, d, m); diags != nil {
-		return
-	}
-
-	if _, err := collectionApiEntryDelete(ctx, d, m); err != nil {
-		diags = append(diags, errorf("Unable to delete entry: "+err.Error()))
-	}
-	return
-}
-
-func collectionEntryImport(ctx context.Context, d *schema.ResourceData, m interface{}) ([]*schema.ResourceData, error) {
-	tflog.Info(ctx, "RSRC COLLECTION: ENTRY IMPORT", map[string]interface{}{"d": fmt.Sprintf("%+v", d)})
-
-	c, err := collectionApiEntryRead(ctx, d, m)
-	if err != nil {
-		return nil, err
-	}
-	if c == nil {
-		return nil, nil
-	}
-
-	if err = populateCollectionEntryResourceData(ctx, c, d); err != nil {
-		return nil, err
-	}
-	if d.Id() == "" {
-		return nil, nil
-	}
-	return []*schema.ResourceData{d}, nil
-}
-
-func populateCollectionEntryResourceData(ctx context.Context, c *models.CollectionApi, d *schema.ResourceData) (err error) {
-	var obj interface{}
-	if obj, err = c.Unmarshal(c.Body); err != nil {
-		return err
-	}
-	dataRes, ok := obj.(map[string]interface{})
+	client, ok := req.ProviderData.(models.ClientConfig)
 	if !ok {
-		return fmt.Errorf("expected map body return type: %s", string(c.Body))
+		tflog.Error(ctx, "Unable to prepare client")
+		resp.Diagnostics.AddError("Unable to prepare client", "invalid provider data")
+		return
 	}
-
-	tflog.Trace(ctx, "RSRC COLLECTION:   data", map[string]interface{}{"map": dataRes})
-	var key string
-	dataMap := make(map[string]string)
-	for k, v := range dataRes {
-		// Do not include internal fields...
-		if k[0] != '_' {
-			dataMap[k] = fmt.Sprint(v)
-		}
-		if k == "_key" {
-			key = fmt.Sprint(v)
-		}
-	}
-
-	if c.Data == nil {
-		c.Data = make(map[string]interface{})
-	}
-
-	c.Data["key"] = key
-	c.Data["data"] = dataMap
-
-	if err = d.Set("data", c.Data["data"]); err != nil {
-		return err
-	}
-	tflog.Debug(ctx, "RSRC COLLECTION:   populate", map[string]interface{}{"data": c.Data})
-
-	d.SetId(c.RESTKey)
-	return nil
+	r.client = client
 }
 
-// ----------------------------------------------------------------------
-// Collection Entries Resource
-// ----------------------------------------------------------------------
-
-func collectionEntriesCreate(ctx context.Context, d *schema.ResourceData, m interface{}) (diags diag.Diagnostics) {
-	tflog.Info(ctx, "RSRC COLLECTION: ENTRIES CREATE", map[string]interface{}{"d": fmt.Sprintf("%+v", d)})
-	if diags = collectionCheck(ctx, d, m); diags != nil {
-		return
-	}
-
-	// Next push the data into the collection...
-	if _, err := collectionApiEntriesSave(ctx, d, m); err != nil {
-		diags = append(diags, warnf("Unable to populate collection: "+err.Error()))
-	}
-
-	// Delete all of the excess entries...
-	if _, err := collectionApiEntriesDeleteOldRows(ctx, d, m); err != nil {
-		diags = append(diags, errorf("Unable to delete excess rows in collection: "+err.Error()))
-	}
-
-	// Now read everything back to see what we made...
-	c, err := collectionApiEntriesRead(ctx, d, m)
-	if err != nil {
-		diags = append(diags, errorf("Unable to read back collection: "+err.Error()))
-		return
-	}
-	if c == nil {
-		diags = append(diags, errorf("Unable to create object!"))
-		return
-	}
-	if err := populateCollectionEntriesResourceData(ctx, c, d); err != nil {
-		diags = append(diags, warnf("Unable to populate resource: "+err.Error()))
-	}
-	return
+func (r *resourceCollection) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
+	resp.TypeName = req.ProviderTypeName + "_splunk_collection"
 }
 
-func collectionEntriesRead(ctx context.Context, d *schema.ResourceData, m interface{}) (diags diag.Diagnostics) {
-	tflog.Info(ctx, "RSRC COLLECTION: ENTRIES READ", map[string]interface{}{"d": fmt.Sprintf("%+v", d)})
-	if diags = collectionCheck(ctx, d, m); diags != nil {
-		return
+func collectionIDSchema() schema.SingleNestedBlock {
+	return schema.SingleNestedBlock{
+		MarkdownDescription: "Block identifying the collection",
+		PlanModifiers: []planmodifier.Object{
+			objectplanmodifier.RequiresReplace(),
+		},
+		Attributes: map[string]schema.Attribute{
+			"name": schema.StringAttribute{
+				PlanModifiers:       []planmodifier.String{stringplanmodifier.RequiresReplace()},
+				MarkdownDescription: "Name of the collection",
+				Required:            true,
+				Validators:          validateStringIdentifier(),
+			},
+			"app": schema.StringAttribute{
+				PlanModifiers:       []planmodifier.String{stringplanmodifier.RequiresReplace()},
+				MarkdownDescription: "App of the collection. Defaults to 'itsi'.",
+				Optional:            true,
+				Computed:            true,
+				Default:             stringdefault.StaticString(collectionDefaultApp),
+				Validators:          validateStringIdentifier(),
+			},
+			"owner": schema.StringAttribute{
+				PlanModifiers:       []planmodifier.String{stringplanmodifier.RequiresReplace()},
+				MarkdownDescription: "Owner of the collection. Defaults to 'nobody'.",
+				Optional:            true,
+				Computed:            true,
+				Default:             stringdefault.StaticString(collectionDefaultUser),
+				Validators:          validateStringIdentifier(),
+			},
+		},
+		Validators: []validator.Object{objectvalidator.IsRequired()},
 	}
-
-	c, err := collectionApiEntriesRead(ctx, d, m)
-	if err != nil {
-		diags = append(diags, errorf("Unable to read/dump collection model: "+err.Error()))
-		return
-	}
-	if c == nil || c.Data == nil {
-		d.SetId("")
-		return nil
-	}
-	if err := populateCollectionEntriesResourceData(ctx, c, d); err != nil {
-		diags = append(diags, errorf("Unable to populate resource: "+err.Error()))
-	}
-	return
 }
 
-func collectionEntriesUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) (diags diag.Diagnostics) {
-	tflog.Info(ctx, "RSRC COLLECTION: ENTRIES UPDATE", map[string]interface{}{"d": fmt.Sprintf("%+v", d)})
-	if diags = collectionCheck(ctx, d, m); diags != nil {
-		return
-	}
-
-	// Next push the data into the collection...
-	if _, err := collectionApiEntriesSave(ctx, d, m); err != nil {
-		diags = append(diags, errorf("Unable to populate collection: "+err.Error()))
-	}
-
-	// Delete all of the excess entries...
-	if _, err := collectionApiEntriesDeleteOldRows(ctx, d, m); err != nil {
-		diags = append(diags, errorf("Unable to delete excess rows in collection: "+err.Error()))
-	}
-
-	// Now read everything back to see what we made...
-	c, err := collectionApiEntriesRead(ctx, d, m)
-	if err != nil {
-		diags = append(diags, errorf("Unable to read back collection: "+err.Error()))
-		return
-	}
-	if c == nil {
-		diags = append(diags, errorf("Unable to update object, it is missing!"))
-		return
-	}
-	if err := populateCollectionEntriesResourceData(ctx, c, d); err != nil {
-		diags = append(diags, warnf("Unable to populate resource: "+err.Error()))
-	}
-	return
-}
-
-func collectionEntriesDelete(ctx context.Context, d *schema.ResourceData, m interface{}) (diags diag.Diagnostics) {
-	tflog.Info(ctx, "RSRC COLLECTION: ENTRIES DELETE", map[string]interface{}{"d": fmt.Sprintf("%+v", d)})
-	if diags = collectionCheck(ctx, d, m); diags != nil {
-		return
-	}
-
-	if _, err := collectionApiEntriesDeleteAllRows(ctx, d, m); err != nil {
-		diags = append(diags, errorf("Unable to delete collection: "+err.Error()))
-	}
-	return
-}
-
-func collectionEntriesImport(ctx context.Context, d *schema.ResourceData, m interface{}) ([]*schema.ResourceData, error) {
-	tflog.Info(ctx, "RSRC COLLECTION: ENTRIES IMPORT", map[string]interface{}{"d": fmt.Sprintf("%+v", d)})
-
-	c, err := collectionApiEntriesRead(ctx, d, m)
-	if err != nil {
-		return nil, err
-	}
-	if c == nil {
-		return nil, nil
-	}
-
-	if err = populateCollectionEntriesResourceData(ctx, c, d); err != nil {
-		return nil, err
-	}
-	if d.Id() == "" {
-		return nil, nil
-	}
-	return []*schema.ResourceData{d}, nil
-}
-
-func populateCollectionEntriesData(ctx context.Context, c *models.CollectionApi, d *schema.ResourceData, preserveKeys bool) (err error) {
-	var obj interface{}
-	if obj, err = c.Unmarshal(c.Body); err != nil {
-		return err
-	}
-	arr, ok := obj.([]interface{})
-	if !ok {
-		return fmt.Errorf("expected array body return type")
-	}
-
-	tflog.Trace(ctx, "RSRC COLLECTION:   populate", map[string]interface{}{"arr": arr})
-	data := make([][]map[string]interface{}, 0, len(arr))
-
-	for _, item := range arr {
-		item_, ok := item.(map[string]interface{})
-		if !ok {
-			return fmt.Errorf("expected map in array body return type")
-		}
-		row := []map[string]interface{}{}
-		for k, v := range item_ {
-			// Perhaps do not include internal fields...
-			if k[0] != '_' || k == "_idx" || (k == "_key" && preserveKeys) {
-				m := map[string]interface{}{"name": k}
-				if singleValue, ok := v.(string); ok {
-					m["values"] = []string{singleValue}
-				} else if multiValue, ok := v.([]interface{}); ok {
-					m["values"] = multiValue
-				} else {
-					return fmt.Errorf("invalid collection value %#v", v)
-				}
-
-				row = append(row, m)
-			}
-		}
-		tflog.Trace(ctx, "RSRC COLLECTION:     item", map[string]interface{}{"item": item_, "row": row})
-		data = append(data, row)
-	}
-
-	if c.Data == nil {
-		c.Data = make(map[string]interface{})
-	}
-	c.Data["data"] = data
-
-	if err = d.Set("collection_name", c.Data["collection_name"]); err != nil {
-		return err
-	}
-
-	tflog.Debug(ctx, "RSRC COLLECTION:   populate", map[string]interface{}{"data": data})
-
-	// Reorder the data by our saved index ordering...
-	rowIndex, idxPos := make([]int, len(data)), make([]int, len(data))
-	for i, row := range data {
-		for j, item := range row {
-			if item["name"] == "_idx" {
-				idx, err := strconv.Atoi(item["values"].([]string)[0])
-				if err != nil {
-					return err
-				}
-				rowIndex[i] = idx
-				idxPos[i] = j
-				break
-			}
-		}
-	}
-
-	//Now remove the artificial "_idx" field...
-	for i := 0; i < len(data); i++ {
-		data[i] = append(data[i][:idxPos[i]], data[i][idxPos[i]+1:]...)
-	}
-
-	sort.SliceStable(data, func(i, j int) bool {
-		return rowIndex[i] < rowIndex[j]
+func (r *resourceCollection) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+	attrs := collectionIDSchema().Attributes
+	maps.Copy(attrs, map[string]schema.Attribute{
+		"field_types": schema.MapAttribute{
+			PlanModifiers: []planmodifier.Map{
+				fieldTypesPlanModifier{},
+			},
+			MarkdownDescription: "Field name -> field type mapping for the collection's columns. Field types are used to determine the data type of the column in the collection. Supported field types are: `array`, `number`, `bool`, `time`, `string` and `cidr`.",
+			Validators: []validator.Map{
+				mapvalidator.ValueStringsAre(stringvalidator.OneOf("array", "number", "bool", "time", "string", "cidr")),
+			},
+			ElementType: types.StringType,
+			Optional:    true,
+			Computed:    true,
+			Default:     mapdefault.StaticValue(types.MapValueMust(types.StringType, map[string]attr.Value{})),
+		},
+		"accelerations": schema.ListAttribute{
+			PlanModifiers: []planmodifier.List{
+				accelerationsPlanModifier{},
+			},
+			Validators: []validator.List{
+				listvalidator.SizeAtMost(1000),
+			},
+			ElementType: types.StringType,
+			Optional:    true,
+			Computed:    true,
+			Default:     listdefault.StaticValue(types.ListValueMust(types.StringType, []attr.Value{})),
+		},
 	})
 
-	if err = d.Set("data", data); err != nil {
-		return err
+	resp.Schema = schema.Schema{
+		MarkdownDescription: resourceCollectionMarkdownDescription,
+		Attributes:          attrs,
 	}
-
-	d.SetId(c.RESTKey)
-	return nil
 }
 
-func populateCollectionEntriesResourceData(ctx context.Context, c *models.CollectionApi, d *schema.ResourceData) (err error) {
-	preserve_keys, _ := c.Data["preserve_keys"].(bool)
+func (r *resourceCollection) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	tflog.Trace(ctx, "Preparing to read collecton resource")
+	var state collectionConfigModel
 
-	err = populateCollectionEntriesData(ctx, c, d, preserve_keys)
-	if err != nil {
-		return err
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+
+	api := NewCollectionConfigAPI(state, r.client)
+	if resp.Diagnostics.Append(api.Read(ctx)...); resp.Diagnostics.HasError() {
+		return
 	}
-	if err = d.Set("preserve_keys", c.Data["preserve_keys"]); err != nil {
-		return err
+	state = api.config.Normalize()
+	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+
+	tflog.Trace(ctx, "Finished reading collecton data resource")
+}
+
+func (r *resourceCollection) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	tflog.Trace(ctx, "Preparing to create collection resource")
+	var config, plan collectionConfigModel
+
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+
+	tflog.Trace(ctx, "collection_resource Create - Parsed req config", map[string]interface{}{"config": config, "plan": plan})
+
+	plan = plan.Normalize()
+
+	api := NewCollectionConfigAPI(plan, r.client)
+	if resp.Diagnostics.Append(api.Create(ctx)...); resp.Diagnostics.HasError() {
+		return
 	}
-	if err = d.Set("generation", c.Data["generation"]); err != nil {
-		return err
+
+	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
+	tflog.Trace(ctx, "Finished creating collecton resource")
+}
+
+func (r *resourceCollection) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	tflog.Trace(ctx, "Preparing to update collection resource")
+	var config, plan collectionConfigModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	tflog.Trace(ctx, "collection_resource Update - Parsed req config", map[string]interface{}{"config": config, "plan": plan})
+
+	plan = plan.Normalize()
+
+	api := NewCollectionConfigAPI(plan, r.client)
+	if resp.Diagnostics.Append(api.Update(ctx)...); resp.Diagnostics.HasError() {
+		return
 	}
-	if err = d.Set("scope", c.Data["scope"]); err != nil {
-		return err
+	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
+}
+
+func (r *resourceCollection) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+	tflog.Trace(ctx, "Preparing to delete collection resource")
+	var state collectionConfigModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	tflog.Trace(ctx, "collection_resource Delete - Parsed req state", map[string]interface{}{"state": state})
+
+	api := NewCollectionConfigAPI(state, r.client)
+	resp.Diagnostics.Append(api.Delete(ctx)...)
+	tflog.Trace(ctx, "Finished deleting collecton resource")
+}
+
+func (r *resourceCollection) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	collectionID, diags := collectionIDModelFromString(req.ID)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
 	}
-	return nil
+
+	state := collectionConfigModel{
+		Owner: collectionID.Owner,
+		App:   collectionID.App,
+		Name:  collectionID.Name,
+	}
+
+	api := NewCollectionConfigAPI(state, r.client)
+	if resp.Diagnostics.Append(api.Read(ctx)...); resp.Diagnostics.HasError() {
+		return
+	}
+
+	resp.Diagnostics.Append(resp.State.Set(ctx, api.config)...)
+}
+
+// PLAN MODIFIERS
+
+const (
+	collectionReplaceWarning                       = "Collection will be replaced. Data loss may occur. Proceed with caution."
+	collectionFieldTypesPlanModifierDescription    = "When set, a collection will be replaced if a field is removed from the field_types attribute."
+	collectionAccelerationsPlanModifierDescription = "When set, a collection will be replaced if an acceleration is removed from the accelerations attribute."
+)
+
+// field types plan modifier
+
+type fieldTypesPlanModifier struct{}
+
+func (m fieldTypesPlanModifier) Description(_ context.Context) string {
+	return collectionFieldTypesPlanModifierDescription
+}
+
+func (m fieldTypesPlanModifier) MarkdownDescription(_ context.Context) string {
+	return collectionFieldTypesPlanModifierDescription
+}
+
+func (m fieldTypesPlanModifier) PlanModifyMap(_ context.Context, req planmodifier.MapRequest, resp *planmodifier.MapResponse) {
+	if req.StateValue.IsNull() {
+		return
+	}
+
+	if !req.ConfigValue.IsNull() && req.PlanValue.IsUnknown() {
+		resp.Diagnostics.AddAttributeWarning(path.Root("field_types"),
+			collectionReplaceWarning,
+			"Unknown field_types will force collection replacement.")
+		resp.RequiresReplace = true
+		return
+	}
+
+	fieldTypesPlan := make(map[string]struct{})
+	for field := range req.PlanValue.Elements() {
+		fieldTypesPlan[field] = struct{}{}
+	}
+
+	for field := range req.StateValue.Elements() {
+		if _, ok := fieldTypesPlan[field]; !ok {
+			resp.Diagnostics.AddAttributeWarning(path.Root("field_types"),
+				collectionReplaceWarning,
+				fmt.Sprintf("Field type removal (%s) will force collection replacement.", field))
+			resp.RequiresReplace = true
+		}
+	}
+}
+
+// accelerations plan mofier
+
+type accelerationsPlanModifier struct{}
+
+func (m accelerationsPlanModifier) Description(_ context.Context) string {
+	return collectionAccelerationsPlanModifierDescription
+}
+
+func (m accelerationsPlanModifier) MarkdownDescription(_ context.Context) string {
+	return collectionAccelerationsPlanModifierDescription
+}
+
+func (m accelerationsPlanModifier) PlanModifyList(_ context.Context, req planmodifier.ListRequest, resp *planmodifier.ListResponse) {
+	if req.StateValue.IsNull() {
+		return
+	}
+
+	if !req.ConfigValue.IsNull() && req.PlanValue.IsUnknown() {
+		resp.Diagnostics.AddAttributeWarning(path.Root("accelerations"),
+			collectionReplaceWarning,
+			"Unknown accelerations will force collection replacement.")
+		resp.RequiresReplace = true
+		return
+	}
+
+	if len(req.PlanValue.Elements()) < len(req.StateValue.Elements()) {
+		resp.Diagnostics.AddAttributeWarning(path.Root("accelerations"),
+			collectionReplaceWarning,
+			"Acceleration removal will force collection replacement.")
+		resp.RequiresReplace = true
+	}
 }
