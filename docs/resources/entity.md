@@ -36,18 +36,18 @@ resource "itsi_entity" "host_entity" {
 
 ### Required
 
-- `aliases` (Map of String) Map of Field/Value pairs that identify the entity
 - `title` (String) Name of the entity. Can be any unique value.
 
 ### Optional
 
-- `description` (String) User defined description of the entity. Defaults to ``.
-- `entity_type_ids` (Set of String) Array of _key values for each entity type associated with the entity.
-- `info` (Map of String) Map of Field/Value pairs that provide information/description for the entity
+- `aliases` (Map of String) Map of Field/Value pairs that identify the entity.
+- `description` (String) User defined description of the entity.
+- `entity_type_ids` (Set of String) A set of _key values for each entity type associated with the entity.
+- `info` (Map of String) Map of Field/Value pairs that provide information/description for the entity.
 
 ### Read-Only
 
-- `id` (String) The ID of this resource.
+- `id` (String) ID of the entity.
 
 ## Import
 

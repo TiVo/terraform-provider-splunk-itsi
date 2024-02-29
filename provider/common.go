@@ -262,7 +262,17 @@ func (rt *resourceTemplate) display(index string, element interface{}, sc *schem
 	}
 }
 
-func unpackResourceMap[T any](in map[string]interface{}) (map[string]T, error) {
+func mapSubset[T comparable](m map[T]interface{}, keys []T) map[T]interface{} {
+	ms := make(map[T]interface{})
+	for _, k := range keys {
+		if v, ok := m[k]; ok {
+			ms[k] = v
+		}
+	}
+	return ms
+}
+
+func unpackMap[T any](in map[string]interface{}) (map[string]T, error) {
 	out := make(map[string]T)
 	for k, v := range in {
 		res, ok := v.(T)
@@ -276,7 +286,7 @@ func unpackResourceMap[T any](in map[string]interface{}) (map[string]T, error) {
 	return out, nil
 }
 
-func unpackResourceList[T any](in []interface{}) ([]T, error) {
+func unpackSlice[T any](in []interface{}) ([]T, error) {
 	out := make([]T, 0, len(in))
 	for _, v := range in {
 		res, ok := v.(T)

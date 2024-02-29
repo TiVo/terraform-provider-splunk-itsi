@@ -43,11 +43,6 @@ func entityTFFormat(b *models.Base) (string, error) {
 	return cleanerRegex.ReplaceAllString(tpl.String(), ""), nil
 }
 
-func entityBase(clientConfig models.ClientConfig, key string, title string) *models.Base {
-	base := models.NewBase(clientConfig, key, title, "entity")
-	return base
-}
-
 func ResourceEntity() *schema.Resource {
 	return &schema.Resource{
 		Description:   "Manages an Entity object within ITSI.",

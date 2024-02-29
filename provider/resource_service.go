@@ -629,7 +629,7 @@ func service(ctx context.Context, d *schema.ResourceData, clientConfig models.Cl
 			"kpis_depending_on": dependsOnKPIs,
 		}
 
-		overloaded_urgencies, err := unpackResourceMap[int](s["overloaded_urgencies"].(map[string]interface{}))
+		overloaded_urgencies, err := unpackMap[int](s["overloaded_urgencies"].(map[string]interface{}))
 		if err != nil {
 			return nil, err
 		}
