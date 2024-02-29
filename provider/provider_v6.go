@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
+	"github.com/hashicorp/terraform-plugin-framework/function"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/provider/schema"
@@ -41,7 +42,7 @@ func init() {
 
 // Ensure the implementation satisfies the expected interfaces
 var (
-	_ provider.Provider = &itsiProvider{}
+	_ provider.ProviderWithFunctions = &itsiProvider{}
 )
 
 type itsiProviderModel struct {
@@ -171,7 +172,6 @@ func (p *itsiProvider) Configure(ctx context.Context, req provider.ConfigureRequ
 	// type Configure methods.
 	resp.DataSourceData = client
 	resp.ResourceData = client
-
 	tflog.Info(ctx, "Configured ITSI Provider", map[string]any{"success": true})
 }
 
@@ -206,7 +206,14 @@ func (p *itsiProvider) Resources(_ context.Context) []func() resource.Resource {
 			return NewResourceCollectionData()
 		},
 		func() resource.Resource {
+			return NewResourceEntity()
+		},
+		func() resource.Resource {
 			return NewResourceKpiThresholdTemplate()
 		},
 	}
+}
+
+func (p *itsiProvider) Functions(_ context.Context) []func() function.Function {
+	return []func() function.Function{}
 }
