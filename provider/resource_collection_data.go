@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"encoding/json"
+
 	"fmt"
 	"reflect"
 	"strings"
@@ -19,6 +20,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/tivo/terraform-provider-splunk-itsi/models"
 	"github.com/tivo/terraform-provider-splunk-itsi/provider/util"
+	"gopkg.in/yaml.v3"
 )
 
 const (
@@ -412,6 +414,45 @@ func (r *resourceCollectionData) Read(ctx context.Context, req resource.ReadRequ
 	tflog.Trace(ctx, "Finished reading collecton data resource")
 }
 
+func (r *resourceCollectionData) validateKeyScopeUniqueness(ctx context.Context, api *collectionDataAPI, scope string, entries []collectionEntryModel) (diags diag.Diagnostics) {
+	const unexpectedErrorSummary = "Unexpected error while validating key/scope uniqueness"
+	keyList := make([]map[string]string, len(entries))
+	for i, entry := range entries {
+		keyList[i] = map[string]string{"_key": entry.ID.ValueString()}
+	}
+	keyCond := map[string]interface{}{"$or": keyList}
+	scopeCond := map[string]interface{}{"_scope": map[string]string{"$ne": scope}}
+	queryMap := map[string]interface{}{"$and": []interface{}{keyCond, scopeCond}}
+
+	query, err := json.Marshal(queryMap)
+	if err != nil {
+		diags.AddError(unexpectedErrorSummary, err.Error())
+	}
+
+	resultsObj, d := api.Query(ctx, string(query), []string{"_key", "_scope"})
+	if diags.Append(d...); diags.HasError() {
+		return
+	}
+	resultsList, ok := resultsObj.([]interface{})
+	if !ok {
+		diags.AddError(unexpectedErrorSummary, "Splunk collection API returned unexpected results.")
+		return
+	}
+
+	if len(resultsList) > 0 {
+		conflictingRecords, err := yaml.Marshal(resultsList)
+		diags.AddError(
+			"Duplicate collection items",
+			fmt.Sprintf("One or more records specified in the resource are already present in the '%s' collection and have a different scope. Collection data modification will be aborted to prevent data loss.\nConflicting records:\n%s",
+				api.collectionIDModel.Key(), string(conflictingRecords)))
+		if err != nil {
+			diags.AddError(unexpectedErrorSummary, err.Error())
+		}
+	}
+
+	return
+}
+
 func (r *resourceCollectionData) createOrUpdate(ctx context.Context, config, plan collectionDataModel, update bool) (state collectionDataModel, diags diag.Diagnostics) {
 	var planEntries, configEntries []collectionEntryModel
 
@@ -441,6 +482,9 @@ func (r *resourceCollectionData) createOrUpdate(ctx context.Context, config, pla
 	api := NewCollectionDataAPI(plan, r.client)
 	_, diags_ = api.CollectionExists(ctx, true)
 	if diags.Append(diags_...); diags.HasError() {
+		return
+	}
+	if diags.Append(r.validateKeyScopeUniqueness(ctx, api, plan.Scope.ValueString(), planEntries)...); diags.HasError() {
 		return
 	}
 
