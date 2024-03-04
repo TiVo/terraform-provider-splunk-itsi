@@ -7,6 +7,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/mapdefault"
@@ -74,6 +75,13 @@ func entityModelFromBase(ctx context.Context, b *models.Base) (m entityModel, di
 		if diags.Append(d...); diags.HasError() {
 			return
 		}
+	} else {
+		empty_set := []string{}
+		m.EntityTypeIDs, d = types.SetValueFrom(ctx, types.StringType, empty_set)
+		if diags.Append(d...); diags.HasError() {
+			return
+		}
+		//m.EntityTypeIDs = types.SetNull(types.StringType)
 	}
 
 	fieldsMap, err := unpackMap[map[string]interface{}](mapSubset[string](interfaceMap, []string{"identifier", "informational"}))
@@ -250,7 +258,7 @@ func (r *resourceEntity) Read(ctx context.Context, req resource.ReadRequest, res
 		return
 	}
 	if b == nil || b.RawJson == nil {
-		resp.Diagnostics.Append(req.State.Set(ctx, &entityModel{})...)
+		resp.Diagnostics.Append(resp.State.Set(ctx, &entityModel{})...)
 		return
 	}
 
@@ -258,7 +266,7 @@ func (r *resourceEntity) Read(ctx context.Context, req resource.ReadRequest, res
 	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
 		return
 	}
-	resp.Diagnostics.Append(req.State.Set(ctx, &state)...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
 func (r *resourceEntity) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -325,21 +333,22 @@ func (r *resourceEntity) Delete(ctx context.Context, req resource.DeleteRequest,
 }
 
 func (r *resourceEntity) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	b := entityBase(r.client, "", req.ID)
-	b, err := b.Find(ctx)
-	if err != nil {
-		resp.Diagnostics.AddError("Unable to find entity model", err.Error())
-		return
-	}
-	if b == nil {
-		resp.Diagnostics.AddError("Entity not found", fmt.Sprintf("Entity '%s' not found", req.ID))
-		return
-	}
+	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+	// b := entityBase(r.client, "", req.ID)
+	// b, err := b.Find(ctx)
+	// if err != nil {
+	// 	resp.Diagnostics.AddError("Unable to find entity model", err.Error())
+	// 	return
+	// }
+	// if b == nil {
+	// 	resp.Diagnostics.AddError("Entity not found", fmt.Sprintf("Entity '%s' not found", req.ID))
+	// 	return
+	// }
 
-	state, diags := entityModelFromBase(ctx, b)
-	if resp.Diagnostics.Append(diags...); diags.HasError() {
-		return
-	}
+	// state, diags := entityModelFromBase(ctx, b)
+	// if resp.Diagnostics.Append(diags...); diags.HasError() {
+	// 	return
+	// }
 
-	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
+	//resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
