@@ -74,6 +74,12 @@ func entityModelFromBase(ctx context.Context, b *models.Base) (m entityModel, di
 		if diags.Append(d...); diags.HasError() {
 			return
 		}
+	} else {
+		empty_set := []string{}
+		m.EntityTypeIDs, d = types.SetValueFrom(ctx, types.StringType, empty_set)
+		if diags.Append(d...); diags.HasError() {
+			return
+		}
 	}
 
 	fieldsMap, err := unpackMap[map[string]interface{}](mapSubset[string](interfaceMap, []string{"identifier", "informational"}))
@@ -250,7 +256,7 @@ func (r *resourceEntity) Read(ctx context.Context, req resource.ReadRequest, res
 		return
 	}
 	if b == nil || b.RawJson == nil {
-		resp.Diagnostics.Append(req.State.Set(ctx, &entityModel{})...)
+		resp.Diagnostics.Append(resp.State.Set(ctx, &entityModel{})...)
 		return
 	}
 
@@ -258,7 +264,7 @@ func (r *resourceEntity) Read(ctx context.Context, req resource.ReadRequest, res
 	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
 		return
 	}
-	resp.Diagnostics.Append(req.State.Set(ctx, &state)...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
 func (r *resourceEntity) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
