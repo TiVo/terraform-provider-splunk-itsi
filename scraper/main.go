@@ -1,11 +1,13 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"log"
 	"os"
+	"os/exec"
 	"sort"
 	"strings"
 	"sync"
@@ -158,7 +160,6 @@ terraform {
 			version = "~> 1.0"
 		}
 	}
-	backend "s3" {}
 	required_version = "~> 1.7.0"
 }
 
@@ -206,7 +207,15 @@ import {
 		panic(err)
 	}
 	defer importF.Close()
-	//fieldsMap := map[string]bool{}
+
+	cmd := exec.Command("terraform", "init")
+	cmd.Stdout = os.Stdout
+	cmd.Dir = folder
+	err = cmd.Run()
+	if err != nil {
+		panic(err)
+	}
+
 	for count, offset := base.GetPageSize(), 0; offset >= 0; offset += count {
 		ctx := context.Background()
 		items, err := base.Dump(ctx, &models.Parameters{Offset: offset, Count: count, Fields: []string{"_key", "title"}})
@@ -229,6 +238,19 @@ import {
 		if len(items) < count {
 			break
 		}
+	}
+	cmd = exec.Command("terraform", "plan", "-generate-config-out=generated.tf")
+	cmd.Dir = folder
+	var b bytes.Buffer
+	cmd.Stderr = &b
+	cmd.Stdout = os.Stdout
+	// Read from the stderr pipe asynchronously
+
+	err = cmd.Run()
+	errors = append(errors, fmt.Errorf(string(b.Bytes())))
+
+	if err != nil {
+		errors = append(errors, err)
 	}
 
 	// Obtain a reflect.Value of the Terraform instance
