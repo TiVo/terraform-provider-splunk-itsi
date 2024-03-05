@@ -27,6 +27,7 @@ import (
 const (
 	collectionDefaultUser          = "nobody"
 	collectionDefaultApp           = "itsi"
+	collectionDefaultScope         = "default"
 	collectionEntryDataDescription = "Collection entry `data` must be JSON encoded map where keys are field names, " +
 		"and values are strings, numbers, booleans, or arrays of those types."
 	collectionEntryInvalidError = "Invalid collection entry data"
@@ -265,7 +266,10 @@ func (r *resourceCollectionData) Schema(_ context.Context, _ resource.SchemaRequ
 				MarkdownDescription: "Scope of the collection data",
 				Optional:            true,
 				Computed:            true,
-				Default:             stringdefault.StaticString("default"),
+				Default:             stringdefault.StaticString(collectionDefaultScope),
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 			"generation": schema.Int64Attribute{
 				MarkdownDescription: "Computed latest generation of changes",
@@ -435,10 +439,14 @@ func (r *resourceCollectionData) validateScopeUniqueness(ctx context.Context, ap
 	}
 	if len(resultsList) > 0 {
 		conflictingRecordSample, err := yaml.Marshal(resultsList[0])
-		diags.AddError(
-			"Duplicate collection data scope",
-			fmt.Sprintf("'%s' collection already contains data with the '%s' scope, that is not managed by this instance of the collection_data resource. Collection data modification will be aborted to prevent data loss.\nConflicting record example:\n%s",
-				api.collectionIDModel.Key(), scope, string(conflictingRecordSample)))
+		errorDetails := util.Dedent(fmt.Sprintf(`
+			'%s' collection already contains data with the '%s' scope, that is not managed by this instance of the collection_data resource.
+			Collection data modification will be aborted to prevent data loss.
+			Consider changing the scope, or use 'terraform import' to manage the existing data scope using this terraform resource.
+			Conflicting record example:
+			%s
+		`, api.collectionIDModel.Key(), scope, string(conflictingRecordSample)))
+		diags.AddError("Duplicate collection data scope", errorDetails)
 		if err != nil {
 			diags.AddError(unexpectedErrorSummary, err.Error())
 		}
@@ -473,10 +481,13 @@ func (r *resourceCollectionData) validateKeyUniqueness(ctx context.Context, api 
 
 	if len(resultsList) > 0 {
 		conflictingRecords, err := yaml.Marshal(resultsList)
-		diags.AddError(
-			"Duplicate collection items",
-			fmt.Sprintf("One or more records specified in the resource are already present in the '%s' collection and have a different scope. Collection data modification will be aborted to prevent data loss.\nConflicting records:\n%s",
-				api.collectionIDModel.Key(), string(conflictingRecords)))
+		errorDetails := util.Dedent(fmt.Sprintf(`
+			One or more records specified in the resource are already present in the '%s' collection and have a different scope.
+			Collection data modification will be aborted to prevent data loss.
+			Conflicting records:
+			%s
+		`, api.collectionIDModel.Key(), string(conflictingRecords)))
+		diags.AddError("Duplicate collection items", errorDetails)
 		if err != nil {
 			diags.AddError(unexpectedErrorSummary, err.Error())
 		}
@@ -606,26 +617,25 @@ func (r *resourceCollectionData) Delete(ctx context.Context, req resource.Delete
 func (r *resourceCollectionData) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	const unexpectedErrorSummary = "Unexpected error while importing collection data"
 
-	idParts := strings.Split(strings.TrimSpace(req.ID), "/")
-	if len(idParts) != 4 {
-		resp.Diagnostics.AddError(fmt.Sprintf("Invalid collection data ID '%s'", req.ID), "Collection data ID must be in the format 'owner/app/name/scope'")
+	collectionID, scope, diags := collectionIDModelAndScopeFromString(req.ID)
+	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
 		return
 	}
 
-	scope := idParts[3]
 	state := collectionDataModel{
-		Collection: collectionIDModel{
-			Owner: types.StringValue(idParts[0]),
-			App:   types.StringValue(idParts[1]),
-			Name:  types.StringValue(idParts[2]),
-		},
-		Scope:   types.StringValue(scope),
-		Entries: types.SetValueMust(new(types.ObjectType).WithAttributeTypes(map[string]attr.Type{"id": types.StringType, "data": types.StringType}), []attr.Value{}),
+		Collection: collectionID,
+		Scope:      types.StringValue(scope),
+		Entries:    types.SetValueMust(new(types.ObjectType).WithAttributeTypes(map[string]attr.Type{"id": types.StringType, "data": types.StringType}), []attr.Value{}),
 	}
 
 	query := fmt.Sprintf(`{"scope": "%s", "_instance": { "$ne": null }}`, scope)
 
 	api := NewCollectionDataAPI(state, r.client)
+
+	_, diags = api.CollectionExists(ctx, true)
+	if resp.Diagnostics.Append(diags...); diags.HasError() {
+		return
+	}
 
 	resultsObj, diags := api.Query(ctx, query, []string{"_instance"}, 1)
 	if diags.Append(diags...); diags.HasError() {
@@ -647,7 +657,11 @@ func (r *resourceCollectionData) ImportState(ctx context.Context, req resource.I
 		}
 		id = result["_instance"]
 	} else {
-		diags.AddWarning("Collection data is missing or corrupted.", "Collection data that is being improted is missing the '_instance' field. This may indicate that it was created with an old version of the ITSI provider or does not exist.")
+		warningDetails := util.Dedent(`
+			Collection data that is being improted is missing the '_instance' field.
+			This may indicate that it was created with an old version of the ITSI provider or does not exist.
+		`)
+		diags.AddWarning("Collection data is missing or corrupted.", warningDetails)
 		id = uuid.New().String()
 	}
 
