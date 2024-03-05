@@ -257,11 +257,10 @@ import {
 
 	// Example: Call the buildPlanCmd method of Terraform
 
-	/*
-		diags := NewFmtCommand([]string{outputBasePath}, false).Run()
-		if diags.HasError() {
-			log.Fatalf("%+v", diags)
-		}*/
+	diags := NewFmtCommand([]string{folder + "/generated.tf"}, false).Run()
+	if diags.HasError() {
+		log.Fatalf("%+v", diags)
+	}
 
 	logsCh <- Logs{
 		ObjectType: objectType,
