@@ -116,7 +116,7 @@ func (d *dataSourceCollection) Read(ctx context.Context, req datasource.ReadRequ
 		return
 	}
 
-	obj, diags := api.Query(ctx, "", []string{})
+	obj, diags := api.Query(ctx, "", []string{}, 0)
 	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
 		return
 	}

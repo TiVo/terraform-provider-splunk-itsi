@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
@@ -101,8 +102,10 @@ type collectionDataModel struct {
 // a single value to a list of that 1 value or vice versa
 func (d *collectionDataModel) Normalize(ctx context.Context) (diags diag.Diagnostics) {
 	var srcEntries []collectionEntryModel
-	if diags.Append(d.Entries.ElementsAs(ctx, &srcEntries, false)...); diags.HasError() {
-		return
+	if !d.Entries.IsNull() {
+		if diags.Append(d.Entries.ElementsAs(ctx, &srcEntries, false)...); diags.HasError() {
+			return
+		}
 	}
 	entries := make([]collectionEntryModel, len(srcEntries))
 
@@ -414,7 +417,36 @@ func (r *resourceCollectionData) Read(ctx context.Context, req resource.ReadRequ
 	tflog.Trace(ctx, "Finished reading collecton data resource")
 }
 
-func (r *resourceCollectionData) validateKeyScopeUniqueness(ctx context.Context, api *collectionDataAPI, scope string, entries []collectionEntryModel) (diags diag.Diagnostics) {
+func (r *resourceCollectionData) validateScopeUniqueness(ctx context.Context, api *collectionDataAPI, scope string) (diags diag.Diagnostics) {
+	const unexpectedErrorSummary = "Unexpected error while validating scope uniqueness"
+	queryMap := map[string]string{"_scope": scope}
+	query, err := json.Marshal(queryMap)
+	if err != nil {
+		diags.AddError(unexpectedErrorSummary, err.Error())
+	}
+	resultsObj, d := api.Query(ctx, string(query), []string{}, 1)
+	if diags.Append(d...); diags.HasError() {
+		return
+	}
+	resultsList, ok := resultsObj.([]interface{})
+	if !ok {
+		diags.AddError(unexpectedErrorSummary, "Splunk collection API returned unexpected results.")
+		return
+	}
+	if len(resultsList) > 0 {
+		conflictingRecordSample, err := yaml.Marshal(resultsList[0])
+		diags.AddError(
+			"Duplicate collection data scope",
+			fmt.Sprintf("'%s' collection already contains data with the '%s' scope, that is not managed by this instance of the collection_data resource. Collection data modification will be aborted to prevent data loss.\nConflicting record example:\n%s",
+				api.collectionIDModel.Key(), scope, string(conflictingRecordSample)))
+		if err != nil {
+			diags.AddError(unexpectedErrorSummary, err.Error())
+		}
+	}
+	return
+}
+
+func (r *resourceCollectionData) validateKeyUniqueness(ctx context.Context, api *collectionDataAPI, scope string, entries []collectionEntryModel) (diags diag.Diagnostics) {
 	const unexpectedErrorSummary = "Unexpected error while validating key/scope uniqueness"
 	keyList := make([]map[string]string, len(entries))
 	for i, entry := range entries {
@@ -429,7 +461,7 @@ func (r *resourceCollectionData) validateKeyScopeUniqueness(ctx context.Context,
 		diags.AddError(unexpectedErrorSummary, err.Error())
 	}
 
-	resultsObj, d := api.Query(ctx, string(query), []string{"_key", "_scope"})
+	resultsObj, d := api.Query(ctx, string(query), []string{"_key", "_scope"}, 0)
 	if diags.Append(d...); diags.HasError() {
 		return
 	}
@@ -484,7 +516,13 @@ func (r *resourceCollectionData) createOrUpdate(ctx context.Context, config, pla
 	if diags.Append(diags_...); diags.HasError() {
 		return
 	}
-	if diags.Append(r.validateKeyScopeUniqueness(ctx, api, plan.Scope.ValueString(), planEntries)...); diags.HasError() {
+
+	if !update {
+		if diags.Append(r.validateScopeUniqueness(ctx, api, plan.Scope.ValueString())...); diags.HasError() {
+			return
+		}
+	}
+	if diags.Append(r.validateKeyUniqueness(ctx, api, plan.Scope.ValueString(), planEntries)...); diags.HasError() {
 		return
 	}
 
@@ -563,4 +601,50 @@ func (r *resourceCollectionData) Delete(ctx context.Context, req resource.Delete
 
 	resp.Diagnostics.Append(api.Delete(ctx)...)
 	tflog.Trace(ctx, "Finished deleting collecton data resource")
+}
+
+func (r *resourceCollectionData) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	idParts := strings.Split(strings.TrimSpace(req.ID), "/")
+	if len(idParts) != 4 {
+		resp.Diagnostics.AddError(fmt.Sprintf("Invalid collection data ID '%s'", req.ID), "Collection data ID must be in the format 'owner/app/name/scope'")
+		return
+	}
+	entries := make([]collectionEntryModel, 1)
+	state := collectionDataModel{
+		Collection: collectionIDModel{
+			Owner: types.StringValue(idParts[0]),
+			App:   types.StringValue(idParts[1]),
+			Name:  types.StringValue(idParts[2]),
+		},
+		Scope: types.StringValue(idParts[3]),
+		//Entries: types.SetValueMust(types.ObjectType{}, []attr.Value{}),
+	}
+	attrType, diags := resp.State.Schema.TypeAtPath(ctx, path.Root("entry"))
+	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
+		return
+	}
+	//state.Entries = types.SetValueMust(attrType, entries)
+
+	// var diags diag.Diagnostics
+	state.Entries, diags = types.SetValueFrom(ctx, attrType, entries)
+	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
+		return
+	}
+
+	// readReq := resource.ReadRequest{}
+	// if resp.Diagnostics.Append(readReq.State.Set(ctx, &state)...); resp.Diagnostics.HasError() {
+	// 	return
+	// }
+	// readResp := new(resource.ReadResponse)
+
+	// r.Read(ctx, readReq, readResp)
+	// if resp.Diagnostics.Append(readResp.Diagnostics...); resp.Diagnostics.HasError() {
+	// 	return
+	// }
+
+	// if resp.Diagnostics.Append(state.Normalize(ctx)...); resp.Diagnostics.HasError() {
+	// 	return
+	// }
+	//resp.State = readResp.State
+	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
