@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"text/template"
 	"time"
 
 	"github.com/akamensky/argparse"
@@ -46,6 +47,8 @@ func main() {
 	profile := ssmTokenCommand.String("i", "profile", &argparse.Options{Required: true, Help: "Profile - to retrieve token from AWS SSM"})
 	region := ssmTokenCommand.String("r", "region", &argparse.Options{Required: true, Help: "Region - to retrieve token from AWS SSM"})
 	tokenPath := ssmTokenCommand.String("l", "path", &argparse.Options{Required: true, Help: "The auth token path from AWS SSM"})
+
+	mode := parser.Selector("m", "mode", []string{"scraper", "terraform_gen"}, &argparse.Options{Required: false, Help: "scrape_mode", Default: "scraper"})
 
 	err := parser.Parse(os.Args)
 	if err != nil {
@@ -102,7 +105,10 @@ func main() {
 	var wg sync.WaitGroup
 	logsCh := make(chan Logs, len(*objs))
 	for _, objType := range *objs {
-		if formatter, ok := provider.Formatters[objType]; ok || !strings.HasPrefix(*format, "tf") {
+		if *mode == "terraform_gen" {
+			wg.Add(1)
+			go test(clientConfig, objType, logsCh, &wg)
+		} else if formatter, ok := provider.Formatters[objType]; ok || !strings.HasPrefix(*format, "tf") {
 			wg.Add(1)
 			go dump(clientConfig, objType, *format, formatter, logsCh, &wg)
 		} else {
@@ -142,6 +148,105 @@ type Logs struct {
 	Errors     []error
 }
 
+func test(clientConfig models.ClientConfig, objectType string, logsCh chan Logs, wg *sync.WaitGroup) {
+	defer wg.Done()
+	var initConf = `	
+terraform {
+	required_providers {
+		itsi = {
+			source  = "TiVo/splunk-itsi"
+			version = "~> 1.0"
+		}
+	}
+	backend "s3" {}
+	required_version = "~> 1.7.0"
+}
+
+provider "itsi" { 
+{{if .BearerToken}}
+	smm_token = "{{.BearerToken}}"
+{{else}}
+	password = "{{.Password}}"
+	user     = "{{.User}}"
+{{end}}
+	host     = "{{.Host}}"
+	port     = {{.Port}}
+}`
+
+	var importSchema = `
+import {
+	id = "{{.Id}}"
+	to = {{.ObjectType}}.{{escape .TFID}}
+}
+`
+	base := models.NewBase(clientConfig, "", "", objectType)
+	errors := []error{}
+
+	importT := template.Must(template.New("import").Funcs(template.FuncMap{
+		"escape": provider.Escape,
+	}).Parse(importSchema))
+	initT := template.Must(template.New("init").Parse(initConf))
+
+	folder := fmt.Sprintf("%s/%s", outputBasePath, objectType)
+	err := os.MkdirAll(folder, os.ModePerm)
+	if err != nil {
+		panic(err)
+	}
+	import_fn := fmt.Sprintf("%s/import.tf", folder)
+	versions_fn := fmt.Sprintf("%s/versions.tf", folder)
+	versionsF, err := os.OpenFile(versions_fn, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+	if err != nil {
+		panic(err)
+	}
+	defer versionsF.Close()
+	initT.Execute(versionsF, clientConfig)
+
+	importF, err := os.OpenFile(import_fn, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+	if err != nil {
+		panic(err)
+	}
+	defer importF.Close()
+	//fieldsMap := map[string]bool{}
+	for count, offset := base.GetPageSize(), 0; offset >= 0; offset += count {
+		ctx := context.Background()
+		items, err := base.Dump(ctx, &models.Parameters{Offset: offset, Count: count, Fields: []string{"_key", "title"}})
+		if err != nil {
+			errors = append(errors, err)
+			break
+		}
+		for _, item := range items {
+			err = importT.Execute(importF, map[string]string{
+				"Id":   item.RESTKey,
+				"TFID": item.TFID,
+				// TODO: this mapping is resource knowledge. implement mechanism to get via one call
+				"ObjectType": "itsi_" + objectType,
+			})
+			if err != nil {
+				errors = append(errors, err)
+			}
+		}
+
+		if len(items) < count {
+			break
+		}
+	}
+
+	// Obtain a reflect.Value of the Terraform instance
+
+	// Example: Call the buildPlanCmd method of Terraform
+
+	/*
+		diags := NewFmtCommand([]string{outputBasePath}, false).Run()
+		if diags.HasError() {
+			log.Fatalf("%+v", diags)
+		}*/
+
+	logsCh <- Logs{
+		ObjectType: objectType,
+		Errors:     errors,
+	}
+
+}
 func dump(clientConfig models.ClientConfig, objectType, format string, formatter provider.TFFormatter, logsCh chan Logs, wg *sync.WaitGroup) {
 	defer wg.Done()
 
@@ -151,7 +256,7 @@ func dump(clientConfig models.ClientConfig, objectType, format string, formatter
 	fieldsMap := map[string]bool{}
 	for count, offset := base.GetPageSize(), 0; offset >= 0; offset += count {
 		ctx := context.Background()
-		items, err := base.Dump(ctx, offset, count)
+		items, err := base.Dump(ctx, &models.Parameters{Offset: offset, Count: count, Fields: nil})
 		if err != nil {
 			errors = append(errors, err)
 			break
