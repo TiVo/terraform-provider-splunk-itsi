@@ -9,8 +9,8 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
-	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
@@ -604,47 +604,53 @@ func (r *resourceCollectionData) Delete(ctx context.Context, req resource.Delete
 }
 
 func (r *resourceCollectionData) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	const unexpectedErrorSummary = "Unexpected error while importing collection data"
+
 	idParts := strings.Split(strings.TrimSpace(req.ID), "/")
 	if len(idParts) != 4 {
 		resp.Diagnostics.AddError(fmt.Sprintf("Invalid collection data ID '%s'", req.ID), "Collection data ID must be in the format 'owner/app/name/scope'")
 		return
 	}
-	entries := make([]collectionEntryModel, 1)
+
+	scope := idParts[3]
 	state := collectionDataModel{
 		Collection: collectionIDModel{
 			Owner: types.StringValue(idParts[0]),
 			App:   types.StringValue(idParts[1]),
 			Name:  types.StringValue(idParts[2]),
 		},
-		Scope: types.StringValue(idParts[3]),
-		//Entries: types.SetValueMust(types.ObjectType{}, []attr.Value{}),
+		Scope:   types.StringValue(scope),
+		Entries: types.SetValueMust(new(types.ObjectType).WithAttributeTypes(map[string]attr.Type{"id": types.StringType, "data": types.StringType}), []attr.Value{}),
 	}
-	attrType, diags := resp.State.Schema.TypeAtPath(ctx, path.Root("entry"))
-	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
+
+	query := fmt.Sprintf(`{"scope": "%s", "_instance": { "$ne": null }}`, scope)
+
+	api := NewCollectionDataAPI(state, r.client)
+
+	resultsObj, diags := api.Query(ctx, query, []string{"_instance"}, 1)
+	if diags.Append(diags...); diags.HasError() {
 		return
 	}
-	//state.Entries = types.SetValueMust(attrType, entries)
 
-	// var diags diag.Diagnostics
-	state.Entries, diags = types.SetValueFrom(ctx, attrType, entries)
-	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
+	resultsList, ok := resultsObj.([]interface{})
+	if !ok {
+		diags.AddError(unexpectedErrorSummary, "Splunk collection API returned unexpected results.")
 		return
 	}
 
-	// readReq := resource.ReadRequest{}
-	// if resp.Diagnostics.Append(readReq.State.Set(ctx, &state)...); resp.Diagnostics.HasError() {
-	// 	return
-	// }
-	// readResp := new(resource.ReadResponse)
+	id := ""
+	if len(resultsList) > 0 {
+		result, ok := resultsList[0].(map[string]string)
+		if !ok {
+			diags.AddError(unexpectedErrorSummary, "Splunk collection API returned unexpected results.")
+			return
+		}
+		id = result["_instance"]
+	} else {
+		diags.AddWarning("Collection data is missing or corrupted.", "Collection data that is being improted is missing the '_instance' field. This may indicate that it was created with an old version of the ITSI provider or does not exist.")
+		id = uuid.New().String()
+	}
 
-	// r.Read(ctx, readReq, readResp)
-	// if resp.Diagnostics.Append(readResp.Diagnostics...); resp.Diagnostics.HasError() {
-	// 	return
-	// }
-
-	// if resp.Diagnostics.Append(state.Normalize(ctx)...); resp.Diagnostics.HasError() {
-	// 	return
-	// }
-	//resp.State = readResp.State
+	state.ID = types.StringValue(id)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
