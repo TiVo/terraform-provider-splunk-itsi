@@ -271,9 +271,8 @@ func (c *FmtCommand) formatValueMultiline(tokens hclwrite.Tokens) hclwrite.Token
 	if len(tokens) > 2 &&
 		tokens[0].Type == hclsyntax.TokenOQuote &&
 		tokens[len(tokens)-1].Type == hclsyntax.TokenCQuote {
-		val := string(tokens.Bytes())
+		val := string(tokens[1 : len(tokens)-1].Bytes())
 		if newval := strings.Split(val, "\\n"); len(newval) > 1 {
-			tokens = tokens[1 : len(tokens)-1]
 			attr_raw := []*hclwrite.Token{
 				{
 					Bytes: []byte("<<-EOT\n"),
