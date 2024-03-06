@@ -8,6 +8,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
+	"strings"
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
@@ -249,6 +251,7 @@ func (c *FmtCommand) formatBody(body *hclwrite.Body, inBlocks []string) {
 			continue
 		}
 		cleanedExprTokens := c.formatValueExpr(attr.Expr().BuildTokens(nil))
+		cleanedExprTokens = c.formatValueMultiline(cleanedExprTokens)
 		body.SetAttributeRaw(name, cleanedExprTokens)
 	}
 
@@ -262,6 +265,39 @@ func (c *FmtCommand) formatBody(body *hclwrite.Body, inBlocks []string) {
 		inBlocks := append(inBlocks, block.Type())
 		c.formatBody(block.Body(), inBlocks)
 	}
+}
+
+func (c *FmtCommand) formatValueMultiline(tokens hclwrite.Tokens) hclwrite.Tokens {
+	if len(tokens) > 2 &&
+		tokens[0].Type == hclsyntax.TokenOQuote &&
+		tokens[len(tokens)-1].Type == hclsyntax.TokenCQuote {
+		val := string(tokens[1 : len(tokens)-1].Bytes())
+		if newval := strings.Split(val, "\\n"); len(newval) > 1 {
+			attr_raw := []*hclwrite.Token{
+				{
+					Bytes: []byte("<<-EOT\n"),
+					Type:  hclsyntax.TokenOHeredoc,
+				},
+			}
+			for _, token := range newval {
+				unescapedStr, err := strconv.Unquote(`"` + token + `"`)
+				if err != nil {
+					return tokens
+				}
+				attr_raw = append(attr_raw, &hclwrite.Token{
+					Bytes: []byte(unescapedStr + "\n"),
+					Type:  hclsyntax.TokenStringLit,
+				})
+			}
+			return append(attr_raw,
+				&hclwrite.Token{
+					Bytes: []byte("EOT\n"),
+					Type:  hclsyntax.TokenOHeredoc,
+				})
+		}
+	}
+	return tokens
+
 }
 
 func (c *FmtCommand) formatValueExpr(tokens hclwrite.Tokens) hclwrite.Tokens {

@@ -495,14 +495,23 @@ func (b *Base) Find(ctx context.Context) (result *Base, err error) {
 	return
 }
 
-func (b *Base) Dump(ctx context.Context, offset, count int) ([]*Base, error) {
+type Parameters struct {
+	Offset int
+	Count  int
+	Fields []string
+}
+
+func (b *Base) Dump(ctx context.Context, query_params *Parameters) ([]*Base, error) {
 
 	params := url.Values{}
 	params.Add("sort_key", b.restConfig.RestKeyField)
 	params.Add("sort_dir", "asc")
-	if count > 0 && offset >= 0 {
-		params.Add("count", strconv.Itoa(count))
-		params.Add("offset", strconv.Itoa(offset))
+	if query_params.Count > 0 && query_params.Offset >= 0 {
+		params.Add("count", strconv.Itoa(query_params.Count))
+		params.Add("offset", strconv.Itoa(query_params.Offset))
+	}
+	if query_params.Fields != nil && len(query_params.Fields) > 0 {
+		params.Add("fields", strings.Join(query_params.Fields, ","))
 	}
 
 	log.Printf("Requesting %s with params %s\n", b.restConfig.ObjectType, params.Encode())
