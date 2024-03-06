@@ -40,7 +40,7 @@ terraform {
 
 provider "itsi" {
 	{{if .BearerToken}}
-	smm_token = "{{.BearerToken}}"
+	access_token = "{{.BearerToken}}"
 	{{else}}
 	password = "{{.Password}}"
 	user     = "{{.User}}"
@@ -276,6 +276,7 @@ func runGenerateCommand(clientConfig models.ClientConfig, objectType string, log
 	}
 	errors = append(errors, runTerraformCommand(folder, "plan", "-generate-config-out=generated.tf")...)
 	diags := NewFmtCommand([]string{folder + "/generated.tf"}, false).Run()
+
 	if diags.HasError() {
 		for _, diag := range diags {
 			errors = append(errors, fmt.Errorf(diag.Detail))
