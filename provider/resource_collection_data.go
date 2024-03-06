@@ -638,7 +638,7 @@ func (r *resourceCollectionData) ImportState(ctx context.Context, req resource.I
 	}
 
 	resultsObj, diags := api.Query(ctx, query, []string{"_instance"}, 1)
-	if diags.Append(diags...); diags.HasError() {
+	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
 		return
 	}
 
