@@ -90,7 +90,7 @@ func (d *dataSourceCollectionData) Read(ctx context.Context, req datasource.Read
 		return
 	}
 
-	obj, diags := api.Query(ctx, state.Query.ValueString(), fields)
+	obj, diags := api.Query(ctx, state.Query.ValueString(), fields, 0)
 	resp.Diagnostics.Append(diags...)
 
 	data, err := json.Marshal(obj)

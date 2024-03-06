@@ -3,11 +3,13 @@ package provider
 import (
 	"context"
 	"encoding/json"
+
 	"fmt"
 	"reflect"
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -19,11 +21,13 @@ import (
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/tivo/terraform-provider-splunk-itsi/models"
 	"github.com/tivo/terraform-provider-splunk-itsi/provider/util"
+	"gopkg.in/yaml.v3"
 )
 
 const (
 	collectionDefaultUser          = "nobody"
 	collectionDefaultApp           = "itsi"
+	collectionDefaultScope         = "default"
 	collectionEntryDataDescription = "Collection entry `data` must be JSON encoded map where keys are field names, " +
 		"and values are strings, numbers, booleans, or arrays of those types."
 	collectionEntryInvalidError = "Invalid collection entry data"
@@ -99,8 +103,10 @@ type collectionDataModel struct {
 // a single value to a list of that 1 value or vice versa
 func (d *collectionDataModel) Normalize(ctx context.Context) (diags diag.Diagnostics) {
 	var srcEntries []collectionEntryModel
-	if diags.Append(d.Entries.ElementsAs(ctx, &srcEntries, false)...); diags.HasError() {
-		return
+	if !d.Entries.IsNull() {
+		if diags.Append(d.Entries.ElementsAs(ctx, &srcEntries, false)...); diags.HasError() {
+			return
+		}
 	}
 	entries := make([]collectionEntryModel, len(srcEntries))
 
@@ -260,7 +266,10 @@ func (r *resourceCollectionData) Schema(_ context.Context, _ resource.SchemaRequ
 				MarkdownDescription: "Scope of the collection data",
 				Optional:            true,
 				Computed:            true,
-				Default:             stringdefault.StaticString("default"),
+				Default:             stringdefault.StaticString(collectionDefaultScope),
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 			"generation": schema.Int64Attribute{
 				MarkdownDescription: "Computed latest generation of changes",
@@ -412,6 +421,81 @@ func (r *resourceCollectionData) Read(ctx context.Context, req resource.ReadRequ
 	tflog.Trace(ctx, "Finished reading collecton data resource")
 }
 
+func (r *resourceCollectionData) validateScopeUniqueness(ctx context.Context, api *collectionDataAPI, scope string) (diags diag.Diagnostics) {
+	const unexpectedErrorSummary = "Unexpected error while validating scope uniqueness"
+	queryMap := map[string]string{"_scope": scope}
+	query, err := json.Marshal(queryMap)
+	if err != nil {
+		diags.AddError(unexpectedErrorSummary, err.Error())
+	}
+	resultsObj, d := api.Query(ctx, string(query), []string{}, 1)
+	if diags.Append(d...); diags.HasError() {
+		return
+	}
+	resultsList, ok := resultsObj.([]interface{})
+	if !ok {
+		diags.AddError(unexpectedErrorSummary, "Splunk collection API returned unexpected results.")
+		return
+	}
+	if len(resultsList) > 0 {
+		conflictingRecordSample, err := yaml.Marshal(resultsList[0])
+		errorDetails := util.Dedent(fmt.Sprintf(`
+			'%s' collection already contains data with the '%s' scope, that is not managed by this instance of the collection_data resource.
+			Collection data modification will be aborted to prevent data loss.
+			Consider changing the scope, or use 'terraform import' to manage the existing data scope using this terraform resource.
+			Conflicting record example:
+			%s
+		`, api.collectionIDModel.Key(), scope, string(conflictingRecordSample)))
+		diags.AddError("Duplicate collection data scope", errorDetails)
+		if err != nil {
+			diags.AddError(unexpectedErrorSummary, err.Error())
+		}
+	}
+	return
+}
+
+func (r *resourceCollectionData) validateKeyUniqueness(ctx context.Context, api *collectionDataAPI, scope string, entries []collectionEntryModel) (diags diag.Diagnostics) {
+	const unexpectedErrorSummary = "Unexpected error while validating key/scope uniqueness"
+	keyList := make([]map[string]string, len(entries))
+	for i, entry := range entries {
+		keyList[i] = map[string]string{"_key": entry.ID.ValueString()}
+	}
+	keyCond := map[string]interface{}{"$or": keyList}
+	scopeCond := map[string]interface{}{"_scope": map[string]string{"$ne": scope}}
+	queryMap := map[string]interface{}{"$and": []interface{}{keyCond, scopeCond}}
+
+	query, err := json.Marshal(queryMap)
+	if err != nil {
+		diags.AddError(unexpectedErrorSummary, err.Error())
+	}
+
+	resultsObj, d := api.Query(ctx, string(query), []string{"_key", "_scope"}, 0)
+	if diags.Append(d...); diags.HasError() {
+		return
+	}
+	resultsList, ok := resultsObj.([]interface{})
+	if !ok {
+		diags.AddError(unexpectedErrorSummary, "Splunk collection API returned unexpected results.")
+		return
+	}
+
+	if len(resultsList) > 0 {
+		conflictingRecords, err := yaml.Marshal(resultsList)
+		errorDetails := util.Dedent(fmt.Sprintf(`
+			One or more records specified in the resource are already present in the '%s' collection and have a different scope.
+			Collection data modification will be aborted to prevent data loss.
+			Conflicting records:
+			%s
+		`, api.collectionIDModel.Key(), string(conflictingRecords)))
+		diags.AddError("Duplicate collection items", errorDetails)
+		if err != nil {
+			diags.AddError(unexpectedErrorSummary, err.Error())
+		}
+	}
+
+	return
+}
+
 func (r *resourceCollectionData) createOrUpdate(ctx context.Context, config, plan collectionDataModel, update bool) (state collectionDataModel, diags diag.Diagnostics) {
 	var planEntries, configEntries []collectionEntryModel
 
@@ -441,6 +525,15 @@ func (r *resourceCollectionData) createOrUpdate(ctx context.Context, config, pla
 	api := NewCollectionDataAPI(plan, r.client)
 	_, diags_ = api.CollectionExists(ctx, true)
 	if diags.Append(diags_...); diags.HasError() {
+		return
+	}
+
+	if !update {
+		if diags.Append(r.validateScopeUniqueness(ctx, api, plan.Scope.ValueString())...); diags.HasError() {
+			return
+		}
+	}
+	if diags.Append(r.validateKeyUniqueness(ctx, api, plan.Scope.ValueString(), planEntries)...); diags.HasError() {
 		return
 	}
 
@@ -519,4 +612,59 @@ func (r *resourceCollectionData) Delete(ctx context.Context, req resource.Delete
 
 	resp.Diagnostics.Append(api.Delete(ctx)...)
 	tflog.Trace(ctx, "Finished deleting collecton data resource")
+}
+
+func (r *resourceCollectionData) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	const unexpectedErrorSummary = "Unexpected error while importing collection data"
+
+	collectionID, scope, diags := collectionIDModelAndScopeFromString(req.ID)
+	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
+		return
+	}
+
+	state := collectionDataModel{
+		Collection: collectionID,
+		Scope:      types.StringValue(scope),
+		Entries:    types.SetValueMust(new(types.ObjectType).WithAttributeTypes(map[string]attr.Type{"id": types.StringType, "data": types.StringType}), []attr.Value{}),
+	}
+
+	query := fmt.Sprintf(`{"scope": "%s", "_instance": { "$ne": null }}`, scope)
+
+	api := NewCollectionDataAPI(state, r.client)
+
+	_, diags = api.CollectionExists(ctx, true)
+	if resp.Diagnostics.Append(diags...); diags.HasError() {
+		return
+	}
+
+	resultsObj, diags := api.Query(ctx, query, []string{"_instance"}, 1)
+	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
+		return
+	}
+
+	resultsList, ok := resultsObj.([]interface{})
+	if !ok {
+		diags.AddError(unexpectedErrorSummary, "Splunk collection API returned unexpected results.")
+		return
+	}
+
+	id := ""
+	if len(resultsList) > 0 {
+		result, ok := resultsList[0].(map[string]string)
+		if !ok {
+			diags.AddError(unexpectedErrorSummary, "Splunk collection API returned unexpected results.")
+			return
+		}
+		id = result["_instance"]
+	} else {
+		warningDetails := util.Dedent(`
+			Collection data that is being improted is missing the '_instance' field.
+			This may indicate that it was created with an old version of the ITSI provider or does not exist.
+		`)
+		diags.AddWarning("Collection data is missing or corrupted.", warningDetails)
+		id = uuid.New().String()
+	}
+
+	state.ID = types.StringValue(id)
+	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }

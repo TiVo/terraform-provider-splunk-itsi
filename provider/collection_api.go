@@ -83,21 +83,26 @@ func (api *collectionAPI) CollectionExists(ctx context.Context, require bool) (e
 	return
 }
 
-func (api *collectionAPI) Query(ctx context.Context, query string, fields []string) (obj interface{}, diags diag.Diagnostics) {
+func (api *collectionAPI) Query(ctx context.Context, query string, fields []string, limit int) (obj interface{}, diags diag.Diagnostics) {
 	collection := api.Model("collection_data")
 	var params, queryParams, fieldsParams string
 
 	if strings.TrimSpace(query) != "" {
 		queryParams = "query=" + url.QueryEscape(query)
 	}
+	paramsList := []string{queryParams}
 	if len(fields) > 0 {
 		urlEscapedFields := make([]string, len(fields))
 		for i, field := range fields {
 			urlEscapedFields[i] = url.QueryEscape(field)
 		}
 		fieldsParams = "fields=" + strings.Join(urlEscapedFields, ",")
+		paramsList = append(paramsList, fieldsParams)
 	}
-	params = strings.Join([]string{queryParams, fieldsParams}, "&")
+	if limit > 0 {
+		paramsList = append(paramsList, fmt.Sprintf("limit=%v", limit))
+	}
+	params = strings.Join(paramsList, "&")
 	collection.Params = params
 
 	var err error
@@ -427,7 +432,7 @@ func (api *collectionDataAPI) deleteOldRows(ctx context.Context) (diags diag.Dia
 
 func (api *collectionDataAPI) Read(ctx context.Context) (data []collectionEntryModel, diags diag.Diagnostics) {
 	q := fmt.Sprintf(`{"_scope":"%s"}`, api.Scope.ValueString())
-	obj, diags := api.Query(ctx, q, []string{})
+	obj, diags := api.Query(ctx, q, []string{}, 0)
 	if diags.Append(diags...); diags.HasError() {
 		return
 	}

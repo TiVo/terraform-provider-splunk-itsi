@@ -25,6 +25,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/tivo/terraform-provider-splunk-itsi/models"
+	"github.com/tivo/terraform-provider-splunk-itsi/provider/util"
 )
 
 // COLLECTION MODELS
@@ -41,14 +42,59 @@ func (c *collectionIDModel) Key() string {
 
 func collectionIDModelFromString(key string) (c collectionIDModel, diags diag.Diagnostics) {
 	cleanKey := strings.TrimSpace(key)
-	parts := strings.Split(strings.TrimSpace(cleanKey), "/")
-	if len(parts) != 3 {
-		diags.AddError(fmt.Sprintf("Invalid collection key '%s'", cleanKey), "Collection key must be in the format 'owner/app/name'")
+	parts := strings.Split(cleanKey, "/")
+
+	if len(cleanKey) == 0 || len(parts) > 3 {
+		errorDetails := util.Dedent(fmt.Sprintf(`
+			Collection key must be in the format '[collection_owner/][collection_app/]<collection_name>'.
+			E.g. '%[1]s/%[2]s/example', '%[2]s/example', 'example' are valid collection names.
+			When the collection's owner and/or app are not provided, the default values of %[1]q and %[2]q are assumed respectively.
+		`, collectionDefaultUser, collectionDefaultApp))
+
+		diags.AddError(fmt.Sprintf("Invalid collection key %q", cleanKey), errorDetails)
 		return
 	}
-	c.Owner = types.StringValue(parts[0])
-	c.App = types.StringValue(parts[1])
-	c.Name = types.StringValue(parts[2])
+
+	owner := collectionDefaultUser
+	app := collectionDefaultApp
+	name := ""
+
+	for i, f := range []*string{&name, &app, &owner} {
+		if i < len(parts) {
+			*f = parts[len(parts)-i-1]
+		}
+	}
+
+	c = collectionIDModel{
+		Name:  types.StringValue(name),
+		App:   types.StringValue(app),
+		Owner: types.StringValue(owner),
+	}
+	return
+}
+
+func collectionIDModelAndScopeFromString(key string) (c collectionIDModel, scope string, diags diag.Diagnostics) {
+	cleanKey := strings.TrimSpace(key)
+	parts := strings.Split(cleanKey, ":")
+
+	if len(cleanKey) == 0 || len(parts) > 2 {
+		errorDetails := util.Dedent(fmt.Sprintf(`
+			Collection scope key must be in the format '[collection_owner/][collection_app/]<collection_name>[:scope]'.
+			E.g. '%[1]s/%[2]s/example:%[3]s', '%[1]s/%[2]s/example', '%[2]s/example', 'example', are valid values for a collection scope and all refer to the same collection scope.
+			When scope is ommited, the %[3]q scope is assumed.
+		`, collectionDefaultUser, collectionDefaultApp, collectionDefaultScope))
+		diags.AddError("Invalid collection scope format", errorDetails)
+		return
+	}
+
+	scope = collectionDefaultScope
+	if len(parts) == 2 {
+		scope = parts[1]
+	}
+
+	c, d := collectionIDModelFromString(parts[0])
+	diags.Append(d...)
+
 	return
 }
 
