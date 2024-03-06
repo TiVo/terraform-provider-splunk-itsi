@@ -90,11 +90,11 @@ func NewResourceTemplate(data *schema.ResourceData, resourceSchema map[string]*s
 		rt.Fields = append(rt.Fields, k)
 	}
 	sort.Strings(rt.Fields)
-	rt.ResourceName, err = rt.escape(data.Get(title).(string))
+	rt.ResourceName, err = Escape(data.Get(title).(string))
 	return rt, err
 }
 
-func (rt *resourceTemplate) escape(name string) (string, error) {
+func Escape(name string) (string, error) {
 	reg, err := regexp.Compile("[^a-zA-Z0-9]+")
 	if err != nil {
 		return "", err

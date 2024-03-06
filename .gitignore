@@ -2,6 +2,7 @@ bin/
 out/
 dump/
 dist/
+scraper/__*
 .DS_Store
 pkg
 tmp
