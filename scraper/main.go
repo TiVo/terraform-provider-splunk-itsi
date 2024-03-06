@@ -26,6 +26,36 @@ import (
 
 var outputBasePath = "dump"
 
+const (
+	initConfTemplate = `
+terraform {
+	required_providers {
+		itsi = {
+			source  = "TiVo/splunk-itsi"
+			version = "~> 1.0"
+		}
+	}
+	required_version = "~> 1.7.0"
+}
+
+provider "itsi" {
+	{{if .BearerToken}}
+	smm_token = "{{.BearerToken}}"
+	{{else}}
+	password = "{{.Password}}"
+	user     = "{{.User}}"
+	{{end}}
+	host     = "{{.Host}}"
+	port     = {{.Port}}
+}`
+	importSchemaTemplate = `
+import {
+	id = "{{.Id}}"
+	to = {{.ObjectType}}.{{escape .TFID}}
+}
+`
+)
+
 func main() {
 	parser := argparse.NewParser("ITSI scraper", "Dump ITSI resources via REST interface and format them in a file.")
 
@@ -109,7 +139,7 @@ func main() {
 	for _, objType := range *objs {
 		if *mode == "terraform_gen" {
 			wg.Add(1)
-			go test(clientConfig, objType, logsCh, &wg)
+			go runGenerateCommand(clientConfig, objType, logsCh, &wg)
 		} else if formatter, ok := provider.Formatters[objType]; ok || !strings.HasPrefix(*format, "tf") {
 			wg.Add(1)
 			go dump(clientConfig, objType, *format, formatter, logsCh, &wg)
@@ -150,71 +180,77 @@ type Logs struct {
 	Errors     []error
 }
 
-func test(clientConfig models.ClientConfig, objectType string, logsCh chan Logs, wg *sync.WaitGroup) {
-	defer wg.Done()
-	var initConf = `	
-terraform {
-	required_providers {
-		itsi = {
-			source  = "TiVo/splunk-itsi"
-			version = "~> 1.0"
-		}
+func runTerraformCommand(folder string, args ...string) (errors []error) {
+	cmd := exec.Command("terraform", args...)
+	var b bytes.Buffer
+	cmd.Stderr = &b
+	cmd.Stdout = os.Stdout
+	cmd.Dir = folder
+	err := cmd.Run()
+	errors = append(errors, fmt.Errorf(string(b.Bytes())))
+	if err != nil {
+		errors = append(errors, err)
 	}
-	required_version = "~> 1.7.0"
+	return
 }
 
-provider "itsi" { 
-{{if .BearerToken}}
-	smm_token = "{{.BearerToken}}"
-{{else}}
-	password = "{{.Password}}"
-	user     = "{{.User}}"
-{{end}}
-	host     = "{{.Host}}"
-	port     = {{.Port}}
-}`
-
-	var importSchema = `
-import {
-	id = "{{.Id}}"
-	to = {{.ObjectType}}.{{escape .TFID}}
-}
-`
-	base := models.NewBase(clientConfig, "", "", objectType)
+func runGenerateCommand(clientConfig models.ClientConfig, objectType string, logsCh chan Logs, wg *sync.WaitGroup) {
+	defer wg.Done()
 	errors := []error{}
 
+	base := models.NewBase(clientConfig, "", "", objectType)
+
+	// Parse Templates for import.tf & versions.tf
 	importT := template.Must(template.New("import").Funcs(template.FuncMap{
 		"escape": provider.Escape,
-	}).Parse(importSchema))
-	initT := template.Must(template.New("init").Parse(initConf))
+	}).Parse(importSchemaTemplate))
+	initT := template.Must(template.New("init").Parse(initConfTemplate))
 
+	// Make a folder dump/objectType
 	folder := fmt.Sprintf("%s/%s", outputBasePath, objectType)
 	err := os.MkdirAll(folder, os.ModePerm)
 	if err != nil {
-		panic(err)
+		logsCh <- Logs{
+			ObjectType: objectType,
+			Errors:     []error{err},
+		}
+		return
 	}
-	import_fn := fmt.Sprintf("%s/import.tf", folder)
+
 	versions_fn := fmt.Sprintf("%s/versions.tf", folder)
 	versionsF, err := os.OpenFile(versions_fn, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
-	if err != nil {
-		panic(err)
-	}
 	defer versionsF.Close()
-	initT.Execute(versionsF, clientConfig)
 
-	importF, err := os.OpenFile(import_fn, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
-		panic(err)
+		logsCh <- Logs{
+			ObjectType: objectType,
+			Errors:     []error{err},
+		}
+		return
 	}
+
+	err = initT.Execute(versionsF, clientConfig)
+	if err != nil {
+		logsCh <- Logs{
+			ObjectType: objectType,
+			Errors:     []error{err},
+		}
+		return
+	}
+
+	import_fn := fmt.Sprintf("%s/import.tf", folder)
+	importF, err := os.OpenFile(import_fn, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
 	defer importF.Close()
 
-	cmd := exec.Command("terraform", "init")
-	cmd.Stdout = os.Stdout
-	cmd.Dir = folder
-	err = cmd.Run()
 	if err != nil {
-		panic(err)
+		logsCh <- Logs{
+			ObjectType: objectType,
+			Errors:     []error{err},
+		}
+		return
 	}
+
+	errors = append(errors, runTerraformCommand(folder, "init")...)
 
 	for count, offset := base.GetPageSize(), 0; offset >= 0; offset += count {
 		ctx := context.Background()
@@ -225,9 +261,8 @@ import {
 		}
 		for _, item := range items {
 			err = importT.Execute(importF, map[string]string{
-				"Id":   item.RESTKey,
-				"TFID": item.TFID,
-				// TODO: this mapping is resource knowledge. implement mechanism to get via one call
+				"Id":         item.RESTKey,
+				"TFID":       item.TFID,
 				"ObjectType": "itsi_" + objectType,
 			})
 			if err != nil {
@@ -239,27 +274,12 @@ import {
 			break
 		}
 	}
-	cmd = exec.Command("terraform", "plan", "-generate-config-out=generated.tf")
-	cmd.Dir = folder
-	var b bytes.Buffer
-	cmd.Stderr = &b
-	cmd.Stdout = os.Stdout
-	// Read from the stderr pipe asynchronously
-
-	err = cmd.Run()
-	errors = append(errors, fmt.Errorf(string(b.Bytes())))
-
-	if err != nil {
-		errors = append(errors, err)
-	}
-
-	// Obtain a reflect.Value of the Terraform instance
-
-	// Example: Call the buildPlanCmd method of Terraform
-
+	errors = append(errors, runTerraformCommand(folder, "plan", "-generate-config-out=generated.tf")...)
 	diags := NewFmtCommand([]string{folder + "/generated.tf"}, false).Run()
 	if diags.HasError() {
-		log.Fatalf("%+v", diags)
+		for _, diag := range diags {
+			errors = append(errors, fmt.Errorf(diag.Detail))
+		}
 	}
 
 	logsCh <- Logs{
