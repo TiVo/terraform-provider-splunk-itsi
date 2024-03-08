@@ -23,6 +23,58 @@ const (
 	entityTypeDefaultDashboardType = "navigation_link"
 )
 
+type entityTypeModel struct {
+	Title              types.String `tfsdk:"title"`
+	Description        types.String `tfsdk:"description"`
+	DashboardDrilldown types.Set    `tfsdk:"dashboard_drilldown"`
+	DataDrilldown      types.Set    `tfsdk:"data_drilldown"`
+	VitalMetric        types.Set    `tfsdk:"vital_metric"`
+}
+
+type entityTypeDashboardDrilldownModel struct {
+	Title         types.String `tfsdk:"title"`
+	BaseURL       types.String `tfsdk:"base_url"`
+	DashboardID   types.String `tfsdk:"dashboard_id"`
+	DashboardType types.String `tfsdk:"dashboard_type"`
+	Params        types.Map    `tfsdk:"params"`
+}
+
+type entityTypeDataDrilldownModel struct {
+	Title             types.String `tfsdk:"title"`
+	Type              types.String `tfsdk:"type"`
+	StaticFilters     types.Map    `tfsdk:"static_filters"`
+	EntityFieldFilter types.Set    `tfsdk:"entity_field_filter"`
+}
+
+type entityTypeDataDrilldownEntityFieldFilterModel struct {
+	DataField   types.String `tfsdk:"data_field"`
+	EntityField types.String `tfsdk:"entity_field"`
+}
+
+type entityTypeVitalMetricModel struct {
+	MetricName           types.String `tfsdk:"metric_name"`
+	Search               types.String `tfsdk:"search"`
+	MatchingEntityFields types.Map    `tfsdk:"matching_entity_fields"`
+	IsKey                types.Bool   `tfsdk:"is_key"`
+	Unit                 types.String `tfsdk:"unit"`
+	AlertRule            types.Set    `tfsdk:"alert_rule"`
+}
+
+type entityTypeVitalMetricAlertRuleModel struct {
+	CriticalThreshold types.Int64  `tfsdk:"critical_threshold"`
+	WarningThreshold  types.Int64  `tfsdk:"warning_threshold"`
+	CronSchedule      types.String `tfsdk:"cron_schedule"`
+	EntityFilter      types.Set    `tfsdk:"entity_filter"`
+	IsEnabled         types.Bool   `tfsdk:"is_enabled"`
+	SuppressTime      types.String `tfsdk:"suppress_time"`
+}
+
+type entityTypeVitalMetricAlertRuleEntityFilterModel struct {
+	Field     types.String `tfsdk:"field"`
+	FieldType types.String `tfsdk:"field_type"`
+	Value     types.String `tfsdk:"value"`
+}
+
 // Ensure the implementation satisfies the expected interfaces.
 var (
 	_ resource.Resource = &resourceEntityType{}
@@ -118,7 +170,7 @@ func (r *resourceEntityType) dataDrilldownSchema() schema.SetNestedBlock {
 		`),
 		NestedObject: schema.NestedBlockObject{
 			Blocks: map[string]schema.Block{
-				"static_filters": schema.SetNestedBlock{
+				"entity_field_filter": schema.SetNestedBlock{
 					MarkdownDescription: util.Dedent(`
 						Further filter down to the raw data associated with the entity
 						based on a set of selected entity alias or informational fields.
