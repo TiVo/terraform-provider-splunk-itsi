@@ -68,10 +68,10 @@ func Provider() *schema.Provider {
 			"itsi_kpi_base_search": DatasourceKPIBaseSearch(),
 		},
 		ResourcesMap: map[string]*schema.Resource{
-			"itsi_kpi_base_search": ResourceKPIBaseSearch(),
-			"itsi_entity_type":     ResourceEntityType(),
-			"itsi_service":         ResourceService(),
-			"itsi_neap":            ResourceNotableEventAggregationPolicy(),
+			//"itsi_kpi_base_search": ResourceKPIBaseSearch(),
+			"itsi_entity_type": ResourceEntityType(),
+			"itsi_service":     ResourceService(),
+			"itsi_neap":        ResourceNotableEventAggregationPolicy(),
 		},
 	}
 }
