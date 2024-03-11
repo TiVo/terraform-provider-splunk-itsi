@@ -53,10 +53,10 @@ func kpiBSTFFormat(b *models.Base) (string, error) {
 	return cleanerRegex.ReplaceAllString(tpl.String(), ""), nil
 }
 
-func kpiBaseSearchBase(clientConfig models.ClientConfig, key string, title string) *models.Base {
-	base := models.NewBase(clientConfig, key, title, "kpi_base_search")
-	return base
-}
+// func kpiBaseSearchBase(clientConfig models.ClientConfig, key string, title string) *models.Base {
+// 	base := models.NewBase(clientConfig, key, title, "kpi_base_search")
+// 	return base
+// }
 
 func ResourceKPIBaseSearch() *schema.Resource {
 	return &schema.Resource{
