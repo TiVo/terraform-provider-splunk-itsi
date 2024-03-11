@@ -72,7 +72,7 @@ resource "itsi_kpi_base_search" "my_kpi_base_search" {
 
 ### Read-Only
 
-- `id` (String) ID of the KPI Base Search.
+- `id` (String) The ID of this resource
 
 <a id="nestedblock--metrics"></a>
 ### Nested Schema for `metrics`
