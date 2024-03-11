@@ -226,7 +226,9 @@ func (r *resourceKpiBaseSearch) Schema(ctx context.Context, req resource.SchemaR
 			},
 			"actions": schema.StringAttribute{
 				Optional:    true,
+				Computed:    true,
 				Description: "Set of strings, delimited by comma. Corresponds custom actions stanzas, defined in alert_actions.conf.",
+				Default:     stringdefault.StaticString(""),
 			},
 			"alert_lag": schema.StringAttribute{
 				Required:    true,
