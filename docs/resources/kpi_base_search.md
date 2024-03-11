@@ -3,12 +3,12 @@
 page_title: "itsi_kpi_base_search Resource - itsi"
 subcategory: ""
 description: |-
-  Manages a KPI Base search within ITSI.
+  
 ---
 
 # itsi_kpi_base_search (Resource)
 
-Manages a KPI Base search within ITSI.
+
 
 ## Example Usage
 
@@ -57,7 +57,6 @@ resource "itsi_kpi_base_search" "my_kpi_base_search" {
 - `entity_id_fields` (String) Fields from this KPI's search events that will be mapped to the alias fields defined in entities for the service containing this KPI. This field enables the KPI search to tie the aliases of entities to the fields from the KPI events in identifying entities at search time.
 - `is_entity_breakdown` (Boolean) Determines if search breaks down by entities. See KPI definition.
 - `is_service_entity_filter` (Boolean) If true a filter is used on the search based on the entities included in the service.
-- `metrics` (Block Set, Min: 1) (see [below for nested schema](#nestedblock--metrics))
 - `search_alert_earliest` (String) Value in minutes. This determines how far back each time window is during KPI search runs.
 - `sec_grp` (String) The team the object belongs to.
 - `source_itsi_da` (String) Source of DA used for this search. See KPI Threshold Templates.
@@ -65,14 +64,15 @@ resource "itsi_kpi_base_search" "my_kpi_base_search" {
 
 ### Optional
 
-- `actions` (String) Set of strings, delimited by comma. Corresponds custom actions stanzas, defined in alert_actions.conf. Defaults to ``.
+- `actions` (String) Set of strings, delimited by comma. Corresponds custom actions stanzas, defined in alert_actions.conf.
 - `description` (String) General description for this KPI base search.
 - `entity_alias_filtering_fields` (String) Fields from this KPI's search events that will be mapped to the alias fields defined in entities for the service containing this KPI. This field enables the KPI search to tie the aliases of entities to the fields from the KPI events in identifying entities at search time.
 - `metric_qualifier` (String) Used to further split metrics. Hidden in the UI.
+- `metrics` (Block Set) (see [below for nested schema](#nestedblock--metrics))
 
 ### Read-Only
 
-- `id` (String) The ID of this resource.
+- `id` (String) ID of the KPI Base Search.
 
 <a id="nestedblock--metrics"></a>
 ### Nested Schema for `metrics`
@@ -88,11 +88,11 @@ Required:
 
 Optional:
 
-- `gap_custom_alert_value` (Number) Custom value to fill data gaps. Defaults to `0`.
-- `gap_severity` (String) Severity level assigned for data gaps (info, normal, low, medium, high, critical, or unknown). Defaults to `unknown`.
-- `gap_severity_color` (String) Severity color assigned for data gaps. Defaults to `#CCCCCC`.
-- `gap_severity_color_light` (String) Severity light color assigned for data gaps. Defaults to `#EEEEEE`.
-- `gap_severity_value` (String) Severity value assigned for data gaps. Defaults to `-1`.
+- `gap_custom_alert_value` (Number) Custom value to fill data gaps.
+- `gap_severity` (String) Severity level assigned for data gaps (info, normal, low, medium, high, critical, or unknown).
+- `gap_severity_color` (String) Severity color assigned for data gaps.
+- `gap_severity_color_light` (String) Severity light color assigned for data gaps.
+- `gap_severity_value` (String) Severity value assigned for data gaps.
 
 Read-Only:
 
