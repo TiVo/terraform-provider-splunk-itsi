@@ -28,6 +28,8 @@ type FmtCommand struct {
 	paths     []string
 }
 
+var defaultAttrsToRemove = []string{"provider"}
+
 func NewFmtCommand(paths []string, check bool) *FmtCommand {
 	cmd := &FmtCommand{
 		list:      true,
@@ -243,6 +245,10 @@ func (c *FmtCommand) formatSourceCode(src []byte, filename string) []byte {
 }
 
 func (c *FmtCommand) formatBody(body *hclwrite.Body, inBlocks []string) {
+	for _, attrToRemove := range defaultAttrsToRemove {
+		body.RemoveAttribute(attrToRemove)
+	}
+
 	attrs := body.Attributes()
 	for name, attr := range attrs {
 		if len(inBlocks) == 1 && inBlocks[0] == "variable" && name == "type" {
