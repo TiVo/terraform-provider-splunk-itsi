@@ -1,0 +1,49 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug Provider",
+            "type": "go",
+            "request": "launch",
+            "mode": "debug",
+            "program": "${workspaceFolder}",
+            "env": {
+                "PKG_NAME": "${relativeFileDirname}"
+            },
+            "args": [
+                "--debug"
+            ],
+            "showLog": true
+        },
+        {
+            "name": "Debug Scrapper",
+            "type": "go",
+            "request": "launch",
+            "mode": "debug",
+            "program": "${workspaceFolder}/scraper",
+            "env": {
+                "PKG_NAME": "${relativeFileDirname}"
+            },
+            "args": [
+                "creds",
+                "--user",
+                "${env:SPLUNK_USER}",
+                "--password",
+                "${env:SPLUNK_PASSWORD}",
+                "--host",
+                "${env:SPLUNK_HOST}",
+                "--format",
+                "tf",
+                "--verbose",
+                "true",
+                "-s",
+                "true",
+                "-b",
+                "kpi_base_search",
+                "--mode",
+                "terraform_gen"
+            ],
+            "showLog": true
+        }
+    ]
+}
