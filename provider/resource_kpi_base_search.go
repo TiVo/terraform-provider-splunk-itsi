@@ -64,11 +64,42 @@ var (
 	_ resource.Resource                = &resourceKpiBaseSearch{}
 	_ resource.ResourceWithImportState = &resourceKpiBaseSearch{}
 	_ resource.ResourceWithConfigure   = &resourceKpiBaseSearch{}
+	_ resource.ResourceWithModifyPlan  = &resourceKpiBaseSearch{}
 )
 
 func kpiBaseSearchBase(clientConfig models.ClientConfig, key string, title string) *models.Base {
 	base := models.NewBase(clientConfig, key, title, "kpi_base_search")
 	return base
+}
+
+func (r *resourceKpiBaseSearch) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	if req.Plan.Raw.IsNull() || req.State.Raw.IsNull() {
+		return
+	}
+
+	var diags diag.Diagnostics
+	var state, plan KpiBaseSearchState
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+
+	resp.Diagnostics.Append(diags...)
+	oldMetricsByTitle := map[string]*Metric{}
+	if state.Metrics != nil {
+		for _, metric := range state.Metrics {
+			oldMetricsByTitle[metric.Title.ValueString()] = metric
+		}
+	}
+
+	for _, metricState := range plan.Metrics {
+		if metricState.ID.IsUnknown() {
+			if metricToRemap, ok := oldMetricsByTitle[metricState.Title.ValueString()]; ok {
+				metricState.ID = metricToRemap.ID
+			}
+		}
+	}
+	resp.Diagnostics.Append(resp.Plan.Set(ctx, plan)...)
+	tflog.Trace(ctx, "Finished modifying plan for collecton data resource")
+
 }
 
 type KpiBaseSearchState struct {
@@ -210,7 +241,7 @@ func (r *resourceKpiBaseSearch) Schema(ctx context.Context, req resource.SchemaR
 		},
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
-				MarkdownDescription: "ID of the KPI Base Search.",
+				MarkdownDescription: "The ID of this resource",
 				Computed:            true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
