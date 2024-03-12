@@ -4,17 +4,17 @@ page_title: "itsi_entity_type Resource - itsi"
 subcategory: ""
 description: |-
   An entity_type defines how to classify a type of data source.
-                          For example, you can create a Linux, Windows, Unix/Linux add-on, VMware, or Kubernetes entity type.
-                          An entity type can include zero or more data drilldowns and zero or more dashboard drilldowns.
-                          You can use a single data drilldown or dashboard drilldown for multiple entity types.
+  For example, you can create a Linux, Windows, Unix/Linux add-on, VMware, or Kubernetes entity type.
+  An entity type can include zero or more data drilldowns and zero or more dashboard drilldowns.
+  You can use a single data drilldown or dashboard drilldown for multiple entity types.
 ---
 
 # itsi_entity_type (Resource)
 
 An entity_type defines how to classify a type of data source.
-						For example, you can create a Linux, Windows, Unix/Linux add-on, VMware, or Kubernetes entity type.
-						An entity type can include zero or more data drilldowns and zero or more dashboard drilldowns.
-						You can use a single data drilldown or dashboard drilldown for multiple entity types.
+For example, you can create a Linux, Windows, Unix/Linux add-on, VMware, or Kubernetes entity type.
+An entity type can include zero or more data drilldowns and zero or more dashboard drilldowns.
+You can use a single data drilldown or dashboard drilldown for multiple entity types.
 
 ## Example Usage
 
@@ -99,32 +99,38 @@ resource "itsi_entity_type" "Kubernetes_Pod" {
 
 ### Optional
 
-- `dashboard_drilldown` (Block Set) An array of dashboard drilldown objects. Each dashboard drilldown defines an internal or external resource you specify with a URL and parameters that map to one of an entity fields. The parameters are passed to the resource when you open the URL. (see [below for nested schema](#nestedblock--dashboard_drilldown))
-- `data_drilldown` (Block Set) An array of data drilldown objects. Each data drilldown defines filters for raw data associated with entities that belong to the entity type. (see [below for nested schema](#nestedblock--data_drilldown))
-- `description` (String) A description of the entity type. Defaults to ``.
-- `vital_metric` (Block Set) An array of vital metric objects. Vital metrics are statistical calculations based on
-							  SPL searches that represent the overall health of entities of that type. (see [below for nested schema](#nestedblock--vital_metric))
+- `dashboard_drilldown` (Block Set) An array of dashboard drilldown objects.
+Each dashboard drilldown defines an internal or external resource you specify with a URL and parameters
+that map to one of an entity fields. The parameters are passed to the resource when you open the URL. (see [below for nested schema](#nestedblock--dashboard_drilldown))
+- `data_drilldown` (Block Set) An array of data drilldown objects.
+Each data drilldown defines filters for raw data associated with entities that belong to the entity type. (see [below for nested schema](#nestedblock--data_drilldown))
+- `description` (String) A description of the entity type.
+- `vital_metric` (Block Set) An set of vital metric objects. Vital metrics are statistical calculations based on
+SPL searches that represent the overall health of entities of that type. (see [below for nested schema](#nestedblock--vital_metric))
 
 ### Read-Only
 
-- `id` (String) The ID of this resource.
+- `id` (String) ID of the entity type.
 
 <a id="nestedblock--dashboard_drilldown"></a>
 ### Nested Schema for `dashboard_drilldown`
 
 Required:
 
-- `title` (String) Name of the dashboard.
+- `title` (String) The name of the dashboard.
 
 Optional:
 
-- `base_url` (String) An internal or external URL that points to the dashboard. This setting exists because for internal purposes, navigation suggestions are treated as dashboards.
-							This setting is only required if is_splunk_dashboard is false.
+- `base_url` (String) An internal or external URL that points to the dashboard.
+This setting exists because for internal purposes, navigation suggestions are treated as dashboards.
+This setting is only required if is_splunk_dashboard is false.
 - `dashboard_id` (String) A unique identifier for the xml dashboard.
-- `dashboard_type` (String) The type of dashboard being added. This element is required. The following options are available:
-							xml_dashboard - a Splunk XML dashboard. Any dashboards you add must be of this type.
-							navigation_link - a navigation URL. Should be used when base_url is specified. Defaults to `navigation_link`.
-- `params` (Map of String) A set of parameters for the entity dashboard drilldown that provide a mapping of a URL parameter and its alias
+- `dashboard_type` (String) The type of dashboard being added.
+The following options are available:
+* xml_dashboard - a Splunk XML dashboard. Any dashboards you add must be of this type.
+* navigation_link - a navigation URL. Should be used when base_url is specified.
+Defaults to navigation_link.
+- `params` (Map of String) A set of parameters for the entity dashboard drilldown that provide a mapping of a URL parameter and its alias.
 
 
 <a id="nestedblock--data_drilldown"></a>
@@ -132,13 +138,13 @@ Optional:
 
 Required:
 
-- `entity_field_filter` (Block Set, Min: 1) Further filter down to the raw data associated with the entity
-						  based on a set of selected entity alias or informational fields. (see [below for nested schema](#nestedblock--data_drilldown--entity_field_filter))
-- `title` (String) Name of the drilldown.
+- `title` (String) The name of the drilldown.
 - `type` (String) Type of raw data to associate with. Must be either metrics or events.
 
 Optional:
 
+- `entity_field_filter` (Block Set) Further filter down to the raw data associated with the entity
+based on a set of selected entity alias or informational fields. (see [below for nested schema](#nestedblock--data_drilldown--entity_field_filter))
 - `static_filters` (Map of String) Filter down to a subset of raw data associated with the entity using static information like sourcetype.
 
 <a id="nestedblock--data_drilldown--entity_field_filter"></a>
@@ -146,8 +152,8 @@ Optional:
 
 Required:
 
-- `data_field` (String)
-- `entity_field` (String)
+- `data_field` (String) Data field.
+- `entity_field` (String) Entity field.
 
 
 
@@ -156,27 +162,27 @@ Required:
 
 Required:
 
+- `is_key` (Boolean) Indicates if the vital metric specified is a key metric.
+A key metric calculates the distribution of entities associated with the entity type to indicate the overall health of the entity type.
+The key metric is rendered as a histogram in the Infrastructure Overview. Only one vital metric can have is_key set to true.
 - `matching_entity_fields` (Map of String) Specifies the aliases of an entity to use to match with the fields specified by the fields that the search configuration is split on.
-						Make sure the value matches the split by fields in the actual search.
-						For example:
-							- search = "..... by InstanceId, region"
-							- matching_entity_fields = {instance_id = "InstanceId", zone = "region"}.
+Make sure the value matches the split by fields in the actual search.
+For example:
+	- search = "..... by InstanceId, region"
+	- matching_entity_fields = {instance_id = "InstanceId", zone = "region"}.
 - `metric_name` (String) The title of the vital metric. When creating vital metrics,
-					  it's a best practice to include the aggregation method and the name of the metric being calculated.
-					  For example, Average CPU usage.
+it's a best practice to include the aggregation method and the name of the metric being calculated.
+For example, Average CPU usage.
 - `search` (String) The search that computes the vital metric. The search must specify the following fields:
-							- val for the value of the metric.
-							- _time because the UI attempts to render changes over time. You can achieve this by adding span={time} to your search.
-							- Fields as described in the split_by_fields configuration of this vital metric.
-							For example, your search should be split by host,region if the split_by_fields configuration is [ "host", "region" ].
+- val for the value of the metric.
+- _time because the UI attempts to render changes over time. You can achieve this by adding span={time} to your search.
+- Fields as described in the split_by_fields configuration of this vital metric.
+For example, your search should be split by host,region if the split_by_fields configuration is [ "host", "region" ].
 
 Optional:
 
 - `alert_rule` (Block Set) (see [below for nested schema](#nestedblock--vital_metric--alert_rule))
-- `is_key` (Boolean) Indicates if the vital metric specified is a key metric.
-						A key metric calculates the distribution of entities associated with the entity type to indicate the overall health of the entity type.
-						The key metric is rendered as a histogram in the Infrastructure Overview. Only one vital metric can have is_key set to true.  Defaults to `false`.
-- `unit` (String) The unit of the vital metric. For example, KB/s.  Defaults to ``.
+- `unit` (String) The unit of the vital metric. For example, KB/s.
 
 <a id="nestedblock--vital_metric--alert_rule"></a>
 ### Nested Schema for `vital_metric.alert_rule`
@@ -184,14 +190,14 @@ Optional:
 Required:
 
 - `critical_threshold` (Number)
-- `cron_schedule` (String) frequency of alert search
+- `cron_schedule` (String) Frequency of the alert search
 - `warning_threshold` (Number)
 
 Optional:
 
 - `entity_filter` (Block Set) (see [below for nested schema](#nestedblock--vital_metric--alert_rule--entity_filter))
-- `is_enabled` (Boolean) if alert is enabled Defaults to `false`.
-- `suppress_time` (String) suppress the alert until this time Defaults to `0`.
+- `is_enabled` (Boolean) Indicates if the alert rule is enabled.
+- `suppress_time` (String) Frequency of the alert search
 
 <a id="nestedblock--vital_metric--alert_rule--entity_filter"></a>
 ### Nested Schema for `vital_metric.alert_rule.entity_filter`
@@ -199,5 +205,5 @@ Optional:
 Required:
 
 - `field` (String)
-- `field_type` (String) Takes values alias, info or title specifying in which category of fields the field attribute is located.
+- `field_type` (String) Takes values alias or info specifying in which category of fields the field attribute is located.
 - `value` (String)
