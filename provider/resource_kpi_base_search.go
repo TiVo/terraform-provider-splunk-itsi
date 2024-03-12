@@ -1,245 +1,313 @@
 package provider
 
 import (
-	"bytes"
 	"context"
-	"errors"
 	"fmt"
-	"log"
 	"regexp"
-	"strconv"
 	"strings"
 
-	"github.com/hashicorp/go-cty/cty"
-
 	"github.com/hashicorp/go-uuid"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
+	"github.com/hashicorp/terraform-plugin-framework-validators/helpers/validatordiag"
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/float64default"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
+	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/tivo/terraform-provider-splunk-itsi/models"
 )
 
-var validateStaStop schema.SchemaValidateFunc = validation.Any(
-	validation.StringInSlice([]string{"avg", "count", "dc", "earliest", "latest", "max", "median", "min", "stdev", "sum"}, false),
-	validation.StringMatch(regexp.MustCompile(`^perc\d{1,2}$`), ""),
-)
+var _ validator.String = baseSearchValidator{}
 
-func kpiBSTFFormat(b *models.Base) (string, error) {
-	res := ResourceKPIBaseSearch()
-	resData := res.Data(nil)
-	d := populateBaseSearchResourceData(context.Background(), b, resData)
-	if len(d) > 0 {
-		err := d[0].Validate()
-		if err != nil {
-			return "", err
-		}
-		return "", errors.New(d[0].Summary)
-	}
-	resourcetpl, err := NewResourceTemplate(resData, res.Schema, "title", "itsi_kpi_base_search")
-	if err != nil {
-		return "", err
-	}
+type baseSearchValidator struct{}
 
-	templateResource, err := newTemplate(resourcetpl)
-	if err != nil {
-		log.Fatal(err)
-	}
-	var tpl bytes.Buffer
-	err = templateResource.Execute(&tpl, resourcetpl)
-	if err != nil {
-		return "", err
-	}
-
-	return cleanerRegex.ReplaceAllString(tpl.String(), ""), nil
+// Description describes the validation in plain text formatting.
+func (validator baseSearchValidator) Description(_ context.Context) string {
+	return "In KPI base search, the search string shouldn't start with the leading search command"
 }
+
+// MarkdownDescription describes the validation in Markdown formatting.
+func (validator baseSearchValidator) MarkdownDescription(ctx context.Context) string {
+	return validator.Description(ctx)
+}
+
+// Validate performs the validation.
+func (v baseSearchValidator) ValidateString(ctx context.Context, request validator.StringRequest, response *validator.StringResponse) {
+	if request.ConfigValue.IsNull() || request.ConfigValue.IsUnknown() {
+		return
+	}
+
+	value := request.ConfigValue.ValueString()
+	value = strings.TrimSpace(value)
+
+	if strings.HasPrefix(value, "search") {
+		response.Diagnostics.Append(validatordiag.InvalidAttributeValueMatchDiagnostic(
+			request.Path,
+			v.Description(ctx),
+			value,
+		))
+		return
+	}
+}
+
+func NewKpiBaseSearch() resource.Resource {
+	return &resourceKpiBaseSearch{}
+}
+
+// Ensure the implementation satisfies the expected interfaces.
+var (
+	_ resource.Resource                = &resourceKpiBaseSearch{}
+	_ resource.ResourceWithImportState = &resourceKpiBaseSearch{}
+	_ resource.ResourceWithConfigure   = &resourceKpiBaseSearch{}
+	_ resource.ResourceWithModifyPlan  = &resourceKpiBaseSearch{}
+)
 
 func kpiBaseSearchBase(clientConfig models.ClientConfig, key string, title string) *models.Base {
 	base := models.NewBase(clientConfig, key, title, "kpi_base_search")
 	return base
 }
 
-func ResourceKPIBaseSearch() *schema.Resource {
-	return &schema.Resource{
-		Description:   "Manages a KPI Base search within ITSI.",
-		CreateContext: kpiBaseSearchCreate,
-		ReadContext:   kpiBaseSearchRead,
-		UpdateContext: kpiBaseSearchUpdate,
-		DeleteContext: kpiBaseSearchDelete,
-		Importer: &schema.ResourceImporter{
-			StateContext: kpiBaseSearchImport,
-		},
-		Schema: map[string]*schema.Schema{
-			// "_key": {
-			// 	Type:         schema.TypeString,
-			// 	Optional:     true,
-			// 	InputDefault: "",
-			// },
-			"title": {
-				Type:        schema.TypeString,
-				Required:    true,
-				Description: "Name of this KPI base search.",
-			},
-			"description": {
-				Type:        schema.TypeString,
-				Optional:    true,
-				Description: "General description for this KPI base search.",
-			},
-			"actions": {
-				Type:        schema.TypeString,
-				Optional:    true,
-				Description: "Set of strings, delimited by comma. Corresponds custom actions stanzas, defined in alert_actions.conf.",
-				Default:     "",
-			},
-			"alert_lag": {
-				Type:        schema.TypeString,
-				Required:    true,
-				Description: "Contains the number of seconds of lag to apply to the alert search, max is 30 minutes (1799 seconds).",
-			},
-			"alert_period": {
-				Type:        schema.TypeString,
-				Required:    true,
-				Description: "User specified interval to run the KPI search in minutes.",
-			},
-			"base_search": {
-				Type:        schema.TypeString,
-				Required:    true,
-				Description: "KPI search defined by user for this KPI. All generated searches for the KPI are based on this search.",
-				ValidateDiagFunc: func(v_ interface{}, p cty.Path) diag.Diagnostics {
-					v := strings.TrimSpace(v_.(string))
-					var diags diag.Diagnostics
+func (r *resourceKpiBaseSearch) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	if req.Plan.Raw.IsNull() || req.State.Raw.IsNull() {
+		return
+	}
 
-					if !strings.HasPrefix(v, "search") {
-						return diags
-					}
-					diag := diag.Diagnostic{
-						Severity: diag.Error,
-						Summary:  "wrong query",
-						Detail:   "In KPI base search, the search string shouldn't start with the leading search command",
-					}
-					diags = append(diags, diag)
-					return diags
-				},
-			},
-			"entity_alias_filtering_fields": {
-				Type:        schema.TypeString,
-				Required:    false,
-				Optional:    true,
-				Description: "Fields from this KPI's search events that will be mapped to the alias fields defined in entities for the service containing this KPI. This field enables the KPI search to tie the aliases of entities to the fields from the KPI events in identifying entities at search time.",
-			},
-			"entity_breakdown_id_fields": {
-				Type:        schema.TypeString,
-				Required:    true,
-				Description: "KPI search events are split by the alias field defined in entities for the service containing this KPI",
-			},
-			"entity_id_fields": {
-				Type:        schema.TypeString,
-				Required:    true,
-				Description: "Fields from this KPI's search events that will be mapped to the alias fields defined in entities for the service containing this KPI. This field enables the KPI search to tie the aliases of entities to the fields from the KPI events in identifying entities at search time.",
-			},
-			"is_entity_breakdown": {
-				Type:        schema.TypeBool,
-				Required:    true,
-				Description: "Determines if search breaks down by entities. See KPI definition.",
-			},
-			"is_service_entity_filter": {
-				Type:        schema.TypeBool,
-				Required:    true,
-				Description: "If true a filter is used on the search based on the entities included in the service.",
-			},
-			"metric_qualifier": {
-				Type:        schema.TypeString,
-				Optional:    true,
-				Description: "Used to further split metrics. Hidden in the UI.",
-			},
-			"metrics": {
-				Required: true,
-				Type:     schema.TypeSet,
-				Elem: &schema.Resource{
-					Schema: map[string]*schema.Schema{
-						"id": {
-							Type:        schema.TypeString,
+	var diags diag.Diagnostics
+	var state, plan KpiBaseSearchState
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+
+	resp.Diagnostics.Append(diags...)
+	oldMetricsByTitle := map[string]*Metric{}
+	if state.Metrics != nil {
+		for _, metric := range state.Metrics {
+			oldMetricsByTitle[metric.Title.ValueString()] = metric
+		}
+	}
+
+	for _, metricState := range plan.Metrics {
+		if metricState.ID.IsUnknown() {
+			if metricToRemap, ok := oldMetricsByTitle[metricState.Title.ValueString()]; ok {
+				metricState.ID = metricToRemap.ID
+			}
+		}
+	}
+	resp.Diagnostics.Append(resp.Plan.Set(ctx, plan)...)
+	tflog.Trace(ctx, "Finished modifying plan for collecton data resource")
+
+}
+
+type KpiBaseSearchState struct {
+	ID                         types.String `tfsdk:"id" json:"_key"`
+	Title                      types.String `tfsdk:"title" json:"title"`
+	Description                types.String `tfsdk:"description" json:"description"`
+	Actions                    types.String `tfsdk:"actions" json:"actions"`
+	AlertLag                   types.String `tfsdk:"alert_lag" json:"alert_lag"`
+	AlertPeriod                types.String `tfsdk:"alert_period" json:"alert_period"`
+	BaseSearch                 types.String `tfsdk:"base_search" json:"base_search"`
+	EntityAliasFilteringFields types.String `tfsdk:"entity_alias_filtering_fields" json:"entity_alias_filtering_fields"`
+	EntityBreakdownIDFields    types.String `tfsdk:"entity_breakdown_id_fields" json:"entity_breakdown_id_fields"`
+	EntityIDFields             types.String `tfsdk:"entity_id_fields" json:"entity_id_fields"`
+	IsEntityBreakdown          types.Bool   `tfsdk:"is_entity_breakdown" json:"is_entity_breakdown"`
+	IsServiceEntityFilter      types.Bool   `tfsdk:"is_service_entity_filter" json:"is_service_entity_filter"`
+	MetricQualifier            types.String `tfsdk:"metric_qualifier" json:"metric_qualifier"`
+	SearchAlertEarliest        types.String `tfsdk:"search_alert_earliest" json:"search_alert_earliest"`
+	SecGrp                     types.String `tfsdk:"sec_grp" json:"sec_grp"`
+	SourceItsiDa               types.String `tfsdk:"source_itsi_da" json:"source_itsi_da"`
+
+	Metrics []*Metric `tfsdk:"metrics"`
+}
+
+type Metric struct {
+	ID                    types.String  `tfsdk:"id" json:"_key"`
+	AggregateStatOp       types.String  `tfsdk:"aggregate_statop" json:"aggregate_statop"`
+	EntityStatOp          types.String  `tfsdk:"entity_statop" json:"entity_statop"`
+	FillGaps              types.String  `tfsdk:"fill_gaps" json:"fill_gaps"`
+	GapCustomAlertValue   types.Float64 `tfsdk:"gap_custom_alert_value" json:"gap_custom_alert_value"`
+	GapSeverity           types.String  `tfsdk:"gap_severity" json:"gap_severity"`
+	GapSeverityValue      types.String  `tfsdk:"gap_severity_value" json:"gap_severity_value"`
+	ThresholdField        types.String  `tfsdk:"threshold_field" json:"threshold_field"`
+	Title                 types.String  `tfsdk:"title" json:"title"`
+	Unit                  types.String  `tfsdk:"unit" json:"unit"`
+	GapSeverityColor      types.String  `tfsdk:"gap_severity_color" json:"gap_severity_color"`
+	GapSeverityColorLight types.String  `tfsdk:"gap_severity_color_light" json:"gap_severity_color_light"`
+}
+
+type resourceKpiBaseSearch struct {
+	client models.ClientConfig
+}
+
+func (r *resourceKpiBaseSearch) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
+	if req.ProviderData == nil {
+		return
+	}
+	client, ok := req.ProviderData.(models.ClientConfig)
+	if !ok {
+		tflog.Error(ctx, "Unable to prepare client")
+		resp.Diagnostics.AddError("Unable to prepare client", "invalid provider data")
+		return
+	}
+	r.client = client
+}
+
+func (r *resourceKpiBaseSearch) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
+	resp.TypeName = req.ProviderTypeName + "_kpi_base_search"
+}
+
+func (r *resourceKpiBaseSearch) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
+	resp.Schema = schema.Schema{
+		Blocks: map[string]schema.Block{
+			"metrics": schema.SetNestedBlock{
+				NestedObject: schema.NestedBlockObject{
+					Attributes: map[string]schema.Attribute{
+						"id": schema.StringAttribute{
 							Computed:    true,
 							Description: "Generated metric _key",
 						},
-						"aggregate_statop": {
-							Type:         schema.TypeString,
-							Required:     true,
-							Description:  "Statistical operation (avg, max, median, stdev, and so on) used to combine data for the aggregate alert_value (used for all KPI).",
-							ValidateFunc: validateStaStop,
+						"aggregate_statop": schema.StringAttribute{
+							Required:    true,
+							Description: "Statistical operation (avg, max, median, stdev, and so on) used to combine data for the aggregate alert_value (used for all KPI).",
+							Validators: []validator.String{
+								stringvalidator.RegexMatches(regexp.MustCompile("(avg|count|dc|earliest|latest|max|median|min|stdev|sum|perc*)"), ""),
+							},
 						},
-						"entity_statop": {
-							Type:         schema.TypeString,
-							Required:     true,
-							Description:  "Statistical operation (avg, max, mean, and so on) used to combine data for alert_values on a per entity basis (used if entity_breakdown is true).",
-							ValidateFunc: validateStaStop,
+						"entity_statop": schema.StringAttribute{
+							Required:    true,
+							Description: "Statistical operation (avg, max, mean, and so on) used to combine data for alert_values on a per entity basis (used if entity_breakdown is true).",
+							Validators: []validator.String{
+								stringvalidator.RegexMatches(regexp.MustCompile("(avg|count|dc|earliest|latest|max|median|min|stdev|sum|perc*)"), ""),
+							},
 						},
-						"fill_gaps": {
-							Type:         schema.TypeString,
-							Required:     true,
-							Description:  "How to fill missing data",
-							ValidateFunc: validation.StringInSlice([]string{"null_value", "last_available_value", "custom_value"}, false),
+						"fill_gaps": schema.StringAttribute{
+							Required:    true,
+							Description: "How to fill missing data",
+							Validators: []validator.String{
+								stringvalidator.OneOf("null_value", "last_available_value", "custom_value"),
+							},
 						},
-						"gap_custom_alert_value": {
-							Type:        schema.TypeFloat,
+						"gap_custom_alert_value": schema.Float64Attribute{
 							Optional:    true,
+							Computed:    true,
 							Description: "Custom value to fill data gaps.",
-							Default:     0,
+							Default:     float64default.StaticFloat64(0),
 						},
-						"gap_severity": {
-							Type:         schema.TypeString,
-							Optional:     true,
-							Description:  "Severity level assigned for data gaps (info, normal, low, medium, high, critical, or unknown).",
-							ValidateFunc: validation.StringInSlice([]string{"info", "critical", "high", "medium", "low", "normal", "unknown"}, false),
-							Default:      "unknown",
-						},
-						"gap_severity_color": {
-							Type:        schema.TypeString,
+						"gap_severity": schema.StringAttribute{
 							Optional:    true,
-							Description: "Severity color assigned for data gaps.",
-							Default:     "#CCCCCC",
+							Computed:    true,
+							Description: "Severity level assigned for data gaps (info, normal, low, medium, high, critical, or unknown).",
+							Validators: []validator.String{
+								stringvalidator.OneOf("info", "critical", "high", "medium", "low", "normal", "unknown"),
+							},
+							Default: stringdefault.StaticString("unknown"),
 						},
-						"gap_severity_color_light": {
-							Type:        schema.TypeString,
-							Optional:    true,
-							Description: "Severity light color assigned for data gaps.",
-							Default:     "#EEEEEE",
+						"unit": schema.StringAttribute{
+							Required:    true,
+							Description: "User-defined units for the values in threshold field.",
 						},
-						"gap_severity_value": {
-							Type:        schema.TypeString,
-							Optional:    true,
-							Description: "Severity value assigned for data gaps.",
-							Default:     "-1",
-						},
-						"threshold_field": {
-							Type:        schema.TypeString,
+						"threshold_field": schema.StringAttribute{
 							Required:    true,
 							Description: "The field on which the statistical operation runs",
 						},
-						"title": {
-							Type:        schema.TypeString,
+						"title": schema.StringAttribute{
 							Required:    true,
 							Description: "Name of this metric",
 						},
-						"unit": {
-							Type:        schema.TypeString,
-							Required:    true,
-							Description: "User-defined units for the values in threshold field.",
+						"gap_severity_color": schema.StringAttribute{
+							Optional:    true,
+							Computed:    true,
+							Description: "Severity color assigned for data gaps.",
+							Default:     stringdefault.StaticString("#CCCCCC"),
+						},
+						"gap_severity_color_light": schema.StringAttribute{
+							Optional:    true,
+							Computed:    true,
+							Description: "Severity light color assigned for data gaps.",
+							Default:     stringdefault.StaticString("#EEEEEE"),
+						},
+						"gap_severity_value": schema.StringAttribute{
+							Optional:    true,
+							Description: "Severity value assigned for data gaps.",
+							Computed:    true,
+							Default:     stringdefault.StaticString("-1"),
 						},
 					},
 				},
 			},
-			"search_alert_earliest": {
-				Type:        schema.TypeString,
+		},
+		Attributes: map[string]schema.Attribute{
+			"id": schema.StringAttribute{
+				MarkdownDescription: "The ID of this resource",
+				Computed:            true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
+			"title": schema.StringAttribute{
+				Required:    true,
+				Description: "Name of this KPI base search.",
+			},
+			"description": schema.StringAttribute{
+				Optional:    true,
+				Description: "General description for this KPI base search.",
+			},
+			"actions": schema.StringAttribute{
+				Optional:    true,
+				Computed:    true,
+				Description: "Set of strings, delimited by comma. Corresponds custom actions stanzas, defined in alert_actions.conf.",
+				Default:     stringdefault.StaticString(""),
+			},
+			"alert_lag": schema.StringAttribute{
+				Required:    true,
+				Description: "Contains the number of seconds of lag to apply to the alert search, max is 30 minutes (1799 seconds).",
+			},
+			"alert_period": schema.StringAttribute{
+				Required:    true,
+				Description: "User specified interval to run the KPI search in minutes.",
+			},
+			"base_search": schema.StringAttribute{
+				Required:    true,
+				Description: "KPI search defined by user for this KPI. All generated searches for the KPI are based on this search.",
+				Validators:  []validator.String{baseSearchValidator{}},
+			},
+			"entity_alias_filtering_fields": schema.StringAttribute{
+				Required:    false,
+				Optional:    true,
+				Description: "Fields from this KPI's search events that will be mapped to the alias fields defined in entities for the service containing this KPI. This field enables the KPI search to tie the aliases of entities to the fields from the KPI events in identifying entities at search time.",
+			},
+			"entity_breakdown_id_fields": schema.StringAttribute{
+				Required:    true,
+				Description: "KPI search events are split by the alias field defined in entities for the service containing this KPI",
+			},
+			"entity_id_fields": schema.StringAttribute{
+				Required:    true,
+				Description: "Fields from this KPI's search events that will be mapped to the alias fields defined in entities for the service containing this KPI. This field enables the KPI search to tie the aliases of entities to the fields from the KPI events in identifying entities at search time.",
+			},
+			"is_entity_breakdown": schema.BoolAttribute{
+				Required:    true,
+				Description: "Determines if search breaks down by entities. See KPI definition.",
+			},
+			"is_service_entity_filter": schema.BoolAttribute{
+				Required:    true,
+				Description: "If true a filter is used on the search based on the entities included in the service.",
+			},
+			"metric_qualifier": schema.StringAttribute{
+				Optional:    true,
+				Description: "Used to further split metrics. Hidden in the UI.",
+			},
+			"search_alert_earliest": schema.StringAttribute{
 				Required:    true,
 				Description: "Value in minutes. This determines how far back each time window is during KPI search runs.",
 			},
-			"sec_grp": {
-				Type:        schema.TypeString,
+			"sec_grp": schema.StringAttribute{
 				Required:    true,
 				Description: "The team the object belongs to. ",
 			},
-			"source_itsi_da": {
-				Type:        schema.TypeString,
+			"source_itsi_da": schema.StringAttribute{
 				Required:    true,
 				Description: "Source of DA used for this search. See KPI Threshold Templates.",
 			},
@@ -247,228 +315,177 @@ func ResourceKPIBaseSearch() *schema.Resource {
 	}
 }
 
-func metric(source map[string]interface{}) interface{} {
-	m := map[string]interface{}{}
-	m["_key"] = source["id"].(string)
-	m["aggregate_statop"] = source["aggregate_statop"]
-	m["entity_statop"] = source["entity_statop"]
-	m["fill_gaps"] = source["fill_gaps"]
-	m["gap_custom_alert_value"] = source["gap_custom_alert_value"]
-	m["gap_severity"] = source["gap_severity"]
-	m["gap_severity_color"] = source["gap_severity_color"]
-	m["gap_severity_color_light"] = source["gap_severity_color_light"]
-	m["gap_severity_value"] = source["gap_severity_value"]
-	m["threshold_field"] = source["threshold_field"]
-	m["title"] = source["title"]
-	m["unit"] = source["unit"]
-	return m
-}
+func (r *resourceKpiBaseSearch) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	var plan KpiBaseSearchState
 
-func kpiBaseSearch(ctx context.Context, d *schema.ResourceData, clientConfig models.ClientConfig) (config *models.Base, err error) {
-	body := map[string]interface{}{}
-	body["objectType"] = "kpi_base_search"
-	body["title"] = d.Get("title").(string)
-	body["description"] = d.Get("description").(string)
-	body["actions"] = d.Get("actions").(string)
-	body["alert_lag"] = d.Get("alert_lag").(string)
-	body["alert_period"] = d.Get("alert_period").(string)
-	body["base_search"] = d.Get("base_search").(string)
-	body["entity_alias_filtering_fields"] = d.Get("entity_alias_filtering_fields").(string)
-	body["entity_breakdown_id_fields"] = d.Get("entity_breakdown_id_fields").(string)
-	body["entity_id_fields"] = d.Get("entity_id_fields").(string)
-	body["is_entity_breakdown"] = d.Get("is_entity_breakdown").(bool)
-	body["is_service_entity_filter"] = d.Get("is_service_entity_filter").(bool)
-	body["metric_qualifier"] = d.Get("metric_qualifier").(string)
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 
-	if d.HasChange("metrics") {
-		metricsOld, metricsNew := d.GetChange("metrics")
-		metricsOldbyId := map[string]map[string]interface{}{}
-
-		for _, metrics := range metricsOld.(*schema.Set).List() {
-			metricsData := metrics.(map[string]interface{})
-			id := metricsData["id"].(string)
-			metricsOldbyId[id] = metricsData
-		}
-		for _, metrics := range metricsNew.(*schema.Set).List() {
-			metricsData := metrics.(map[string]interface{})
-			id, ok := metricsData["id"]
-			if ok && id != "" {
-				delete(metricsOldbyId, id.(string))
-			}
-		}
-		metricsOldbyTitle := map[string]map[string]interface{}{}
-		for _, metricsData := range metricsOldbyId {
-			metricsOldbyTitle[metricsData["title"].(string)] = metricsData
-		}
-		for _, metrics := range metricsNew.(*schema.Set).List() {
-			metricsData := metrics.(map[string]interface{})
-			id, ok := metricsData["id"]
-			if !ok || id == "" {
-				title := metricsData["title"].(string)
-				if oldMetric, ok := metricsOldbyTitle[title]; ok {
-					metricsData["id"] = oldMetric["id"]
-					delete(metricsOldbyTitle, title)
-				} else {
-					metricsData["id"], _ = uuid.GenerateUUID()
-				}
-			}
-		}
-		err := d.Set("metrics", metricsNew)
-		if err != nil {
-			return nil, err
-		}
+	base, diags := kpiBaseSearchJson(ctx, r.client, plan)
+	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
+		return
 	}
 
-	metrics := []interface{}{}
-	for _, g := range d.Get("metrics").(*schema.Set).List() {
-		metrics = append(metrics, metric(g.(map[string]interface{})))
-		if err != nil {
-			return nil, err
-		}
-	}
-	body["metrics"] = metrics
-	body["search_alert_earliest"] = d.Get("search_alert_earliest").(string)
-	body["sec_grp"] = d.Get("sec_grp").(string)
-	body["source_itsi_da"] = d.Get("source_itsi_da").(string)
-
-	base := kpiBaseSearchBase(clientConfig, d.Id(), d.Get("title").(string))
-	err = base.PopulateRawJSON(ctx, body)
-
-	return base, err
-}
-
-func kpiBaseSearchCreate(ctx context.Context, d *schema.ResourceData, m interface{}) (diags diag.Diagnostics) {
-	clientConfig := m.(models.ClientConfig)
-	template, err := kpiBaseSearch(ctx, d, clientConfig)
+	base, err := base.Create(ctx)
 	if err != nil {
-		return diag.FromErr(err)
+		resp.Diagnostics.AddError("Unable to create entity", err.Error())
+		return
 	}
-	b, err := template.Create(ctx)
-	if err != nil {
-		return diag.FromErr(err)
-	}
-	b.Read(ctx)
-	return populateBaseSearchResourceData(ctx, b, d)
+
+	plan.ID = types.StringValue(base.RESTKey)
+	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
-func kpiBaseSearchRead(ctx context.Context, d *schema.ResourceData, m interface{}) (diags diag.Diagnostics) {
-	base := kpiBaseSearchBase(m.(models.ClientConfig), d.Id(), d.Get("title").(string))
+func (r *resourceKpiBaseSearch) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	var state KpiBaseSearchState
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+
+	base := kpiBaseSearchBase(r.client, state.ID.ValueString(), state.Title.ValueString())
 	b, err := base.Find(ctx)
 	if err != nil {
-		return diag.FromErr(err)
+		resp.Diagnostics.AddError("Unable to read KPI Base Search", err.Error())
+		return
+	}
+	if b == nil || b.RawJson == nil {
+		resp.Diagnostics.Append(resp.State.Set(ctx, &KpiBaseSearchState{})...)
+		return
+	}
+
+	state, diags := kpiBaseSearchModelFromBase(ctx, b)
+	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
+		return
+	}
+	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
+}
+
+func (r *resourceKpiBaseSearch) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	var plan KpiBaseSearchState
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+
+	base, diags := kpiBaseSearchJson(ctx, r.client, plan)
+	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
+		return
+	}
+	existing, err := base.Find(ctx)
+	if err != nil {
+		resp.Diagnostics.AddError("Unable to update KPI Base Search", err.Error())
+		return
+	}
+	if existing == nil {
+		resp.Diagnostics.AddError("Unable to update KPI Base Search", "KPI Base Search not found")
+		return
+	}
+	if err := base.Update(ctx); err != nil {
+		resp.Diagnostics.AddError("Unable to update KPI Base Search", err.Error())
+		return
+	}
+
+	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
+}
+
+func (r *resourceKpiBaseSearch) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+	var state KpiBaseSearchState
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	base := kpiBaseSearchBase(r.client, state.ID.ValueString(), state.Title.ValueString())
+	b, err := base.Find(ctx)
+	if err != nil {
+		resp.Diagnostics.AddError("Unable to delete KPI Base Search", err.Error())
+		return
 	}
 	if b == nil {
-		d.SetId("")
-		return nil
+		return
 	}
-	return populateBaseSearchResourceData(ctx, b, d)
+	if err := b.Delete(ctx); err != nil {
+		resp.Diagnostics.AddError("Unable to delete KPI Base Search", err.Error())
+		return
+	}
 }
 
-func populateBaseSearchResourceData(ctx context.Context, b *models.Base, d *schema.ResourceData) (diags diag.Diagnostics) {
-	interfaceMap, err := b.RawJson.ToInterfaceMap()
-	if err != nil {
-		return diag.FromErr(err)
-	}
-
-	for tfField, itsiField := range map[string]string{
-		"title":                         "title",
-		"description":                   "description",
-		"actions":                       "actions",
-		"alert_period":                  "alert_period",
-		"base_search":                   "base_search",
-		"entity_alias_filtering_fields": "entity_alias_filtering_fields",
-		"entity_breakdown_id_fields":    "entity_breakdown_id_fields",
-		"entity_id_fields":              "entity_id_fields",
-		"is_entity_breakdown":           "is_entity_breakdown",
-		"is_service_entity_filter":      "is_service_entity_filter",
-		"metric_qualifier":              "metric_qualifier",
-		"search_alert_earliest":         "search_alert_earliest",
-		"sec_grp":                       "sec_grp",
-		"source_itsi_da":                "source_itsi_da",
-	} {
-		if err = d.Set(tfField, interfaceMap[itsiField]); err != nil {
-			return diag.FromErr(err)
-		}
-	}
-	d.Set("alert_lag", fmt.Sprintf("%v", interfaceMap["alert_lag"]))
-	//metrics
-	metrics := []interface{}{}
-	for _, metricsData_ := range interfaceMap["metrics"].([]interface{}) {
-		metricsData := metricsData_.(map[string]interface{})
-		m := map[string]interface{}{}
-		m["id"] = metricsData["_key"]
-		m["aggregate_statop"] = metricsData["aggregate_statop"]
-		m["entity_statop"] = metricsData["entity_statop"]
-		m["fill_gaps"] = metricsData["fill_gaps"]
-		gapCustomAlertValue, err := strconv.ParseFloat(fmt.Sprintf("%v", metricsData["gap_custom_alert_value"]), 64)
-		if err != nil {
-			return diag.FromErr(err)
-		}
-		m["gap_custom_alert_value"] = gapCustomAlertValue
-		m["gap_severity"] = metricsData["gap_severity"]
-		m["gap_severity_color"] = metricsData["gap_severity_color"]
-		m["gap_severity_color_light"] = metricsData["gap_severity_color_light"]
-		m["gap_severity_value"] = fmt.Sprintf("%v", metricsData["gap_severity_value"])
-		m["threshold_field"] = metricsData["threshold_field"]
-		m["title"] = metricsData["title"]
-		m["unit"] = metricsData["unit"]
-		metrics = append(metrics, m)
-	}
-	if err = d.Set("metrics", metrics); err != nil {
-		return diag.FromErr(err)
-	}
-
-	d.SetId(b.RESTKey)
-	return nil
-}
-
-func kpiBaseSearchUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) (diags diag.Diagnostics) {
-	clientConfig := m.(models.ClientConfig)
-	base := kpiBaseSearchBase(clientConfig, d.Id(), d.Get("title").(string))
-	existing, err := base.Find(ctx)
-	if err != nil {
-		return diag.FromErr(err)
-	}
-	if existing == nil {
-		return kpiBaseSearchCreate(ctx, d, m)
-	}
-
-	template, err := kpiBaseSearch(ctx, d, clientConfig)
-	if err != nil {
-		return diag.FromErr(err)
-	}
-	return diag.FromErr(template.UpdateAsync(ctx))
-}
-
-func kpiBaseSearchDelete(ctx context.Context, d *schema.ResourceData, m interface{}) (diags diag.Diagnostics) {
-	base := kpiBaseSearchBase(m.(models.ClientConfig), d.Id(), d.Get("title").(string))
-	existing, err := base.Find(ctx)
-	if err != nil {
-		return diag.FromErr(err)
-	}
-	if existing == nil {
-		return nil
-	}
-	return diag.FromErr(existing.Delete(ctx))
-}
-
-func kpiBaseSearchImport(ctx context.Context, d *schema.ResourceData, m interface{}) ([]*schema.ResourceData, error) {
-	b := kpiBaseSearchBase(m.(models.ClientConfig), "", d.Id())
+func (r *resourceKpiBaseSearch) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	b := kpiBaseSearchBase(r.client, "", req.ID)
 	b, err := b.Find(ctx)
 	if err != nil {
-		return nil, err
+		resp.Diagnostics.AddError("Unable to find KPI Base Search model", err.Error())
+		return
 	}
 	if b == nil {
-		return nil, err
+		resp.Diagnostics.AddError("KPI Base Search not found", fmt.Sprintf("KPI Base Search '%s' not found", req.ID))
+		return
 	}
-	diags := populateBaseSearchResourceData(ctx, b, d)
-	for _, d := range diags {
-		if d.Severity == diag.Error {
-			return nil, fmt.Errorf(d.Summary)
+
+	state, diags := kpiBaseSearchModelFromBase(ctx, b)
+	if resp.Diagnostics.Append(diags...); diags.HasError() {
+		return
+	}
+
+	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
+}
+
+func kpiBaseSearchModelFromBase(ctx context.Context, b *models.Base) (m KpiBaseSearchState, diags diag.Diagnostics) {
+	//var d diag.Diagnostics
+	if b == nil || b.RawJson == nil {
+		diags.AddError("Unable to populate entity model", "base object is nil or empty.")
+		return
+	}
+
+	interfaceMap, err := b.RawJson.ToInterfaceMap()
+	if err != nil {
+		diags.AddError("Unable to populate KPI Base search model", err.Error())
+		return
+	}
+
+	diags = append(diags, marshalBasicTypesByTag("json", interfaceMap, &m)...)
+
+	if v, ok := interfaceMap["metrics"]; ok && v != nil {
+		metrics, err := unpackSlice[map[string]interface{}](v.([]interface{}))
+		if err != nil {
+			diags.AddError("Unable to unpack metrics in the KPI BS model", err.Error())
+			return
 		}
+		metricStates := []*Metric{}
+		for _, metric := range metrics {
+			metricState := &Metric{}
+			diags = append(diags, marshalBasicTypesByTag("json", metric, metricState)...)
+			if diags.HasError() {
+				return
+			}
+
+			metricStates = append(metricStates, metricState)
+		}
+		m.Metrics = metricStates
 	}
-	if d.Id() == "" {
-		return nil, nil
+
+	m.ID = types.StringValue(b.RESTKey)
+
+	return
+}
+
+func kpiBaseSearchJson(ctx context.Context, clientConfig models.ClientConfig, m KpiBaseSearchState) (config *models.Base, diags diag.Diagnostics) {
+
+	body := map[string]interface{}{}
+	diags = append(diags, unmarshalBasicTypesByTag("json", &m, body)...)
+	if diags.HasError() {
+		return
 	}
-	return []*schema.ResourceData{d}, nil
+
+	metrics := []map[string]interface{}{}
+	for _, metricState := range m.Metrics {
+		metric := map[string]interface{}{}
+		if metricState.ID.IsUnknown() {
+			id, _ := uuid.GenerateUUID()
+			metricState.ID = types.StringValue(id)
+		}
+		diags = append(diags, unmarshalBasicTypesByTag("json", metricState, metric)...)
+		if diags.HasError() {
+			return
+		}
+
+		metrics = append(metrics, metric)
+	}
+	body["metrics"] = metrics
+
+	config = kpiBaseSearchBase(clientConfig, m.ID.ValueString(), m.Title.ValueString())
+	if err := config.PopulateRawJSON(ctx, body); err != nil {
+		diags.AddError("Unable to populate base object", err.Error())
+	}
+	return
 }
