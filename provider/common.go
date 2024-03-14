@@ -11,10 +11,16 @@ import (
 	"unicode"
 
 	"fmt"
+	"strconv"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/tivo/terraform-provider-splunk-itsi/models"
 	"github.com/tmccombs/hcl2json/convert"
+
+	"github.com/hashicorp/terraform-plugin-framework/attr"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 )
 
 var cleanerRegex *regexp.Regexp
@@ -45,7 +51,7 @@ func newTemplate(resourcetpl *resourceTemplate) (*template.Template, error) {
 type TFFormatter func(*models.Base) (string, error)
 
 var Formatters map[string]TFFormatter = map[string]TFFormatter{
-	"kpi_base_search": kpiBSTFFormat,
+	//"kpi_base_search": kpiBSTFFormat,
 	//"kpi_threshold_template":           kpiThresholdTemplateTFFormat,
 	//"entity":                           entityTFFormat,
 	//"entity_type":                      entityTypeTFFormat,
@@ -301,4 +307,64 @@ func unpackSlice[T any](in interface{}) ([]T, error) {
 		out = append(out, res)
 	}
 	return out, nil
+}
+
+func unmarshalBasicTypesByTag(tag string, in any, out map[string]interface{}) (diags diag.Diagnostics) {
+	t := reflect.TypeOf(in).Elem()
+	v := reflect.ValueOf(in).Elem()
+
+	for i := 0; i < v.NumField(); i++ {
+		field := v.Field(i)
+		_tag := t.Field(i).Tag.Get(tag)
+		if _tag == "" {
+			// skipping field
+			continue
+		}
+		fieldValue := field.Interface().(attr.Value)
+
+		if fieldValue.IsNull() || fieldValue.IsUnknown() {
+			// skipping field
+			continue
+		}
+		switch field.Type().Name() {
+		case "StringValue":
+			out[_tag] = field.Interface().(basetypes.StringValue).ValueString()
+		case "Float64Value":
+			out[_tag] = field.Interface().(basetypes.Float64Value).ValueFloat64()
+		case "BoolValue":
+			out[_tag] = field.Interface().(basetypes.BoolValue).ValueBool()
+		}
+	}
+	return
+}
+func marshalBasicTypesByTag(tag string, in map[string]interface{}, out any) (diags diag.Diagnostics) {
+
+	t := reflect.TypeOf(out).Elem()
+	v := reflect.ValueOf(out).Elem()
+
+	for i := 0; i < v.NumField(); i++ {
+		field := v.Field(i)
+		_tag := t.Field(i).Tag.Get(tag)
+		if value, ok := in[_tag]; ok && value != nil {
+			switch field.Type().Name() {
+			case "StringValue":
+				field.Set(reflect.ValueOf(types.StringValue(fmt.Sprintf("%v", value))))
+			case "Float64Value":
+				var val float64
+
+				switch v := value.(type) {
+				case string:
+					val, _ = strconv.ParseFloat(v, 64)
+				case float64:
+					val = v
+				default:
+					val = 0
+				}
+				field.Set(reflect.ValueOf(types.Float64Value(val)))
+			case "BoolValue":
+				field.Set(reflect.ValueOf(types.BoolValue(in[_tag].(bool))))
+			}
+		}
+	}
+	return
 }

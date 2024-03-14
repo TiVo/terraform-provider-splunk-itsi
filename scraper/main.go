@@ -153,26 +153,35 @@ func main() {
 		close(logsCh)
 	}()
 
+	logger := &DualLogger{}
+	logger.New(f)
+
 	for log := range logsCh {
-		_, err = f.WriteString(fmt.Sprintf("Scrapped %s: \n", log.ObjectType))
-		if err != nil {
-			panic(err)
-		}
+		logger.Print(fmt.Sprintf("Scrapped %s: \n", log.ObjectType))
 
 		if len(log.Errors) == 0 {
-			_, err = f.WriteString("Success\n")
-			if err != nil {
-				panic(err)
-			}
+			logger.Print("Success\n")
 		}
 
 		for _, logErr := range log.Errors {
-			_, err = f.WriteString(logErr.Error() + "\n")
-			if err != nil {
-				panic(err)
-			}
+			logger.Print(logErr.Error() + "\n")
 		}
 	}
+}
+
+type DualLogger struct {
+	fileLogger *log.Logger
+	stdLogger  *log.Logger
+}
+
+func (cl *DualLogger) New(f *os.File) {
+	cl.fileLogger = log.New(f, "", log.Ldate|log.Ltime|log.Lshortfile)
+	cl.stdLogger = log.New(os.Stdout, "", log.Ldate|log.Ltime|log.Lshortfile)
+}
+
+func (cl *DualLogger) Print(msg string) {
+	cl.fileLogger.Println(msg)
+	cl.stdLogger.Println(msg)
 }
 
 type Logs struct {
