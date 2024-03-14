@@ -1015,7 +1015,7 @@ func (r *resourceEntityType) ImportState(ctx context.Context, req resource.Impor
 		return
 	}
 	if b == nil {
-		resp.Diagnostics.AddError("Entity not found", fmt.Sprintf("Entity '%s' not found", req.ID))
+		resp.Diagnostics.AddError("Entity type not found", fmt.Sprintf("Entity type '%s' not found", req.ID))
 		return
 	}
 
