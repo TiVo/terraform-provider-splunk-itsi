@@ -153,21 +153,30 @@ func main() {
 		close(logsCh)
 	}()
 
+	doubleLog := func(msg string) (err error) {
+		_, err = fmt.Print(msg)
+		if err != nil {
+			return
+		}
+		_, err = f.WriteString(msg)
+		return
+	}
+
 	for log := range logsCh {
-		_, err = f.WriteString(fmt.Sprintf("Scrapped %s: \n", log.ObjectType))
+		err = doubleLog(fmt.Sprintf("Scrapped %s: \n", log.ObjectType))
 		if err != nil {
 			panic(err)
 		}
 
 		if len(log.Errors) == 0 {
-			_, err = f.WriteString("Success\n")
+			err = doubleLog("Success\n")
 			if err != nil {
 				panic(err)
 			}
 		}
 
 		for _, logErr := range log.Errors {
-			_, err = f.WriteString(logErr.Error() + "\n")
+			err = doubleLog(logErr.Error() + "\n")
 			if err != nil {
 				panic(err)
 			}
