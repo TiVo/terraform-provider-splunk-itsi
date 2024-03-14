@@ -54,7 +54,7 @@ var Formatters map[string]TFFormatter = map[string]TFFormatter{
 	//"kpi_base_search": kpiBSTFFormat,
 	//"kpi_threshold_template":           kpiThresholdTemplateTFFormat,
 	//"entity":                           entityTFFormat,
-	"entity_type":                      entityTypeTFFormat,
+	//"entity_type":                      entityTypeTFFormat,
 	"service":                          serviceTFFormat,
 	"notable_event_aggregation_policy": notableEventAggregationPolicyTFFormat,
 }
@@ -292,9 +292,14 @@ func unpackMap[T any](in map[string]interface{}) (map[string]T, error) {
 	return out, nil
 }
 
-func unpackSlice[T any](in []interface{}) ([]T, error) {
-	out := make([]T, 0, len(in))
-	for _, v := range in {
+func unpackSlice[T any](in interface{}) ([]T, error) {
+	slice, ok := in.([]interface{})
+	if !ok {
+		return nil, fmt.Errorf("failed to unpack %#v to []%T ", in, *new(T))
+	}
+
+	out := make([]T, 0, len(slice))
+	for _, v := range slice {
 		res, ok := v.(T)
 		if !ok {
 			return nil, fmt.Errorf("failed to unpack %#v to []%T ", in, *new(T))

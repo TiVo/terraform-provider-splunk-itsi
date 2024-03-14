@@ -209,6 +209,9 @@ func (p *itsiProvider) Resources(_ context.Context) []func() resource.Resource {
 			return NewResourceEntity()
 		},
 		func() resource.Resource {
+			return NewResourceEntityType()
+		},
+		func() resource.Resource {
 			return NewResourceKpiThresholdTemplate()
 		},
 		func() resource.Resource {
