@@ -64,9 +64,6 @@ func Provider() *schema.Provider {
 				Description: "Whether the API should be accessed without verifying the TLS certificate.",
 			},
 		},
-		DataSourcesMap: map[string]*schema.Resource{
-			"itsi_kpi_base_search": DatasourceKPIBaseSearch(),
-		},
 		ResourcesMap: map[string]*schema.Resource{
 			"itsi_service": ResourceService(),
 			"itsi_neap":    ResourceNotableEventAggregationPolicy(),
