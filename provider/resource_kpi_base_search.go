@@ -67,6 +67,11 @@ var (
 	_ resource.ResourceWithModifyPlan  = &resourceKpiBaseSearch{}
 )
 
+func kpiBaseSearchBase(clientConfig models.ClientConfig, key string, title string) *models.Base {
+	base := models.NewBase(clientConfig, key, title, "kpi_base_search")
+	return base
+}
+
 func (r *resourceKpiBaseSearch) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
 	if req.Plan.Raw.IsNull() || req.State.Raw.IsNull() {
 		return

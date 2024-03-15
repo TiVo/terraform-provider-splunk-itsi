@@ -62,10 +62,6 @@ func (d *dataSourceKpiBaseSearch) Schema(ctx context.Context, req datasource.Sch
 		},
 	}
 }
-func kpiBaseSearchBase(clientConfig models.ClientConfig, key string, title string) *models.Base {
-	base := models.NewBase(clientConfig, key, title, "kpi_base_search")
-	return base
-}
 
 // Read data into the Terraform state
 func (d *dataSourceKpiBaseSearch) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
