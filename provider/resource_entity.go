@@ -75,8 +75,8 @@ func entityModelFromBase(ctx context.Context, b *models.Base) (m entityModel, di
 			return
 		}
 	} else {
-		empty_set := []string{}
-		m.EntityTypeIDs, d = types.SetValueFrom(ctx, types.StringType, empty_set)
+		emptySet := []string{}
+		m.EntityTypeIDs, d = types.SetValueFrom(ctx, types.StringType, emptySet)
 		if diags.Append(d...); diags.HasError() {
 			return
 		}
