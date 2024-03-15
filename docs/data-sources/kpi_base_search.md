@@ -17,7 +17,7 @@ Use this data source to get the ID of an available KPI Base Search.
 
 ### Required
 
-- `title` (String) The title of the KPI Base Search
+- `title` (String) The title of the KPI Base Search.
 
 ### Read-Only
 
