@@ -17,8 +17,8 @@ Use this data source to get the ID of an available KPI Base Search.
 
 ### Required
 
-- `title` (String) Name of this KPI base search.
+- `title` (String) The title of the KPI Base Search.
 
 ### Read-Only
 
-- `id` (String) The ID of this resource
+- `id` (String) The ID of this resource.
