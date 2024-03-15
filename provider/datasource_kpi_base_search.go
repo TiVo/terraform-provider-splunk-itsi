@@ -49,6 +49,7 @@ func (d *dataSourceKpiBaseSearch) Configure(ctx context.Context, req datasource.
 // KpiSearchDataSource schema
 func (d *dataSourceKpiBaseSearch) Schema(ctx context.Context, req datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
+		MarkdownDescription: "Use this data source to get the ID of an available KPI Base Search.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				MarkdownDescription: "The ID of this resource",
