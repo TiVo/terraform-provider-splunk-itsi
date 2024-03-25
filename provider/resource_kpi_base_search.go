@@ -100,9 +100,8 @@ func (r *resourceKpiBaseSearch) ModifyPlan(ctx context.Context, req resource.Mod
 		Filter: "",
 	}
 
-	if req.Plan.Raw.IsNull() {
-
-		params.Filter = fmt.Sprintf("{\"kpis.base_search_id\":%s}", state.ID)
+	abortLinkedKpis := func(filter string) {
+		params.Filter = filter
 		items, err := base.Dump(ctx, &params)
 		if err != nil {
 			resp.Diagnostics.AddError("Failed to check linked KPIs", err.Error())
@@ -115,18 +114,26 @@ func (r *resourceKpiBaseSearch) ModifyPlan(ctx context.Context, req resource.Mod
 						item.RESTKey, item.TFID))
 			}
 		}
+	}
+
+	// on destroy
+	if req.Plan.Raw.IsNull() {
+		abortLinkedKpis(fmt.Sprintf("{\"kpis.base_search_id\":%s}", state.ID))
 		return
 	}
 
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	resp.Diagnostics.Append(diags...)
 	oldMetricsByTitle := map[string]*Metric{}
+
+	// save metrics from state
 	if state.Metrics != nil {
 		for _, metric := range state.Metrics {
 			oldMetricsByTitle[metric.Title.ValueString()] = metric
 		}
 	}
 
+	// compare with planned metrics, forget ones with unchanged IDs
 	for _, metricState := range plan.Metrics {
 		if metricState.ID.IsUnknown() {
 			if metricToRemap, ok := oldMetricsByTitle[metricState.Title.ValueString()]; ok {
@@ -140,25 +147,12 @@ func (r *resourceKpiBaseSearch) ModifyPlan(ctx context.Context, req resource.Mod
 
 	if len(oldMetricsByTitle) > 0 {
 		filter := []string{}
-
 		for _, metricToCheckLinking := range oldMetricsByTitle {
 			filter = append(filter, fmt.Sprintf("{\"kpis.base_search_metric\": %s}", metricToCheckLinking.ID))
 		}
-		params.Filter = fmt.Sprintf("{\"$and\": [{\"kpis.base_search_id\":%s}, {\"$or\":[%s]}]}",
-			state.ID, strings.Join(filter, ","))
 
-		items, err := base.Dump(ctx, &params)
-		if err != nil {
-			resp.Diagnostics.AddError("Failed to check linked KPIs", err.Error())
-		}
-
-		if len(items) > 0 {
-			for _, item := range items {
-				resp.Diagnostics.AddError("Plan for destroy aborted.",
-					fmt.Sprintf("kpi_base_search is linked to the service: %s %s\n",
-						item.RESTKey, item.TFID))
-			}
-		}
+		abortLinkedKpis(fmt.Sprintf("{\"$and\": [{\"kpis.base_search_id\":%s}, {\"$or\":[%s]}]}",
+			state.ID, strings.Join(filter, ",")))
 	}
 	resp.Diagnostics.Append(resp.Plan.Set(ctx, plan)...)
 	tflog.Trace(ctx, "Finished modifying plan for collecton data resource")
