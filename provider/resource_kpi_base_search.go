@@ -86,7 +86,7 @@ func (r *resourceKpiBaseSearch) ModifyPlan(ctx context.Context, req resource.Mod
 		Fields: []string{
 			"_key",
 			"title",
-			/* TODO: Uncomment in case verbose error message required
+			/* Optional: Uncomment in case verbose error message required
 			"kpis._key", "kpis.title", "kpis.base_search_id", "kpis.alert_period",
 			"kpis.unit", "kpis.aggregate_statop", "kpis.entity_statop", "kpis.threshold_field",
 			"kpis.entity_breakdown_id_fields", "kpis.is_entity_breakdown",*/
@@ -104,7 +104,7 @@ func (r *resourceKpiBaseSearch) ModifyPlan(ctx context.Context, req resource.Mod
 
 		if len(items) > 0 {
 			for _, item := range items {
-				resp.Diagnostics.AddError(fmt.Sprintf("%s KPI Base Search is linked to the service", state.Title.ValueString()),
+				resp.Diagnostics.AddError(fmt.Sprintf("%s KPI BS is linked to the service", state.Title.ValueString()),
 					fmt.Sprintf("_key=%s title=%s\n", item.RESTKey, item.TFID))
 			}
 			resp.Diagnostics.AddWarning("Filter that found linked KPIs", filter)
@@ -139,30 +139,6 @@ func (r *resourceKpiBaseSearch) ModifyPlan(ctx context.Context, req resource.Mod
 			delete(oldMetricsByTitle, metricState.Title.ValueString())
 		}
 	}
-
-	// const filter = `{"$and": [{"kpis.base_search_id": {{.StateID -}}
-	// 		},{"$or": [{{- range $index, $metric := .Metrics -}}
-	// 		{{- if $index }},{{ end -}}
-	// 		{"kpis.base_search_metric": {{ $metric.ID -}}
-	// 		}{{end}} ]}]}`
-
-	// // Parse and execute the template
-	// tmpl := template.Must(template.New("filter").Parse(filter))
-	// var out bytes.Buffer
-
-	// var metricsToCheckLinking = make([]*Metric, 0, len(oldMetricsByTitle))
-	// for _, value := range oldMetricsByTitle {
-	// 	metricsToCheckLinking = append(metricsToCheckLinking, value)
-	// }
-
-	// if err := tmpl.Execute(&out, map[string]interface{}{
-	// 	"StateID": state.ID,
-	// 	"Metrics": metricsToCheckLinking}); len(metricsToCheckLinking) > 0 {
-	// 	if err != nil {
-	// 		resp.Diagnostics.AddError("Failed to construct filter for linked KPIs", err.Error())
-	// 	}
-	// 	abortLinkedKpis(out.String())
-	// }
 
 	if len(oldMetricsByTitle) > 0 {
 		filter := []string{}
