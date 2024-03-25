@@ -73,15 +73,52 @@ func kpiBaseSearchBase(clientConfig models.ClientConfig, key string, title strin
 }
 
 func (r *resourceKpiBaseSearch) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
-	if req.Plan.Raw.IsNull() || req.State.Raw.IsNull() {
+	if req.State.Raw.IsNull() {
 		return
 	}
 
 	var diags diag.Diagnostics
 	var state, plan KpiBaseSearchState
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
-	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 
+	base := models.NewBase(r.client, "", "", "service")
+	params := models.Parameters{
+		Fields: []string{
+			"_key",
+			"title",
+			"kpis._key",
+			"kpis.title",
+			"kpis.base_search_id",
+			"kpis.alert_period",
+			"kpis.unit",
+			"kpis.aggregate_statop",
+			"kpis.entity_statop",
+			"kpis.threshold_field",
+			"kpis.entity_breakdown_id_fields",
+			"kpis.is_entity_breakdown",
+		},
+		Filter: "",
+	}
+
+	if req.Plan.Raw.IsNull() {
+
+		params.Filter = fmt.Sprintf("{\"kpis.base_search_id\":%s}", state.ID)
+		items, err := base.Dump(ctx, &params)
+		if err != nil {
+			resp.Diagnostics.AddError("Failed to check linked KPIs", err.Error())
+		}
+
+		if len(items) > 0 {
+			for _, item := range items {
+				resp.Diagnostics.AddError("Plan for destroy aborted.",
+					fmt.Sprintf("kpi_base_search is linked to the service: %s %s\n",
+						item.RESTKey, item.TFID))
+			}
+		}
+		return
+	}
+
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	resp.Diagnostics.Append(diags...)
 	oldMetricsByTitle := map[string]*Metric{}
 	if state.Metrics != nil {
@@ -94,6 +131,32 @@ func (r *resourceKpiBaseSearch) ModifyPlan(ctx context.Context, req resource.Mod
 		if metricState.ID.IsUnknown() {
 			if metricToRemap, ok := oldMetricsByTitle[metricState.Title.ValueString()]; ok {
 				metricState.ID = metricToRemap.ID
+				delete(oldMetricsByTitle, metricState.Title.ValueString())
+			}
+		} else {
+			delete(oldMetricsByTitle, metricState.Title.ValueString())
+		}
+	}
+
+	if len(oldMetricsByTitle) > 0 {
+		filter := []string{}
+
+		for _, metricToCheckLinking := range oldMetricsByTitle {
+			filter = append(filter, fmt.Sprintf("{\"kpis.base_search_metric\": %s}", metricToCheckLinking.ID))
+		}
+		params.Filter = fmt.Sprintf("{\"$and\": [{\"kpis.base_search_id\":%s}, {\"$or\":[%s]}]}",
+			state.ID, strings.Join(filter, ","))
+
+		items, err := base.Dump(ctx, &params)
+		if err != nil {
+			resp.Diagnostics.AddError("Failed to check linked KPIs", err.Error())
+		}
+
+		if len(items) > 0 {
+			for _, item := range items {
+				resp.Diagnostics.AddError("Plan for destroy aborted.",
+					fmt.Sprintf("kpi_base_search is linked to the service: %s %s\n",
+						item.RESTKey, item.TFID))
 			}
 		}
 	}

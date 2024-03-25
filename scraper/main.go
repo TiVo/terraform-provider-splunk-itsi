@@ -263,7 +263,7 @@ func runGenerateCommand(clientConfig models.ClientConfig, objectType string, log
 
 	for count, offset := base.GetPageSize(), 0; offset >= 0; offset += count {
 		ctx := context.Background()
-		items, err := base.Dump(ctx, &models.Parameters{Offset: offset, Count: count, Fields: []string{"_key", "title"}})
+		items, err := base.Dump(ctx, &models.Parameters{Offset: offset, Count: count, Fields: []string{"_key", "title"}, Filter: ""})
 		if err != nil {
 			errors = append(errors, err)
 			break
@@ -307,7 +307,7 @@ func dump(clientConfig models.ClientConfig, objectType, format string, formatter
 	fieldsMap := map[string]bool{}
 	for count, offset := base.GetPageSize(), 0; offset >= 0; offset += count {
 		ctx := context.Background()
-		items, err := base.Dump(ctx, &models.Parameters{Offset: offset, Count: count, Fields: nil})
+		items, err := base.Dump(ctx, &models.Parameters{Offset: offset, Count: count, Fields: nil, Filter: ""})
 		if err != nil {
 			errors = append(errors, err)
 			break
