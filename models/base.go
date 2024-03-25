@@ -499,6 +499,7 @@ type Parameters struct {
 	Offset int
 	Count  int
 	Fields []string
+	Filter string
 }
 
 func (b *Base) Dump(ctx context.Context, query_params *Parameters) ([]*Base, error) {
@@ -512,6 +513,9 @@ func (b *Base) Dump(ctx context.Context, query_params *Parameters) ([]*Base, err
 	}
 	if query_params.Fields != nil && len(query_params.Fields) > 0 {
 		params.Add("fields", strings.Join(query_params.Fields, ","))
+	}
+	if query_params.Filter != "" {
+		params.Add("filter", query_params.Filter)
 	}
 
 	log.Printf("Requesting %s with params %s\n", b.restConfig.ObjectType, params.Encode())
