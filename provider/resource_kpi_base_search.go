@@ -73,29 +73,81 @@ func kpiBaseSearchBase(clientConfig models.ClientConfig, key string, title strin
 }
 
 func (r *resourceKpiBaseSearch) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
-	if req.Plan.Raw.IsNull() || req.State.Raw.IsNull() {
+	if req.State.Raw.IsNull() {
 		return
 	}
 
 	var diags diag.Diagnostics
 	var state, plan KpiBaseSearchState
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
-	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 
+	base := models.NewBase(r.client, "", "", "service")
+	params := models.Parameters{
+		Fields: []string{
+			"_key",
+			"title",
+			/* Optional: Uncomment in case verbose error message required
+			"kpis._key", "kpis.title", "kpis.base_search_id", "kpis.alert_period",
+			"kpis.unit", "kpis.aggregate_statop", "kpis.entity_statop", "kpis.threshold_field",
+			"kpis.entity_breakdown_id_fields", "kpis.is_entity_breakdown",*/
+		},
+		Filter: "",
+	}
+
+	// aborts plan in case filter matches > 0 service objects
+	abortLinkedKpis := func(filter string) {
+		params.Filter = filter
+		items, err := base.Dump(ctx, &params)
+		if err != nil {
+			resp.Diagnostics.AddError("Failed to check linked KPIs", err.Error())
+		}
+
+		if len(items) > 0 {
+			for _, item := range items {
+				resp.Diagnostics.AddError(fmt.Sprintf("%s KPI BS is linked to the service", state.Title.ValueString()),
+					fmt.Sprintf("_key=%s title=%s\n", item.RESTKey, item.TFID))
+			}
+			resp.Diagnostics.AddWarning("Filter that found linked KPIs", filter)
+		}
+	}
+
+	// on destroy
+	if req.Plan.Raw.IsNull() {
+		abortLinkedKpis(fmt.Sprintf("{\"kpis.base_search_id\":%s}", state.ID))
+		return
+	}
+
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	resp.Diagnostics.Append(diags...)
 	oldMetricsByTitle := map[string]*Metric{}
+
+	// save metrics from state
 	if state.Metrics != nil {
 		for _, metric := range state.Metrics {
 			oldMetricsByTitle[metric.Title.ValueString()] = metric
 		}
 	}
 
+	// compare with planned metrics, forget ones with unchanged IDs
 	for _, metricState := range plan.Metrics {
 		if metricState.ID.IsUnknown() {
 			if metricToRemap, ok := oldMetricsByTitle[metricState.Title.ValueString()]; ok {
 				metricState.ID = metricToRemap.ID
+				delete(oldMetricsByTitle, metricState.Title.ValueString())
 			}
+		} else {
+			delete(oldMetricsByTitle, metricState.Title.ValueString())
 		}
+	}
+
+	if len(oldMetricsByTitle) > 0 {
+		filter := []string{}
+		for _, metricToCheckLinking := range oldMetricsByTitle {
+			filter = append(filter, fmt.Sprintf("{\"kpis.base_search_metric\": %s}", metricToCheckLinking.ID))
+		}
+
+		abortLinkedKpis(fmt.Sprintf("{\"$and\": [{\"kpis.base_search_id\":%s}, {\"$or\":[%s]}]}",
+			state.ID, strings.Join(filter, ",")))
 	}
 	resp.Diagnostics.Append(resp.Plan.Set(ctx, plan)...)
 	tflog.Trace(ctx, "Finished modifying plan for collecton data resource")
