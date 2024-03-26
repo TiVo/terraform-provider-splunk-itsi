@@ -54,11 +54,6 @@ var GenerateUUID = func(internalIdentifier string) (string, error) {
 	return uuid.GenerateUUID()
 }
 
-func serviceBase(clientConfig models.ClientConfig, key string, title string) *models.Base {
-	base := models.NewBase(clientConfig, key, title, "service")
-	return base
-}
-
 /* helper data structure to allow us specify metrics by title rather than ID */
 
 type KPIBSMetricLookup struct {

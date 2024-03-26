@@ -19,7 +19,7 @@ import (
 
 const (
 	clientConcurrency = 15
-	defaultTimeout    = 60
+	defaultTimeout    = 120
 	defaultPort       = 8089
 	cacheSize         = 1000
 )
@@ -219,6 +219,9 @@ func (p *itsiProvider) Resources(_ context.Context) []func() resource.Resource {
 		},
 		func() resource.Resource {
 			return NewKpiBaseSearch()
+		},
+		func() resource.Resource {
+			return NewResourceService()
 		},
 	}
 }

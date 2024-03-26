@@ -55,7 +55,7 @@ var Formatters map[string]TFFormatter = map[string]TFFormatter{
 	//"kpi_threshold_template":           kpiThresholdTemplateTFFormat,
 	//"entity":                           entityTFFormat,
 	//"entity_type":                      entityTypeTFFormat,
-	"service":                          serviceTFFormat,
+	//"service":                          serviceTFFormat,
 	"notable_event_aggregation_policy": notableEventAggregationPolicyTFFormat,
 }
 
@@ -362,7 +362,12 @@ func marshalBasicTypesByTag(tag string, in map[string]interface{}, out any) (dia
 				}
 				field.Set(reflect.ValueOf(types.Float64Value(val)))
 			case "BoolValue":
-				field.Set(reflect.ValueOf(types.BoolValue(in[_tag].(bool))))
+				switch v := value.(type) {
+				case float64:
+					field.Set(reflect.ValueOf(types.BoolValue(v != 0)))
+				case bool:
+					field.Set(reflect.ValueOf(types.BoolValue(v)))
+				}
 			}
 		}
 	}
