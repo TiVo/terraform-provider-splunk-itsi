@@ -70,7 +70,7 @@ type KpiState struct {
 	BaseSearchID        types.String            `json:"base_search_id" tfsdk:"base_search_id"`
 	SearchType          types.String            `json:"search_type" tfsdk:"search_type"`
 	BaseSearchMetric    types.String            `json:"base_search_metric" tfsdk:"base_search_metric"`
-	ThresholdTemplateID types.String            `json:"threshold_template_id" tfsdk:"kpi_threshold_template_id"`
+	ThresholdTemplateID types.String            `json:"kpi_threshold_template_id" tfsdk:"threshold_template_id"`
 	CustomThresholds    []*CustomThresholdState `tfsdk:"custom_threshold"`
 }
 
@@ -89,6 +89,9 @@ type CustomThresholdState struct {
 
 // EntityRule represents the schema for an entity rule within a service.
 type EntityRuleState struct {
+	Rule []*RuleState `tfsdk:"rule"`
+}
+type RuleState struct {
 	Field     types.String `json:"field" tfsdk:"field"`
 	FieldType types.String `json:"field_type" tfsdk:"field_type"`
 	RuleType  types.String `json:"rule_type" tfsdk:"rule_type"`
@@ -210,30 +213,37 @@ func (r *resourceService) Schema(ctx context.Context, req resource.SchemaRequest
 				},
 			},
 			"entity_rules": schema.SetNestedBlock{
-				Description: "A set of rules within the rule group, which are combined using AND operator.",
+				Description: "A set of rules within the rule group, which are combined using OR operator.",
 				NestedObject: schema.NestedBlockObject{
-					Attributes: map[string]schema.Attribute{
-						"field": schema.StringAttribute{
-							Required:    true,
-							Description: "The field in the entity definition to compare values to evaluate this rule.",
-						},
-						"field_type": schema.StringAttribute{
-							Required:    true,
-							Description: "Takes values alias, info or title specifying in which category of fields the field attribute is located.",
-							Validators: []validator.String{
-								stringvalidator.OneOf("alias", "entity_type", "info", "title"),
+					Blocks: map[string]schema.Block{
+						"rule": schema.SetNestedBlock{
+							Description: "A set of rules within the rule group, which are combined using AND operator.",
+							NestedObject: schema.NestedBlockObject{
+								Attributes: map[string]schema.Attribute{
+									"field": schema.StringAttribute{
+										Required:    true,
+										Description: "The field in the entity definition to compare values to evaluate this rule.",
+									},
+									"field_type": schema.StringAttribute{
+										Required:    true,
+										Description: "Takes values alias, info or title specifying in which category of fields the field attribute is located.",
+										Validators: []validator.String{
+											stringvalidator.OneOf("alias", "entity_type", "info", "title"),
+										},
+									},
+									"rule_type": schema.StringAttribute{
+										Required:    true,
+										Description: "Takes values not or matches to indicate whether it's an inclusion or exclusion rule.",
+										Validators: []validator.String{
+											stringvalidator.OneOf("matches", "not"),
+										},
+									},
+									"value": schema.StringAttribute{
+										Required:    true,
+										Description: "Values to evaluate in the rule. To specify multiple values, separate them with a comma. Values are not case sensitive.",
+									},
+								},
 							},
-						},
-						"rule_type": schema.StringAttribute{
-							Required:    true,
-							Description: "Takes values not or matches to indicate whether it's an inclusion or exclusion rule.",
-							Validators: []validator.String{
-								stringvalidator.OneOf("matches", "not"),
-							},
-						},
-						"value": schema.StringAttribute{
-							Required:    true,
-							Description: "Values to evaluate in the rule. To specify multiple values, separate them with a comma. Values are not case sensitive.",
 						},
 					},
 				},
@@ -435,6 +445,11 @@ func serviceModelFromBase(ctx context.Context, b *models.Base) (m ServiceState, 
 	m.Tags, diags = types.SetValueFrom(ctx, types.StringType, tags)
 
 	kpis, err := unpackSlice[map[string]interface{}](interfaceMap["kpis"])
+	if err != nil {
+		diags.AddError("Unable to unpack KPIs from service model", err.Error())
+		return
+	}
+
 	m.KPIs = []*KpiState{}
 	for _, kpi := range kpis {
 		kpiTF := &KpiState{}
@@ -446,8 +461,30 @@ func serviceModelFromBase(ctx context.Context, b *models.Base) (m ServiceState, 
 			m.KPIs = append(m.KPIs, kpiTF)
 		}
 	}
-
 	m.EntityRules = []*EntityRuleState{}
+	entityRules, err := unpackSlice[map[string]interface{}](interfaceMap["entity_rules"])
+	if err != nil {
+		diags.AddError("Unable to unpack entity rules from service model", err.Error())
+		return
+	}
+
+	for _, entityRuleAndSet := range entityRules {
+		ruleState := &EntityRuleState{}
+		ruleSet := []*RuleState{}
+		ruleItems, err := unpackSlice[map[string]interface{}](entityRuleAndSet["rule_items"])
+		if err != nil {
+			diags.AddError("Unable to unpack rule_item from service model", err.Error())
+			return
+		}
+		for _, ruleItem := range ruleItems {
+			ruleTF := &RuleState{}
+			diags = append(diags, marshalBasicTypesByTag("json", ruleItem, ruleTF)...)
+			ruleSet = append(ruleSet, ruleTF)
+		}
+		ruleState.Rule = ruleSet
+		m.EntityRules = append(m.EntityRules, ruleState)
+	}
+
 	m.ServiceDependsOn = []*ServiceDependsOnState{}
 
 	m.ID = types.StringValue(b.RESTKey)
