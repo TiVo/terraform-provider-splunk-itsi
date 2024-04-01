@@ -16,6 +16,19 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
+type ThresholdSettingModelv2 struct {
+	BaseSeverityLabel types.String              `json:"baseSeverityLabel" tfsdk:"base_severity_label"`
+	GaugeMax          types.Float64             `json:"gaugeMax" tfsdk:"gauge_max"`
+	GaugeMin          types.Float64             `json:"gaugeMin" tfsdk:"gauge_min"`
+	IsMaxStatic       types.Bool                `json:"isMaxStatic" tfsdk:"is_max_static"`
+	IsMinStatic       types.Bool                `json:"isMinStatic" tfsdk:"is_min_static"`
+	MetricField       types.String              `json:"metricField" tfsdk:"metric_field"`
+	RenderBoundaryMax types.Float64             `json:"renderBoundaryMax" tfsdk:"render_boundary_max"`
+	RenderBoundaryMin types.Float64             `json:"renderBoundaryMin" tfsdk:"render_boundary_min"`
+	Search            types.String              `json:"search" tfsdk:"search"`
+	ThresholdLevels   []*KpiThresholdLevelModel `tfsdk:"threshold_levels"`
+}
+
 type ThresholdSettingModel struct {
 	BaseSeverityLabel types.String  `tfsdk:"base_severity_label"`
 	GaugeMax          types.Float64 `tfsdk:"gauge_max"`
@@ -30,9 +43,9 @@ type ThresholdSettingModel struct {
 }
 
 type KpiThresholdLevelModel struct {
-	SeverityLabel  types.String  `tfsdk:"severity_label"`
-	ThresholdValue types.Float64 `tfsdk:"threshold_value"`
-	DynamicParam   types.Float64 `tfsdk:"dynamic_param"`
+	SeverityLabel  types.String  `json:"severityLabel" tfsdk:"severity_label"`
+	ThresholdValue types.Float64 `json:"thresholdValue" tfsdk:"threshold_value"`
+	DynamicParam   types.Float64 `json:"dynamicParam" tfsdk:"dynamic_param"`
 }
 
 func getKpiThresholdSettingsBlocksAttrs() (map[string]schema.Block, map[string]schema.Attribute) {
