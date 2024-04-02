@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -570,17 +571,262 @@ func serviceModelFromBase(ctx context.Context, b *models.Base) (m ServiceState, 
 
 	return
 }
+
 func serviceStateToJson(ctx context.Context, clientConfig models.ClientConfig, m ServiceState) (config *models.Base, diags diag.Diagnostics) {
-	title := m.Title.ValueString()
 	body := map[string]interface{}{}
 
-	body["title"] = title
-	//body["description"] = m.Description.ValueString()
+	body["object_type"] = "service"
+	body["title"] = m.Title.ValueString()
+	body["description"] = m.Description.ValueString()
 
-	config = serviceBase(clientConfig, m.ID.ValueString(), title)
+	convert := map[bool]int{true: 1, false: 0}
+	body["is_healthscore_calculate_by_entity_enabled"] = convert[m.IsHealthscoreCalculateByEntityEnabled.ValueBool()]
+	body["enabled"] = convert[m.Enabled.ValueBool()]
+
+	body["sec_grp"] = m.SecurityGroup.ValueString()
+
+	//[kpiId][thresholdId][policyName_severityLabel_dynamicParam]{thresholdValue Float64}
+	thresholdValueCache := map[string]map[string]map[string]float64{}
+	if m.ID.ValueString() != "" {
+		base, err := config.Find(ctx)
+		if err != nil {
+			diags.AddError("Failed to find service object", err.Error())
+			return nil, diags
+		}
+
+		serviceInterface, err := base.RawJson.ToInterfaceMap()
+		if err != nil {
+			diags.AddError("Failed to convert service object", err.Error())
+			return nil, diags
+		}
+
+		if kpis, ok := serviceInterface["kpis"].([]interface{}); ok {
+			for _, kpi := range kpis {
+				k := kpi.(map[string]interface{})
+				if _, ok := k["_key"]; !ok {
+					diags.AddError("Missed KPI", fmt.Sprintf("no kpiId was found for service: %v ", m.ID.ValueString()))
+				}
+				if _, ok := k["kpi_threshold_template_id"]; !ok || k["kpi_threshold_template_id"].(string) == "" {
+					continue
+				}
+
+				if _, ok := k["adaptive_thresholds_is_enabled"]; !ok || !k["adaptive_thresholds_is_enabled"].(bool) {
+					continue
+				}
+
+				kpiId := k["_key"].(string)
+				thresholdId := k["kpi_threshold_template_id"].(string)
+				thresholdValueCache[kpiId] = map[string]map[string]float64{}
+				thresholdValueCache[kpiId][thresholdId] = map[string]float64{}
+
+				if timeVariateThresholdSpecification, ok := k["time_variate_thresholds_specification"].(map[string]interface{}); ok {
+					for policyName, policy := range timeVariateThresholdSpecification["policies"].(map[string]interface{}) {
+						_policy := policy.(map[string]interface{})
+						if aggregate_thresholds, ok := _policy["aggregate_thresholds"].(map[string]interface{}); ok {
+							for _, threshold_level := range aggregate_thresholds["thresholdLevels"].([]interface{}) {
+								_threshold_level := threshold_level.(map[string]interface{})
+								severityValue := _threshold_level["severityValue"].(float64)
+								dynamicParam := _threshold_level["dynamicParam"].(float64)
+								thresholdValue := _threshold_level["thresholdValue"].(float64)
+								key := policyName + fmt.Sprint(severityValue) + "_" + fmt.Sprint(dynamicParam)
+								thresholdValueCache[kpiId][thresholdId][key] = thresholdValue
+							}
+						}
+					}
+				}
+
+			}
+		}
+	}
+
+	itsiKpis := []map[string]interface{}{}
+	for _, kpi := range m.KPIs {
+		if kpi.ID.IsUnknown() {
+			uuid, _ := uuid.GenerateUUID()
+			kpi.ID = types.StringValue(uuid)
+		}
+
+		restKey := kpi.BaseSearchID.ValueString()
+		kpiSearchInterface, err := getKpiBSData(ctx, clientConfig, restKey)
+		if err != nil {
+			diags.AddError("Failed to map KPI BS Data", err.Error())
+			return
+		}
+		kpi.BaseSearchID = types.StringValue(kpiSearchInterface["base_search"].(string))
+
+		itsiKpi := map[string]interface{}{
+			"title":                      kpi.Title.ValueString(),
+			"urgency":                    kpi.Urgency.ValueInt64(),
+			"search_type":                kpi.SearchType.ValueString(),
+			"type":                       kpi.Type.ValueString(),
+			"description":                kpi.Description.ValueString(),
+			"base_search_id":             restKey,
+			"base_search":                kpiSearchInterface["base_search"],
+			"is_entity_breakdown":        kpiSearchInterface["is_entity_breakdown"],
+			"is_service_entity_filter":   kpiSearchInterface["is_service_entity_filter"],
+			"entity_breakdown_id_fields": kpiSearchInterface["entity_breakdown_id_fields"],
+			"entity_id_fields":           kpiSearchInterface["entity_id_fields"],
+			"alert_period":               kpiSearchInterface["alert_period"],
+			"alert_lag":                  kpiSearchInterface["alert_lag"],
+			"search_alert_earliest":      kpiSearchInterface["search_alert_earliest"],
+		}
+
+		for _, metric := range kpiSearchInterface["metrics"].([]interface{}) {
+			_metric := metric.(map[string]interface{})
+			if _metric["title"].(string) == kpi.BaseSearchID.ValueString() {
+				itsiKpi["base_search_metric"] = _metric["_key"].(string)
+				for _, metricKey := range []string{"aggregate_statop", "entity_statop", "fill_gaps",
+					"gap_custom_alert_value", "gap_severity", "gap_severity_color", "gap_severity_color_light",
+					"gap_severity_value", "threshold_field", "unit"} {
+					itsiKpi[metricKey] = _metric[metricKey]
+				}
+			}
+		}
+
+		if _, ok := itsiKpi["base_search_metric"]; !ok {
+			diags.AddError("Metric Not Found", itsiKpi["base_search_metric"].(string)+" metric not found")
+			return
+		}
+
+		itsiKpi["_key"] = kpi.ID.ValueString()
+
+		if !kpi.ThresholdTemplateID.IsNull() {
+			thresholdRestKey := kpi.ThresholdTemplateID.ValueString()
+			thresholdTemplateBase := kpiThresholdTemplateBase(clientConfig, thresholdRestKey, thresholdRestKey)
+
+			thresholdTemplateBase, err = thresholdTemplateBase.Find(ctx)
+			if err != nil {
+				diags.AddError("KPI Threshold Template fetching is failed", err.Error())
+				return
+			}
+			if thresholdTemplateBase == nil {
+				diags.AddError("thresholdTemplateBase == nil",
+					fmt.Sprintf("KPI Threshold Template %s not found", thresholdRestKey))
+				return
+			}
+
+			thresholdTemplateInterface, err := thresholdTemplateBase.RawJson.ToInterfaceMap()
+			if err != nil {
+				diags.AddError("KPI Threshold Template is failed to be populated", err.Error())
+				return
+			}
+
+			itsiKpi["kpi_threshold_template_id"] = thresholdRestKey
+			for _, thresholdKey := range []string{"time_variate_thresholds", "adaptive_thresholds_is_enabled",
+				"adaptive_thresholding_training_window", "aggregate_thresholds", "entity_thresholds",
+				"time_variate_thresholds_specification"} {
+				if value, ok := thresholdTemplateInterface[thresholdKey]; ok {
+					itsiKpi[thresholdKey] = value
+				}
+			}
+
+			//populate training data from cache
+			id := kpi.ID.ValueString()
+			if _, ok := thresholdValueCache[id]; ok {
+				if currentThresholdCache, ok := thresholdValueCache[id][thresholdRestKey]; ok {
+					timeVariateThresholdsSpecification := itsiKpi["time_variate_thresholds_specification"].(map[string]interface{})
+					for policyName, policy := range timeVariateThresholdsSpecification["policies"].(map[string]interface{}) {
+						_policy := policy.(map[string]interface{})
+						if aggregate_thresholds, ok := _policy["aggregate_thresholds"].(map[string]interface{}); ok {
+							for _, threshold_level := range aggregate_thresholds["thresholdLevels"].([]interface{}) {
+								_threshold_level := threshold_level.(map[string]interface{})
+								severityValue := _threshold_level["severityValue"].(float64)
+								dynamicParam := _threshold_level["dynamicParam"].(float64)
+								key := policyName + fmt.Sprint(severityValue) + "_" + fmt.Sprint(dynamicParam)
+								_threshold_level["thresholdValue"] = currentThresholdCache[key]
+
+								itsiKpi["time_variate_thresholds_specification"] = timeVariateThresholdsSpecification
+							}
+						}
+					}
+				}
+			}
+		}
+		//       else if customThreshold, ok := kpiData["custom_threshold"]; ok {
+		// 			for _, currentCustomThreshold := range customThreshold.(*schema.Set).List() {
+		// 				customThresholdData := currentCustomThreshold.(map[string]interface{})
+
+		// 				aggregateThresholds :=
+		// 					customThresholdData["aggregate_thresholds"].(*schema.Set).List()[0].(map[string]interface{})
+		// 				entityThresholds :=
+		// 					customThresholdData["entity_thresholds"].(*schema.Set).List()[0].(map[string]interface{})
+
+		// 				itsiKpi["aggregate_thresholds"], err = kpiThresholdThresholdSettingsToPayload(aggregateThresholds)
+		// 				if err != nil {
+		// 					return nil, err
+		// 				}
+		// 				itsiKpi["entity_thresholds"], err = kpiThresholdThresholdSettingsToPayload(entityThresholds)
+		// 				if err != nil {
+		// 					return nil, err
+		// 				}
+		// 			}
+		// 		}
+
+		itsiKpis = append(itsiKpis, itsiKpi)
+	}
+
+	body["kpis"] = itsiKpis
+
+	//entity rules
+	itsiEntityRules := []map[string]interface{}{}
+	for _, entityRuleGroup := range m.EntityRules {
+		itsiEntityGroupRules := []map[string]interface{}{}
+		if len(entityRuleGroup.Rule) == 0 {
+			continue
+		}
+
+		for _, entityRule := range entityRuleGroup.Rule {
+			rule := map[string]interface{}{}
+			unmarshalBasicTypesByTag("json", entityRule, rule)
+			itsiEntityGroupRules = append(itsiEntityGroupRules, rule)
+		}
+
+		itsiEntityRuleGroup := map[string]interface{}{"rule_condition": "AND", "rule_items": itsiEntityGroupRules}
+		itsiEntityRules = append(itsiEntityRules, itsiEntityRuleGroup)
+	}
+	body["entity_rules"] = itsiEntityRules
+
+	//service depends on
+	itsiServicesDependsOn := []map[string]interface{}{}
+	for _, serviceDependsOn := range m.ServiceDependsOn {
+		dependsOnKPIs := []string{}
+		diags = append(diags, serviceDependsOn.KPIs.ElementsAs(ctx, dependsOnKPIs, false)...)
+
+		if len(dependsOnKPIs) == 0 {
+			diags.AddWarning("Glitch on service_depends_on",
+				"service_depends_on might contain an unexpected empty element")
+			continue
+		}
+
+		dependsOnItem := map[string]interface{}{
+			"serviceid":         serviceDependsOn.Service.ValueString(),
+			"kpis_depending_on": dependsOnKPIs,
+		}
+
+		overloaded_urgencies := map[string]int{}
+		diags = append(diags, serviceDependsOn.OverloadedUrgencies.ElementsAs(ctx, overloaded_urgencies, false)...)
+
+		if len(overloaded_urgencies) > 0 {
+			dependsOnItem["overloaded_urgencies"] = overloaded_urgencies
+		}
+
+		itsiServicesDependsOn = append(itsiServicesDependsOn, dependsOnItem)
+	}
+	body["services_depends_on"] = itsiServicesDependsOn
+
+	//tags
+	var serviceTags []string
+	m.Tags.ElementsAs(ctx, serviceTags, false)
+
+	if len(serviceTags) > 0 {
+		body["service_tags"] = map[string][]string{"tags": serviceTags}
+	}
+
+	config = serviceBase(clientConfig, m.ID.ValueString(), m.Title.ValueString())
 	if err := config.PopulateRawJSON(ctx, body); err != nil {
 		diags.AddError("Unable to populate base object", err.Error())
 	}
+
 	return
 }
 
