@@ -79,7 +79,7 @@ type KpiState struct {
 type ServiceDependsOnState struct {
 	Service             types.String `json:"service" tfsdk:"service"`
 	KPIs                types.Set    `tfsdk:"kpis"`
-	OverloadedUrgencies types.Map    `tfsdk:"overload_urgencies"`
+	OverloadedUrgencies types.Map    `tfsdk:"overloaded_urgencies"`
 }
 
 // // CustomThreshold represents the structure for custom threshold settings within a KPI.
@@ -265,7 +265,7 @@ func (r *resourceService) Schema(ctx context.Context, req resource.SchemaRequest
 							Description: "A set of _key ids for each KPI in service identified by serviceid, which this service will depend on.",
 							ElementType: types.StringType,
 						},
-						"overload_urgencies": schema.MapAttribute{
+						"overloaded_urgencies": schema.MapAttribute{
 							Optional:    true,
 							Description: "A map of urgency overriddes for the KPIs this service is depending on.",
 							ElementType: types.Int64Type,
