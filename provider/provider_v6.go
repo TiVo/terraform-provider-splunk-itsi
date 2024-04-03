@@ -220,6 +220,9 @@ func (p *itsiProvider) Resources(_ context.Context) []func() resource.Resource {
 		func() resource.Resource {
 			return NewKpiBaseSearch()
 		},
+		func() resource.Resource {
+			return NewResourceService()
+		},
 	}
 }
 
