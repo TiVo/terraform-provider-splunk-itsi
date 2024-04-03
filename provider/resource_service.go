@@ -13,7 +13,10 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/mapdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/setdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
@@ -136,7 +139,7 @@ func (r *resourceService) Schema(ctx context.Context, req resource.SchemaRequest
 		Description: "Manages a Service within ITSI.",
 		Blocks: map[string]schema.Block{
 			"kpi": schema.SetNestedBlock{
-				Description: "A set of rules within the rule group, which are combined using AND operator.",
+				Description: "A set of KPI descriptions for this service.",
 				NestedObject: schema.NestedBlockObject{
 					/*Blocks: map[string]schema.Block{
 						"custom_threshold": schema.SetNestedBlock{
@@ -163,34 +166,41 @@ func (r *resourceService) Schema(ctx context.Context, req resource.SchemaRequest
 					},*/
 					Attributes: map[string]schema.Attribute{
 						"id": schema.StringAttribute{
-							Optional: true,
 							Computed: true,
 							Description: `id (splunk _key) is automatically generated sha1 string, from base_search_id & metric_id seed,
 							concatenated with serviceId.`,
-							/*PlanModifiers: []planmodifier.String{
-								stringplanmodifier.UseStateForUnknown(),
-							},*/
 						},
 						"title": schema.StringAttribute{
 							Required:    true,
 							Description: "Name of the kpi. Can be any unique value.",
 						},
 						"description": schema.StringAttribute{
-							Optional:    true,
 							Description: "User-defined description for the KPI. ",
+							Optional:    true,
 						},
 						"type": schema.StringAttribute{
 							Optional:    true,
 							Computed:    true,
 							Default:     stringdefault.StaticString("kpis_primary"),
-							Description: "Could be service_health or kpis_primary.",
+							Description: "Could be kpis_primary.",
 							Validators: []validator.String{
-								stringvalidator.OneOf("kpis_primary", "service_health"),
+								stringvalidator.OneOf("kpis_primary"),
 							},
 						},
 						"urgency": schema.Int64Attribute{
 							Optional: true,
 							Computed: true,
+							/**
+							 * For the case of the import of configurations, this method overrides the defined urgency level, despite
+							 * the specified config value. This behavior is not observed during regular updates, where the specified
+							 * config urgency levels are respected.
+							 *
+							 * Investigation reveals that the issue may be related to the method not recognizing integer values specified
+							 * by path in the configuration, as seen in {@link https://github.com/hashicorp/terraform-plugin-framework/blob/main/internal/fwschemadata/data_default.go#L83}.
+							 * However, the files generated post-import and the state structures resulting from import/read calls do contain
+							 * the correct urgency values. Removing the default setting results in a clean plan. Subsequently,
+							 * the default logic has been moved to the plan modifier to address this issue.
+							 */
 							//Default:     int64default.StaticInt64(5),
 							Description: "User-assigned importance value for this KPI.",
 							Validators: []validator.Int64{
@@ -269,8 +279,10 @@ func (r *resourceService) Schema(ctx context.Context, req resource.SchemaRequest
 						},
 						"overloaded_urgencies": schema.MapAttribute{
 							Optional:    true,
+							Computed:    true,
 							Description: "A map of urgency overriddes for the KPIs this service is depending on.",
 							ElementType: types.Int64Type,
+							Default:     mapdefault.StaticValue(types.MapNull(types.Int64Type)),
 						},
 					},
 				},
@@ -293,20 +305,28 @@ func (r *resourceService) Schema(ctx context.Context, req resource.SchemaRequest
 			},
 			"enabled": schema.BoolAttribute{
 				Optional:    true,
+				Computed:    true,
+				Default:     booldefault.StaticBool(true),
 				Description: "Boolean value defining whether the service should be enabled.",
 			},
 			"is_healthscore_calculate_by_entity_enabled": schema.BoolAttribute{
 				Optional:    true,
+				Computed:    true,
+				Default:     booldefault.StaticBool(true),
 				Description: "Set the Service Health Score calculation to account for the severity levels of individual entities if at least one KPI is split by entity.",
 			},
 			"security_group": schema.StringAttribute{
 				Optional:    true,
 				Description: "The team the object belongs to.",
+				Computed:    true,
+				Default:     stringdefault.StaticString("default_itsi_security_group"),
 			},
 			"tags": schema.SetAttribute{
 				Optional:    true,
 				Description: "The tags for the service.",
 				ElementType: types.StringType,
+				Computed:    true,
+				Default:     setdefault.StaticValue(types.SetNull(types.StringType)),
 			},
 			"shkpi_id": schema.StringAttribute{
 				Computed:    true,
@@ -345,6 +365,8 @@ func (r *resourceService) ModifyPlan(ctx context.Context, req resource.ModifyPla
 		return
 	}
 
+	const DEFAULT_URGENCY = 5
+
 	var state, plan, config ServiceState
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
@@ -360,9 +382,10 @@ func (r *resourceService) ModifyPlan(ctx context.Context, req resource.ModifyPla
 
 		kpiOldKeys[internalIdentifier] = &KpiMapFields{
 			ID:      kpi.ID,
-			Urgency: types.Int64Value(5),
+			Urgency: types.Int64Value(DEFAULT_URGENCY),
 		}
 	}
+	// redefine urgency in case they specified in config
 	for _, kpi := range config.KPIs {
 		internalIdentifier := ""
 		resp.Diagnostics.Append(getKpiHashKey(kpi, &internalIdentifier)...)
