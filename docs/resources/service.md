@@ -95,15 +95,14 @@ resource "itsi_service" "Test-custom-static-threshold" {
 
 ### Optional
 
-- `description` (String) User defined description for the service. Defaults to ``.
-- `enabled` (Boolean) Boolean value defining whether the service should be enabled. Defaults to `false`.
-- `entity_rules` (Block Set) A set of rule groups that are combined by OR operator. (see [below for nested schema](#nestedblock--entity_rules))
-- `is_healthscore_calculate_by_entity_enabled` (Boolean) Set the Service Heath Score calculation to account for the severity levels of individual entities
-				               if at least one KPI is split by entity. Defaults to `true`.
+- `description` (String) User-defined description for the service.
+- `enabled` (Boolean) Boolean value defining whether the service should be enabled.
+- `entity_rules` (Block Set) A set of rules within the rule group, which are combined using OR operator. (see [below for nested schema](#nestedblock--entity_rules))
+- `is_healthscore_calculate_by_entity_enabled` (Boolean) Set the Service Health Score calculation to account for the severity levels of individual entities if at least one KPI is split by entity.
 - `kpi` (Block Set) A set of KPI descriptions for this service. (see [below for nested schema](#nestedblock--kpi))
-- `security_group` (String) The team the object belongs to. Defaults to `default_itsi_security_group`.
+- `security_group` (String) The team the object belongs to.
 - `service_depends_on` (Block Set) A set of service descriptions with KPIs in those services that this service depends on. (see [below for nested schema](#nestedblock--service_depends_on))
-- `tags` (Set of String) The tags for the service. Cannot contain the following characters: / \ " ' ! @ ? . , ; $ ^
+- `tags` (Set of String) The tags for the service.
 
 ### Read-Only
 
@@ -140,94 +139,16 @@ Required:
 
 Optional:
 
-- `custom_threshold` (Block Set) (see [below for nested schema](#nestedblock--kpi--custom_threshold))
 - `description` (String) User-defined description for the KPI.
-- `search_type` (String) Defaults to `shared_base`.
+- `search_type` (String)
 - `threshold_template_id` (String)
-- `type` (String) Could be service_health or kpis_primary. Defaults to `kpis_primary`.
-- `urgency` (Number) User-assigned importance value for this KPI. Defaults to `5`.
+- `type` (String) Could be kpis_primary.
+- `urgency` (Number) User-assigned importance value for this KPI.
 
 Read-Only:
 
 - `id` (String) id (splunk _key) is automatically generated sha1 string, from base_search_id & metric_id seed,
-			 concatenated with serviceId.
-
-<a id="nestedblock--kpi--custom_threshold"></a>
-### Nested Schema for `kpi.custom_threshold`
-
-Required:
-
-- `aggregate_thresholds` (Block Set, Min: 1) (see [below for nested schema](#nestedblock--kpi--custom_threshold--aggregate_thresholds))
-- `entity_thresholds` (Block Set, Min: 1) (see [below for nested schema](#nestedblock--kpi--custom_threshold--entity_thresholds))
-
-<a id="nestedblock--kpi--custom_threshold--aggregate_thresholds"></a>
-### Nested Schema for `kpi.custom_threshold.aggregate_thresholds`
-
-Required:
-
-- `render_boundary_max` (Number) Upper bound value to use to render the graph for the thresholds.
-- `render_boundary_min` (Number) Lower bound value to use to render the graph for the thresholds.
-
-Optional:
-
-- `base_severity_label` (String) Base severity label assigned for the threshold (info, normal, low, medium, high, critical).  Defaults to `normal`.
-- `gauge_max` (Number) Maximum value for the threshold gauge specified by user
-- `gauge_min` (Number) Minimum value for the threshold gauge specified by user.
-- `is_max_static` (Boolean) True when maximum threshold value is a static value, false otherwise.  Defaults to `false`.
-- `is_min_static` (Boolean) True when min threshold value is a static value, false otherwise. Defaults to `false`.
-- `metric_field` (String) Thresholding field from the search. Defaults to ``.
-- `search` (String) Generated search used to compute the thresholds for this KPI. Defaults to ``.
-- `threshold_levels` (Block Set) (see [below for nested schema](#nestedblock--kpi--custom_threshold--aggregate_thresholds--threshold_levels))
-
-<a id="nestedblock--kpi--custom_threshold--aggregate_thresholds--threshold_levels"></a>
-### Nested Schema for `kpi.custom_threshold.aggregate_thresholds.threshold_levels`
-
-Required:
-
-- `severity_label` (String) Severity label assigned for this threshold level like info, warning, critical, etc
-- `threshold_value` (Number) Value for the threshold field stats identifying this threshold level.
-				This is the key value that defines the levels for values derived from the KPI search metrics.
-
-Optional:
-
-- `dynamic_param` (Number) Value of the dynamic parameter for adaptive thresholds
-
-
-
-<a id="nestedblock--kpi--custom_threshold--entity_thresholds"></a>
-### Nested Schema for `kpi.custom_threshold.entity_thresholds`
-
-Required:
-
-- `render_boundary_max` (Number) Upper bound value to use to render the graph for the thresholds.
-- `render_boundary_min` (Number) Lower bound value to use to render the graph for the thresholds.
-
-Optional:
-
-- `base_severity_label` (String) Base severity label assigned for the threshold (info, normal, low, medium, high, critical).  Defaults to `normal`.
-- `gauge_max` (Number) Maximum value for the threshold gauge specified by user
-- `gauge_min` (Number) Minimum value for the threshold gauge specified by user.
-- `is_max_static` (Boolean) True when maximum threshold value is a static value, false otherwise.  Defaults to `false`.
-- `is_min_static` (Boolean) True when min threshold value is a static value, false otherwise. Defaults to `false`.
-- `metric_field` (String) Thresholding field from the search. Defaults to ``.
-- `search` (String) Generated search used to compute the thresholds for this KPI. Defaults to ``.
-- `threshold_levels` (Block Set) (see [below for nested schema](#nestedblock--kpi--custom_threshold--entity_thresholds--threshold_levels))
-
-<a id="nestedblock--kpi--custom_threshold--entity_thresholds--threshold_levels"></a>
-### Nested Schema for `kpi.custom_threshold.entity_thresholds.threshold_levels`
-
-Required:
-
-- `severity_label` (String) Severity label assigned for this threshold level like info, warning, critical, etc
-- `threshold_value` (Number) Value for the threshold field stats identifying this threshold level.
-				This is the key value that defines the levels for values derived from the KPI search metrics.
-
-Optional:
-
-- `dynamic_param` (Number) Value of the dynamic parameter for adaptive thresholds
-
-
-
+							concatenated with serviceId.
 
 
 <a id="nestedblock--service_depends_on"></a>
