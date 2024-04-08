@@ -2,50 +2,19 @@ package provider
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
-	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/tivo/terraform-provider-splunk-itsi/models"
 )
-
-// TODO: uncomment once scrapper will use framework schema reflect approach
-/*func kpiThresholdTemplateTFFormat(b *models.Base) (string, error) {
-	res := ResourceKPIThresholdTemplate()
-	resData := res.Data(nil)
-	d := populateKpiThresholdTemplateResourceData(context.Background(), b, resData)
-	if len(d) > 0 {
-		err := d[0].Validate()
-		if err != nil {
-			return "", err
-		}
-		return "", errors.New(d[0].Summary)
-	}
-	resourcetpl, err := NewResourceTemplate(resData, res.Schema, "title", "itsi_kpi_threshold_template")
-	if err != nil {
-		return "", err
-	}
-
-	templateResource, err := newTemplate(resourcetpl)
-	if err != nil {
-		log.Fatal(err)
-	}
-	var tpl bytes.Buffer
-	err = templateResource.Execute(&tpl, resourcetpl)
-	if err != nil {
-		return "", err
-	}
-
-	return cleanerRegex.ReplaceAllString(tpl.String(), ""), nil
-}*/
 
 func kpiThresholdTemplateBase(clientConfig models.ClientConfig, key string, title string) *models.Base {
 	base := models.NewBase(clientConfig, key, title, "kpi_threshold_template")
@@ -63,25 +32,25 @@ func NewResourceKpiThresholdTemplate() resource.Resource {
 }
 
 type modelKpiThresholdTemplate struct {
-	ID                                 types.String                            `tfsdk:"id"`
-	Title                              types.String                            `tfsdk:"title"`
-	Description                        types.String                            `tfsdk:"description"`
-	AdaptiveThresholdingTrainingWindow types.String                            `tfsdk:"adaptive_thresholding_training_window"`
-	TimeVariateThresholds              types.Bool                              `tfsdk:"time_variate_thresholds"`
-	TimeVariateThresholdsSpecification TimeVariateThresholdsSpecificationModel `tfsdk:"time_variate_thresholds_specification"`
-	AdaptiveThresholdsIsEnabled        types.Bool                              `tfsdk:"adaptive_thresholds_is_enabled"`
-	SecGrp                             types.String                            `tfsdk:"sec_grp"`
+	ID                                 types.String                             `tfsdk:"id" json:"_key"`
+	Title                              types.String                             `tfsdk:"title" json:"title"`
+	Description                        types.String                             `tfsdk:"description" json:"description"`
+	AdaptiveThresholdingTrainingWindow types.String                             `tfsdk:"adaptive_thresholding_training_window" json:"adaptive_thresholding_training_window"`
+	TimeVariateThresholds              types.Bool                               `tfsdk:"time_variate_thresholds" json:"time_variate_thresholds"`
+	TimeVariateThresholdsSpecification *TimeVariateThresholdsSpecificationModel `tfsdk:"time_variate_thresholds_specification"`
+	AdaptiveThresholdsIsEnabled        types.Bool                               `tfsdk:"adaptive_thresholds_is_enabled" json:"adaptive_thresholds_is_enabled"`
+	SecGrp                             types.String                             `tfsdk:"sec_grp" json:"sec_grp"`
 }
 
 type TimeVariateThresholdsSpecificationModel struct {
-	Policies types.Set `tfsdk:"policies"`
+	Policies []PolicyModel `tfsdk:"policies"`
 }
 
 type PolicyModel struct {
 	PolicyName          types.String          `tfsdk:"policy_name"`
 	Title               types.String          `tfsdk:"title"`
 	PolicyType          types.String          `tfsdk:"policy_type"`
-	TimeBlocks          types.Set             `tfsdk:"time_blocks"`
+	TimeBlocks          []TimeBlockModel      `tfsdk:"time_blocks"`
 	AggregateThresholds ThresholdSettingModel `tfsdk:"aggregate_thresholds"`
 	EntityThresholds    ThresholdSettingModel `tfsdk:"entity_thresholds"`
 }
@@ -378,55 +347,46 @@ func (r *resourceKpiThresholdTemplate) Delete(ctx context.Context, req resource.
 
 func kpiThresholdTemplate(ctx context.Context, tfKpiThresholdTemplate modelKpiThresholdTemplate, clientConfig models.ClientConfig) (config *models.Base, diags diag.Diagnostics) {
 	body := map[string]interface{}{}
+	diags = append(diags, unmarshalBasicTypesByTag("json", &tfKpiThresholdTemplate, body)...)
 	body["objectType"] = "kpi_threshold_template"
-	body["title"] = tfKpiThresholdTemplate.Title.ValueString()
-	body["description"] = tfKpiThresholdTemplate.Description.ValueString()
-	body["adaptive_thresholds_is_enabled"] = tfKpiThresholdTemplate.AdaptiveThresholdsIsEnabled.ValueBool()
-	body["adaptive_thresholding_training_window"] = tfKpiThresholdTemplate.AdaptiveThresholdingTrainingWindow.ValueString()
-	body["time_variate_thresholds"] = tfKpiThresholdTemplate.TimeVariateThresholds.ValueBool()
-	body["sec_grp"] = tfKpiThresholdTemplate.SecGrp.ValueString()
 
 	policies := map[string]interface{}{}
-	var policieModels []PolicyModel
-	if diags.Append(tfKpiThresholdTemplate.TimeVariateThresholdsSpecification.Policies.ElementsAs(ctx, &policieModels, false)...); diags.HasError() {
-		return nil, diags
-	}
-	for _, tfpolicy := range policieModels {
-		policy := map[string]interface{}{}
-		policy["title"] = tfpolicy.Title.ValueString()
-		policy["policy_type"] = tfpolicy.PolicyType.ValueString()
-		timeBlocks := [][]interface{}{}
-		var timeBlockModels []TimeBlockModel
-		if diags.Append(tfpolicy.TimeBlocks.ElementsAs(ctx, &timeBlockModels, false)...); diags.HasError() {
-			return nil, diags
-		}
-		for _, tfTimeBlock := range timeBlockModels {
-			block := []interface{}{}
-			block = append(block, tfTimeBlock.Cron.ValueString())
-			block = append(block, tfTimeBlock.Interval.ValueInt64())
+	if tfKpiThresholdTemplate.TimeVariateThresholdsSpecification != nil {
+		for _, tfpolicy := range tfKpiThresholdTemplate.TimeVariateThresholdsSpecification.Policies {
+			policy := map[string]interface{}{}
+			policy["title"] = tfpolicy.Title.ValueString()
+			policy["policy_type"] = tfpolicy.PolicyType.ValueString()
+			timeBlocks := [][]interface{}{}
 
-			timeBlocks = append(timeBlocks, block)
+			for _, tfTimeBlock := range tfpolicy.TimeBlocks {
+				block := []interface{}{}
+				block = append(block, tfTimeBlock.Cron.ValueString())
+				block = append(block, tfTimeBlock.Interval.ValueInt64())
+
+				timeBlocks = append(timeBlocks, block)
+			}
+
+			policy["time_blocks"] = timeBlocks
+			aggregateThresholds, d := kpiThresholdThresholdSettingsAttributesToPayload(ctx, tfpolicy.AggregateThresholds)
+			diags.Append(d...)
+			if diags.HasError() {
+				return
+			}
+			policy["aggregate_thresholds"] = aggregateThresholds
+
+			entityThresholds, d := kpiThresholdThresholdSettingsAttributesToPayload(ctx, tfpolicy.EntityThresholds)
+			diags.Append(d...)
+			if diags.HasError() {
+				return
+			}
+			policy["entity_thresholds"] = entityThresholds
+
+			policies[tfpolicy.PolicyName.ValueString()] = policy
+		}
+		body["time_variate_thresholds_specification"] = map[string]interface{}{
+			"policies": policies,
 		}
 
-		policy["time_blocks"] = timeBlocks
-		aggregateThresholds, d := kpiThresholdThresholdSettingsAttributesToPayload(ctx, tfpolicy.AggregateThresholds)
-		diags.Append(d...)
-		if diags.HasError() {
-			return
-		}
-		policy["aggregate_thresholds"] = aggregateThresholds
-
-		entityThresholds, d := kpiThresholdThresholdSettingsAttributesToPayload(ctx, tfpolicy.EntityThresholds)
-		diags.Append(d...)
-		if diags.HasError() {
-			return
-		}
-		policy["entity_thresholds"] = entityThresholds
-
-		policies[tfpolicy.PolicyName.ValueString()] = policy
-	}
-	body["time_variate_thresholds_specification"] = map[string]interface{}{
-		"policies": policies,
 	}
 
 	base := kpiThresholdTemplateBase(clientConfig, tfKpiThresholdTemplate.ID.ValueString(), tfKpiThresholdTemplate.Title.ValueString())
@@ -443,18 +403,9 @@ func populateKpiThresholdTemplateModel(ctx context.Context, b *models.Base, tfMo
 	if err != nil {
 		diags.AddError("Failed to populate interfaceMap.", err.Error())
 	}
+	diags = append(diags, marshalBasicTypesByTag("json", interfaceMap, tfModelKpiThresholdTemplate)...)
 
-	tfModelKpiThresholdTemplate.Title = types.StringValue(interfaceMap["title"].(string))
-	tfModelKpiThresholdTemplate.Description = types.StringValue(interfaceMap["description"].(string))
-	tfModelKpiThresholdTemplate.AdaptiveThresholdingTrainingWindow = types.StringValue(interfaceMap["adaptive_thresholding_training_window"].(string))
-	tfModelKpiThresholdTemplate.AdaptiveThresholdsIsEnabled = types.BoolValue(interfaceMap["adaptive_thresholds_is_enabled"].(bool))
-	tfModelKpiThresholdTemplate.TimeVariateThresholds = types.BoolValue(interfaceMap["time_variate_thresholds"].(bool))
-	tfModelKpiThresholdTemplate.SecGrp = types.StringValue(interfaceMap["sec_grp"].(string))
-
-	tfPolicies := []PolicyModel{}
-	policySetValue, _diags := tfModelKpiThresholdTemplate.TimeVariateThresholdsSpecification.Policies.ToSetValue(ctx)
-	diags = append(diags, _diags...)
-	policyObjectType := policySetValue.ElementType(ctx).(basetypes.ObjectType)
+	/*tfPolicies := []PolicyModel{}
 
 	timeVariateThresholdsSpecificationData := interfaceMap["time_variate_thresholds_specification"].(map[string]interface{})
 	for policyName, pData := range timeVariateThresholdsSpecificationData["policies"].(map[string]interface{}) {
@@ -476,43 +427,45 @@ func populateKpiThresholdTemplateModel(ctx context.Context, b *models.Base, tfMo
 			tfTimeBlocks = append(tfTimeBlocks, tfTimeBlock)
 		}
 		var diags_ diag.Diagnostics
-		timeBlocksElementType := policyObjectType.AttrTypes["time_blocks"].(basetypes.SetType).ElemType
-		tfPolicy.TimeBlocks, diags_ = types.SetValueFrom(ctx, timeBlocksElementType, tfTimeBlocks)
+		timeBlocksElementType := PolicyModel.TimeBlocks
+		tfPolicy.TimeBlocks = tfTimeBlocks
 		diags.Append(diags_...)
 		tfAggregatedThresholds := ThresholdSettingModel{}
-		diags.Append(kpiThresholdSettingsToModel(ctx, "aggregate_thresholds", policyObjectType,
+		diags.Append(kpiThresholdSettingsToModel("aggregate_thresholds",
 			policyData["aggregate_thresholds"].(map[string]interface{}), &tfAggregatedThresholds, policyData["policy_type"].(string))...)
 
 		tfPolicy.AggregateThresholds = tfAggregatedThresholds
 
 		tfEntityThresholds := ThresholdSettingModel{}
-		diags.Append(kpiThresholdSettingsToModel(ctx, "entity_thresholds", policyObjectType,
-			policyData["entity_thresholds"].(map[string]interface{}), &tfEntityThresholds, policyData["policy_type"].(string))...)
+		diags.Append(kpiThresholdSettingsToModel("entity_thresholds", policyData["entity_thresholds"].(map[string]interface{}),
+			&tfEntityThresholds, policyData["policy_type"].(string))...)
 		tfPolicy.EntityThresholds = tfEntityThresholds
 		tfPolicies = append(tfPolicies, tfPolicy)
 	}
 	tfModelKpiThresholdTemplate.TimeVariateThresholdsSpecification = TimeVariateThresholdsSpecificationModel{}
-	var diags_ diag.Diagnostics
-	tfModelKpiThresholdTemplate.TimeVariateThresholdsSpecification.Policies, diags_ = types.SetValueFrom(ctx, policySetValue.ElementType(ctx), tfPolicies)
-	diags.Append(diags_...)
+	tfModelKpiThresholdTemplate.TimeVariateThresholdsSpecification.Policies = tfPolicies*/
 
 	tfModelKpiThresholdTemplate.ID = types.StringValue(b.RESTKey)
 	return
 }
 
 func (r *resourceKpiThresholdTemplate) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	diags := resp.Diagnostics
 	b := kpiThresholdTemplateBase(r.client, "", req.ID)
 	b, err := b.Find(ctx)
-	if err != nil || b == nil {
-		diags.AddError("Failed to find kpi threshold template.", err.Error())
-		resp.Diagnostics.Append(diags...)
+	if err != nil {
+		resp.Diagnostics.AddError("Unable to find Kpi Threshold Template model", err.Error())
+		return
+	}
+	if b == nil {
+		resp.Diagnostics.AddError("Kpi Threshold Template not found", fmt.Sprintf("Kpi Threshold Template '%s' not found", req.ID))
 		return
 	}
 
-	req.ID = b.RESTKey
+	state := modelKpiThresholdTemplate{}
+	resp.Diagnostics.Append(populateKpiThresholdTemplateModel(ctx, b, &state)...)
+	// if resp.Diagnostics.Append(diags...); diags.HasError() {
+	// 	return
+	// }
 
-	resp.State.SetAttribute(ctx, path.Root("time_variate_thresholds_specification"), TimeVariateThresholdsSpecificationModel{})
-	// Retrieve import ID and save to id attribute
-	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }

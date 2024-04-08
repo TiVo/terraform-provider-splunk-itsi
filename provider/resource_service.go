@@ -54,17 +54,17 @@ func (r *resourceService) Configure(ctx context.Context, req resource.ConfigureR
 }
 
 type ServiceState struct {
-	ID                                    types.String             `json:"_key" tfsdk:"id"`
-	Title                                 types.String             `json:"title" tfsdk:"title"`
-	Description                           types.String             `json:"description" tfsdk:"description"`
-	Enabled                               types.Bool               `json:"enabled" tfsdk:"enabled"`
-	IsHealthscoreCalculateByEntityEnabled types.Bool               `json:"is_healthscore_calculate_by_entity_enabled" tfsdk:"is_healthscore_calculate_by_entity_enabled"`
-	SecurityGroup                         types.String             `json:"sec_grp" tfsdk:"security_group"`
-	Tags                                  types.Set                `tfsdk:"tags"`
-	ShkpiID                               types.String             `json:"shkpi_id" tfsdk:"shkpi_id"`
-	KPIs                                  []*KpiState              `tfsdk:"kpi"`
-	EntityRules                           []*EntityRuleState       `tfsdk:"entity_rules"`
-	ServiceDependsOn                      []*ServiceDependsOnState `tfsdk:"service_depends_on"`
+	ID                                    types.String            `json:"_key" tfsdk:"id"`
+	Title                                 types.String            `json:"title" tfsdk:"title"`
+	Description                           types.String            `json:"description" tfsdk:"description"`
+	Enabled                               types.Bool              `json:"enabled" tfsdk:"enabled"`
+	IsHealthscoreCalculateByEntityEnabled types.Bool              `json:"is_healthscore_calculate_by_entity_enabled" tfsdk:"is_healthscore_calculate_by_entity_enabled"`
+	SecurityGroup                         types.String            `json:"sec_grp" tfsdk:"security_group"`
+	Tags                                  types.Set               `tfsdk:"tags"`
+	ShkpiID                               types.String            `json:"shkpi_id" tfsdk:"shkpi_id"`
+	KPIs                                  []KpiState              `tfsdk:"kpi"`
+	EntityRules                           []EntityRuleState       `tfsdk:"entity_rules"`
+	ServiceDependsOn                      []ServiceDependsOnState `tfsdk:"service_depends_on"`
 }
 
 type KpiState struct {
@@ -95,7 +95,7 @@ type ServiceDependsOnState struct {
 
 // EntityRule represents the schema for an entity rule within a service.
 type EntityRuleState struct {
-	Rule []*RuleState `tfsdk:"rule"`
+	Rule []RuleState `tfsdk:"rule"`
 }
 type RuleState struct {
 	Field     types.String `json:"field" tfsdk:"field"`
@@ -339,7 +339,7 @@ func (r *resourceService) Schema(ctx context.Context, req resource.SchemaRequest
 	}
 }
 
-func getKpiHashKey(kpiData *KpiState, hash_key *string) (diags diag.Diagnostics) {
+func getKpiHashKey(kpiData KpiState, hash_key *string) (diags diag.Diagnostics) {
 	baseSearchId := kpiData.BaseSearchID.ValueString()
 	baseSearchMetricId := kpiData.BaseSearchMetric.ValueString()
 
@@ -562,7 +562,7 @@ func serviceModelFromBase(ctx context.Context, b *models.Base) (m ServiceState, 
 		return
 	}
 
-	m.KPIs = []*KpiState{}
+	m.KPIs = []KpiState{}
 	metricLookup := new(KPIBSMetricLookup)
 
 	for _, kpi := range kpis {
@@ -625,10 +625,10 @@ func serviceModelFromBase(ctx context.Context, b *models.Base) (m ServiceState, 
 				}
 			}*/
 
-			m.KPIs = append(m.KPIs, kpiTF)
+			m.KPIs = append(m.KPIs, *kpiTF)
 		}
 	}
-	m.EntityRules = []*EntityRuleState{}
+	m.EntityRules = []EntityRuleState{}
 	entityRules, err := unpackSlice[map[string]interface{}](interfaceMap["entity_rules"])
 	if err != nil {
 		diags.AddError("Unable to unpack entity rules from service model", err.Error())
@@ -637,7 +637,7 @@ func serviceModelFromBase(ctx context.Context, b *models.Base) (m ServiceState, 
 
 	for _, entityRuleAndSet := range entityRules {
 		ruleState := &EntityRuleState{}
-		ruleSet := []*RuleState{}
+		ruleSet := []RuleState{}
 		ruleItems, err := unpackSlice[map[string]interface{}](entityRuleAndSet["rule_items"])
 		if err != nil {
 			diags.AddError("Unable to unpack rule_item from service model", err.Error())
@@ -646,13 +646,13 @@ func serviceModelFromBase(ctx context.Context, b *models.Base) (m ServiceState, 
 		for _, ruleItem := range ruleItems {
 			ruleTF := &RuleState{}
 			diags = append(diags, marshalBasicTypesByTag("json", ruleItem, ruleTF)...)
-			ruleSet = append(ruleSet, ruleTF)
+			ruleSet = append(ruleSet, *ruleTF)
 		}
 		ruleState.Rule = ruleSet
-		m.EntityRules = append(m.EntityRules, ruleState)
+		m.EntityRules = append(m.EntityRules, *ruleState)
 	}
 
-	m.ServiceDependsOn = []*ServiceDependsOnState{}
+	m.ServiceDependsOn = []ServiceDependsOnState{}
 	serviceDependsOn, err := unpackSlice[map[string]interface{}](interfaceMap["services_depends_on"])
 
 	for _, serviceDepend := range serviceDependsOn {
@@ -669,7 +669,7 @@ func serviceModelFromBase(ctx context.Context, b *models.Base) (m ServiceState, 
 		} else {
 			serviceDependsOn.OverloadedUrgencies = types.MapNull(types.Int64Type)
 		}
-		m.ServiceDependsOn = append(m.ServiceDependsOn, serviceDependsOn)
+		m.ServiceDependsOn = append(m.ServiceDependsOn, *serviceDependsOn)
 	}
 
 	m.ID = types.StringValue(b.RESTKey)
@@ -882,7 +882,7 @@ func serviceStateToJson(ctx context.Context, clientConfig models.ClientConfig, m
 
 		for _, entityRule := range entityRuleGroup.Rule {
 			rule := map[string]interface{}{}
-			unmarshalBasicTypesByTag("json", entityRule, rule)
+			unmarshalBasicTypesByTag("json", &entityRule, rule)
 			itsiEntityGroupRules = append(itsiEntityGroupRules, rule)
 		}
 

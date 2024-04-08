@@ -19,7 +19,7 @@ import (
 
 const (
 	clientConcurrency = 15
-	defaultTimeout    = 60
+	defaultTimeout    = 220
 	defaultPort       = 8089
 	cacheSize         = 1000
 )
