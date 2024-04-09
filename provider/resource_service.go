@@ -535,8 +535,8 @@ func serviceModelFromBase(ctx context.Context, b *models.Base) (m ServiceState, 
 	metricLookup := new(KPIBSMetricLookup)
 
 	for _, kpi := range kpis {
-		kpiTF := &KpiState{}
-		diags = append(diags, marshalBasicTypesByTag("json", kpi, kpiTF)...)
+		kpiTF := KpiState{}
+		diags = append(diags, marshalBasicTypesByTag("json", kpi, &kpiTF)...)
 
 		if kpiTF.Title.ValueString() == "ServiceHealthScore" {
 			m.ShkpiID = kpiTF.ID
@@ -557,7 +557,7 @@ func serviceModelFromBase(ctx context.Context, b *models.Base) (m ServiceState, 
 				}
 			}
 
-			m.KPIs = append(m.KPIs, *kpiTF)
+			m.KPIs = append(m.KPIs, kpiTF)
 		}
 	}
 	m.EntityRules = []EntityRuleState{}
@@ -568,7 +568,7 @@ func serviceModelFromBase(ctx context.Context, b *models.Base) (m ServiceState, 
 	}
 
 	for _, entityRuleAndSet := range entityRules {
-		ruleState := &EntityRuleState{}
+		ruleState := EntityRuleState{}
 		ruleSet := []RuleState{}
 		ruleItems, err := unpackSlice[map[string]interface{}](entityRuleAndSet["rule_items"])
 		if err != nil {
@@ -576,19 +576,19 @@ func serviceModelFromBase(ctx context.Context, b *models.Base) (m ServiceState, 
 			return
 		}
 		for _, ruleItem := range ruleItems {
-			ruleTF := &RuleState{}
-			diags = append(diags, marshalBasicTypesByTag("json", ruleItem, ruleTF)...)
-			ruleSet = append(ruleSet, *ruleTF)
+			ruleTF := RuleState{}
+			diags = append(diags, marshalBasicTypesByTag("json", ruleItem, &ruleTF)...)
+			ruleSet = append(ruleSet, ruleTF)
 		}
 		ruleState.Rule = ruleSet
-		m.EntityRules = append(m.EntityRules, *ruleState)
+		m.EntityRules = append(m.EntityRules, ruleState)
 	}
 
 	m.ServiceDependsOn = []ServiceDependsOnState{}
 	serviceDependsOn, err := unpackSlice[map[string]interface{}](interfaceMap["services_depends_on"])
 
 	for _, serviceDepend := range serviceDependsOn {
-		serviceDependsOn := &ServiceDependsOnState{}
+		serviceDependsOn := ServiceDependsOnState{}
 		serviceDependsOn.Service = types.StringValue(serviceDepend["serviceid"].(string))
 		kpiIds, err := unpackSlice[string](serviceDepend["kpis_depending_on"])
 		if err != nil {
@@ -601,7 +601,7 @@ func serviceModelFromBase(ctx context.Context, b *models.Base) (m ServiceState, 
 		} else {
 			serviceDependsOn.OverloadedUrgencies = types.MapNull(types.Int64Type)
 		}
-		m.ServiceDependsOn = append(m.ServiceDependsOn, *serviceDependsOn)
+		m.ServiceDependsOn = append(m.ServiceDependsOn, serviceDependsOn)
 	}
 
 	m.ID = types.StringValue(b.RESTKey)
