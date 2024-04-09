@@ -931,8 +931,14 @@ func (r *resourceNEAP) ruleActionsSchema() schema.SetNestedBlock {
 
 }
 
-func (r *resourceNEAP) ruleSchema() schema.SetNestedBlock {
-	return schema.SetNestedBlock{
+// NOTE:
+// As of terraform plugin framework 1.7.0 & terraform 1.7.5,
+// using schema.SetNestedBlock for the NEAP rule schema triggers a bug,
+// where the generated terraform plan is always missing the computed "id" field,
+// leading to terraform apply failing with the "inconsistent final plan" error.
+// This is why we are currently using schema.ListNestedBlock here, which doesn't have this issue.
+func (r *resourceNEAP) ruleSchema() schema.ListNestedBlock {
+	return schema.ListNestedBlock{
 
 		NestedObject: schema.NestedBlockObject{
 			Blocks: map[string]schema.Block{
@@ -943,8 +949,7 @@ func (r *resourceNEAP) ruleSchema() schema.SetNestedBlock {
 				"id": schema.StringAttribute{
 					MarkdownDescription: "ID of the notable event aggregation policy rule.",
 					Computed:            true,
-					//Optional:            true,
-					//PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+					PlanModifiers:       []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 				},
 				"description": schema.StringAttribute{
 					MarkdownDescription: "The description of the notable event aggregation policy rule.",
@@ -968,7 +973,6 @@ func (r *resourceNEAP) ruleSchema() schema.SetNestedBlock {
 			},
 		},
 	}
-
 }
 
 func (r *resourceNEAP) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
