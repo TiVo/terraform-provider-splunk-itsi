@@ -77,7 +77,6 @@ type KpiState struct {
 	SearchType          types.String `json:"search_type" tfsdk:"search_type"`
 	BaseSearchMetric    types.String `tfsdk:"base_search_metric"`
 	ThresholdTemplateID types.String `json:"kpi_threshold_template_id" tfsdk:"threshold_template_id"`
-	//CustomThresholds    []*CustomThresholdState `tfsdk:"custom_threshold"`
 }
 
 // ServiceDependsOn represents the schema for service dependencies within a service.
@@ -86,12 +85,6 @@ type ServiceDependsOnState struct {
 	KPIs                types.Set    `tfsdk:"kpis"`
 	OverloadedUrgencies types.Map    `tfsdk:"overloaded_urgencies"`
 }
-
-// // CustomThreshold represents the structure for custom threshold settings within a KPI.
-// type CustomThresholdState struct {
-// 	EntityThresholds    []*ThresholdSettingModelv2 `tfsdk:"entity_thresholds"`
-// 	AggregateThresholds []*ThresholdSettingModelv2 `tfsdk:"aggregate_thresholds"`
-// }
 
 // EntityRule represents the schema for an entity rule within a service.
 type EntityRuleState struct {
@@ -134,36 +127,12 @@ func (r *resourceService) Metadata(ctx context.Context, req resource.MetadataReq
  */
 
 func (r *resourceService) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
-	//threshold_settings_blocks, threshold_settings_attributes := getKpiThresholdSettingsBlocksAttrs()
 	resp.Schema = schema.Schema{
 		Description: "Manages a Service within ITSI.",
 		Blocks: map[string]schema.Block{
 			"kpi": schema.SetNestedBlock{
 				Description: "A set of KPI descriptions for this service.",
 				NestedObject: schema.NestedBlockObject{
-					/*Blocks: map[string]schema.Block{
-						"custom_threshold": schema.SetNestedBlock{
-							//Optional: true,
-							NestedObject: schema.NestedBlockObject{
-								Blocks: map[string]schema.Block{
-									"entity_thresholds": schema.SetNestedBlock{
-										//Required: true,
-										NestedObject: schema.NestedBlockObject{
-											Attributes: threshold_settings_attributes,
-											Blocks:     threshold_settings_blocks,
-										},
-									},
-									"aggregate_thresholds": schema.SetNestedBlock{
-										//Required: true,
-										NestedObject: schema.NestedBlockObject{
-											Attributes: threshold_settings_attributes,
-											Blocks:     threshold_settings_blocks,
-										},
-									},
-								},
-							},
-						},
-					},*/
 					Attributes: map[string]schema.Attribute{
 						"id": schema.StringAttribute{
 							Computed: true,
@@ -588,43 +557,6 @@ func serviceModelFromBase(ctx context.Context, b *models.Base) (m ServiceState, 
 				}
 			}
 
-			/*kpiTF.CustomThresholds = []*CustomThresholdState{}
-			if kpiTF.ThresholdTemplateID.ValueString() == "" {
-				kpiTF.ThresholdTemplateID = types.StringNull()
-				if kpi["adaptive_thresholds_is_enabled"].(bool) || kpi["time_variate_thresholds"].(bool) {
-					diags.AddWarning("Unsupported thresholding",
-						fmt.Sprintf("Custom threshold support only static non-time-variate thresholds: serviceId=%s kpiId=%s. Fallback to default", b.RESTKey, kpiTF.ID))
-				} else {
-					customThreshold := &CustomThresholdState{}
-
-					unpackThresholds := func(key string) (thresholds *ThresholdSettingModelv2) {
-						thresholds = &ThresholdSettingModelv2{}
-						diags = append(diags, marshalBasicTypesByTag("json", kpi[key].(map[string]interface{}), thresholds)...)
-						thresholds.ThresholdLevels = []*KpiThresholdLevelModel{}
-
-						if itsiThresholds, ok := kpi[key].(map[string]interface{}); ok {
-							levels, err := unpackSlice[map[string]interface{}](itsiThresholds["thresholdLevels"])
-							if err != nil {
-								diags.AddError("Unable to unpack custom KPIs levels from service model", err.Error())
-								return
-							}
-
-							for _, level := range levels {
-								levelTF := &KpiThresholdLevelModel{}
-								diags = append(diags, marshalBasicTypesByTag("json", level, levelTF)...)
-
-								thresholds.ThresholdLevels = append(thresholds.ThresholdLevels, levelTF)
-							}
-						}
-						return
-					}
-
-					customThreshold.AggregateThresholds = []*ThresholdSettingModelv2{unpackThresholds("aggregate_thresholds")}
-					customThreshold.EntityThresholds = []*ThresholdSettingModelv2{unpackThresholds("entity_thresholds")}
-					kpiTF.CustomThresholds = append(kpiTF.CustomThresholds, customThreshold)
-				}
-			}*/
-
 			m.KPIs = append(m.KPIs, *kpiTF)
 		}
 	}
@@ -847,25 +779,6 @@ func serviceStateToJson(ctx context.Context, clientConfig models.ClientConfig, m
 				}
 			}
 		}
-		//       else if customThreshold, ok := kpiData["custom_threshold"]; ok {
-		// 			for _, currentCustomThreshold := range customThreshold.(*schema.Set).List() {
-		// 				customThresholdData := currentCustomThreshold.(map[string]interface{})
-
-		// 				aggregateThresholds :=
-		// 					customThresholdData["aggregate_thresholds"].(*schema.Set).List()[0].(map[string]interface{})
-		// 				entityThresholds :=
-		// 					customThresholdData["entity_thresholds"].(*schema.Set).List()[0].(map[string]interface{})
-
-		// 				itsiKpi["aggregate_thresholds"], err = kpiThresholdThresholdSettingsToPayload(aggregateThresholds)
-		// 				if err != nil {
-		// 					return nil, err
-		// 				}
-		// 				itsiKpi["entity_thresholds"], err = kpiThresholdThresholdSettingsToPayload(entityThresholds)
-		// 				if err != nil {
-		// 					return nil, err
-		// 				}
-		// 			}
-		// 		}
 
 		itsiKpis = append(itsiKpis, itsiKpi)
 	}
