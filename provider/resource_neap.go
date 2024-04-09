@@ -31,15 +31,93 @@ import (
 	"github.com/tivo/terraform-provider-splunk-itsi/provider/util"
 )
 
+/*
+	NEAP Resource
+	Table of contents:
+		(1) [ NEAP data structures, constants and variables ]
+		(2) [ NEAP helper functions ]
+		(3) [ NEAP TF Models ]
+		(4) [ NEAP Resource Schema ]
+		(5) [ NEAP TF <-> ITSI Build / Parse Workflows ]
+		(6) [ NEAP Resource CRUD Operations ]
+
+*/
+
+// (1) [ NEAP data structures, constants and variables ] _______________________
+
+type neapCriteriaType int
+
+const (
+	neapCriteriaTypeBreaking neapCriteriaType = iota
+	neapCriteriaTypeFilter
+	neapCriteriaTypeActivation
+)
+
+type neapStandardAction = string
+
+const (
+	neapActionChangeSeverity neapStandardAction = "change_severity"
+	neapActionChangeStatus   neapStandardAction = "change_status"
+	neapActionChangeOwner    neapStandardAction = "change_owner"
+	neapActionComment        neapStandardAction = "comment"
+
+	itsiNeapActionNotableEventChange        = "notable_event_change"
+	itsiNeapActionNotableEventComment       = "notable_event_comment"
+	itsiNeapActionNotableEventExecuteAction = "notable_event_execute_action"
+)
+
+type neapStandardActionTypeAndField struct {
+	itsiActionType string
+	field          string
+}
+
+var (
+	itsiNeapStandardActionChangeSeverity = neapStandardActionTypeAndField{itsiNeapActionNotableEventChange, "severity"}
+	itsiNeapStandardActionChangeStatus   = neapStandardActionTypeAndField{itsiNeapActionNotableEventChange, "status"}
+	itsiNeapStandardActionChangeOwner    = neapStandardActionTypeAndField{itsiNeapActionNotableEventChange, "owner"}
+	itsiNeapStandardActionComment        = neapStandardActionTypeAndField{itsiNeapActionNotableEventComment, ""}
+
+	neapStandardActionTfToItsiValueMapping = map[neapStandardActionTypeAndField]map[string]string{
+		itsiNeapStandardActionChangeSeverity: neapActionTfToItsiSeverityTransform(),
+		itsiNeapStandardActionChangeStatus:   neapActionTfToItsiStatusTransform(),
+	}
+
+	neapStandardActions = map[neapStandardAction]neapStandardActionTypeAndField{
+		neapActionChangeSeverity: itsiNeapStandardActionChangeSeverity,
+		neapActionChangeStatus:   itsiNeapStandardActionChangeStatus,
+		neapActionChangeOwner:    itsiNeapStandardActionChangeOwner,
+		neapActionComment:        itsiNeapStandardActionComment,
+	}
+)
+
+// (2) [ NEAP helper functions ] _______________________________________________
+// [ NEAP TF to ITSI Value Mapping Functions ] _________________________________
+
+func neapActionTfToItsiSeverityTransform() map[string]string {
+	numericValueByLabel := make(map[string]string)
+	for label, info := range util.SeverityMap {
+		numericValueByLabel[label] = strconv.Itoa(info.SeverityValue)
+	}
+	return numericValueByLabel
+}
+
+func neapActionTfToItsiStatusTransform() map[string]string {
+	numericValueByLabel := make(map[string]string)
+	for label, v := range util.StatusInfoMap {
+		numericValueByLabel[label] = strconv.Itoa(v)
+	}
+	return numericValueByLabel
+}
+
+// (3) [ TF Models ] ___________________________________________________________
+
 // Ensure the implementations satisfy the expected interfaces.
 var (
 	_ resource.Resource = &resourceNEAP{}
 	_ tfmodel           = &neapModel{}
 )
 
-// =================== [ TF Models ] ===================
-
-// =================== [ TF Models / NEAP ] ===================
+// (3) [ TF Models / NEAP ] ____________________________________________________
 
 type neapModel struct {
 	ID                      types.String `tfsdk:"id"`
@@ -48,9 +126,9 @@ type neapModel struct {
 	Disabled                types.Bool   `tfsdk:"disabled"`
 	Priority                types.Int64  `tfsdk:"priority"`
 	SplitByField            types.Set    `tfsdk:"split_by_field"`
-	EntityFactorEnabled     types.Bool   `tfsdk:"entity_factor_enabled"` //TODO: remove ???
+	EntityFactorEnabled     types.Bool   `tfsdk:"entity_factor_enabled"`
 	RunTimeBasedActionsOnce types.Bool   `tfsdk:"run_time_based_actions_once"`
-	ServiceTopologyEnabled  types.Bool   `tfsdk:"service_topology_enabled"` //TODO: remove ???
+	ServiceTopologyEnabled  types.Bool   `tfsdk:"service_topology_enabled"`
 	GroupTitle              types.String `tfsdk:"group_title"`
 	GroupDescription        types.String `tfsdk:"group_description"`
 	GroupSeverity           types.String `tfsdk:"group_severity"`
@@ -75,16 +153,7 @@ func (n neapModel) title() string {
 	return n.Title.String()
 }
 
-// func (n *neapModel) normalize() {
-// 	if n.BreakingCriteria != nil {
-// 		n.BreakingCriteria.normalize(neapCriteriaTypeBreaking)
-// 	}
-// 	if n.FilterCriteria != nil {
-// 		n.FilterCriteria.normalize(neapCriteriaTypeFilter)
-// 	}
-// }
-
-// =================== [ TF Models / NEAP / Criteria] ===================
+// (3) [ TF Models / NEAP / Criteria ] _________________________________________
 
 type neapCriteriaModel struct {
 	Condition         types.String                               `tfsdk:"condition"`
@@ -95,56 +164,7 @@ type neapCriteriaModel struct {
 	BreakingCriteria  []neapCriteriaClauseBreakingCriteriaModel  `tfsdk:"breaking_criteria"`
 }
 
-type neapCriteriaType int
-
-const (
-	neapCriteriaTypeBreaking = iota
-	neapCriteriaTypeFilter
-	neapCriteriaTypeActivation
-)
-
-// func (c *neapCriteriaModel) normalize(criteriaType neapCriteriaType) {
-// 	if criteriaType == neapCriteriaTypeActivation {
-// 		c.Condition = types.StringValue("AND")
-// 	} else {
-// 		c.Condition = types.StringValue("OR")
-
-// 	}
-// }
-
-func (c *neapCriteriaModel) validate(criteriaType neapCriteriaType) (diags diag.Diagnostics) {
-	// TODO: remove this, as long as we don't need to make custom validations.
-	// conflicts are now validated w/ schema validators
-	switch criteriaType {
-	case neapCriteriaTypeBreaking:
-		if len(c.BreakingCriteria) > 0 {
-			diags.AddError("NEAP: Unsupported criteria", fmt.Sprintf("unsupported: %s item cannot be child of %s", "breaking_criteria", "breaking_criteria"))
-		}
-	case neapCriteriaTypeFilter:
-		if len(c.Pause) > 0 {
-			diags.AddError("NEAP: Unsupported criteria", fmt.Sprintf("unsupported: %s item cannot be child of %s", "pause", "filter_criteria"))
-		}
-		if len(c.Duration) > 0 {
-			diags.AddError("NEAP: Unsupported criteria", fmt.Sprintf("unsupported: %s item cannot be child of %s", "duration", "filter_criteria"))
-		}
-		if len(c.NotableEventCount) > 0 {
-			diags.AddError("NEAP: Unsupported criteria", fmt.Sprintf("unsupported: %s item cannot be child of %s", "notable_event_count", "filter_criteria"))
-		}
-		if len(c.BreakingCriteria) > 0 {
-			diags.AddError("NEAP: Unsupported criteria", fmt.Sprintf("unsupported: %s item cannot be child of %s", "breaking_criteria", "filter_criteria"))
-		}
-	case neapCriteriaTypeActivation:
-		break
-	default:
-		diags.AddError("NEAP: Unexpected Error", "Unexpected error while preparing NEAP criteria api model: invalid criteria type")
-	}
-	return
-}
-
 func (c *neapCriteriaModel) apiModel(criteriaType neapCriteriaType) (criteria map[string]any, diags diag.Diagnostics) {
-	if diags = c.validate(criteriaType); diags.HasError() {
-		return
-	}
 	criteria = map[string]any{"items": []any{}, "condition": "OR"}
 	if criteriaType == neapCriteriaTypeActivation {
 		criteria["condition"] = "AND"
@@ -279,14 +299,14 @@ func newNEAPCriteriaFromAPIModel(c map[string]any) (criteria *neapCriteriaModel,
 	return
 }
 
-// =================== [ TF Models / NEAP / Criteria / Clause] ===================
+// (3) [ TF Models / NEAP / Criteria / Clause ] ________________________________
 
 type neapCriteriaClauseModel struct {
 	Condition         types.String                               `tfsdk:"condition"`
 	NotableEventField []neapCriteriaClauseNotableEventFieldModel `tfsdk:"notable_event_field"`
 }
 
-// =================== [ TF Models / NEAP / Criteria / Clause / Notable Event Field ] ===================
+// (3) [ TF Models / NEAP / Criteria / Clause / Notable Event Field ] __________
 
 type neapCriteriaClauseNotableEventFieldModel struct {
 	Field    types.String `tfsdk:"field"`
@@ -294,32 +314,32 @@ type neapCriteriaClauseNotableEventFieldModel struct {
 	Value    types.String `tfsdk:"value"`
 }
 
-// =================== [ TF Models / NEAP / Criteria / Clause / Pause ] ===================
+// (3) [ TF Models / NEAP / Criteria / Clause / Pause ] ________________________
 
 type neapCriteriaClausePauseModel struct {
 	Limit types.Int64 `tfsdk:"limit"`
 }
 
-// =================== [ TF Models / NEAP / Criteria / Clause / Duration ] ===================
+// (3) [ TF Models / NEAP / Criteria / Clause / Duration ] _____________________
 
 type neapCriteriaClauseDurationModel struct {
 	Limit types.Int64 `tfsdk:"limit"`
 }
 
-// =================== [ TF Models / NEAP / Criteria / Clause / Notable Event Count ] ===================
+// (3) [ TF Models / NEAP / Criteria / Clause / Notable Event Count ] __________
 
 type neapCriteriaClauseNotableEventCountModel struct {
 	Operator types.String `tfsdk:"operator"`
 	Limit    types.Int64  `tfsdk:"limit"`
 }
 
-// =================== [ TF Models / NEAP / Criteria / Clause / Breaking Criteria ] ===================
+// (3) [ TF Models / NEAP / Criteria / Clause / Breaking Criteria ] ____________
 
 type neapCriteriaClauseBreakingCriteriaModel struct {
 	Config types.String `tfsdk:"config"`
 }
 
-// =================== [ TF Models / NEAP / Rule ] ===================
+// (3) [ TF Models / NEAP / Rule ] _____________________________________________
 
 type neapRuleModel struct {
 	ID                 types.String           `tfsdk:"id"`
@@ -396,6 +416,8 @@ func NEAPRuleFromAPIModel(r map[string]any) (rule neapRuleModel, diags diag.Diag
 	return
 }
 
+// (3) [ TF Models / NEAP / Rule / Actions ] ___________________________________
+
 type neapRuleActionsModel struct {
 	Condition types.String               `tfsdk:"condition"`
 	Items     []neapRuleActionsItemModel `tfsdk:"item"`
@@ -438,58 +460,7 @@ func NEAPRuleActionsFromAPIModel(a map[string]any) (actions neapRuleActionsModel
 	return
 }
 
-type neapStandardAction = string
-
-const (
-	neapActionChangeSeverity neapStandardAction = "change_severity"
-	neapActionChangeStatus   neapStandardAction = "change_status"
-	neapActionChangeOwner    neapStandardAction = "change_owner"
-	neapActionComment        neapStandardAction = "comment"
-
-	itsiNeapActionNotableEventChange        = "notable_event_change"
-	itsiNeapActionNotableEventComment       = "notable_event_comment"
-	itsiNeapActionNotableEventExecuteAction = "notable_event_execute_action"
-)
-
-type neapStandardActionTypeAndField struct {
-	itsiActionType string
-	field          string
-}
-
-func neapActionTfToItsiSeverityTransform() map[string]string {
-	numericValueByLabel := make(map[string]string)
-	for label, info := range util.SeverityMap {
-		numericValueByLabel[label] = strconv.Itoa(info.SeverityValue)
-	}
-	return numericValueByLabel
-}
-
-func neapActionTfToItsiStatusTransform() map[string]string {
-	numericValueByLabel := make(map[string]string)
-	for label, v := range util.StatusInfoMap {
-		numericValueByLabel[label] = strconv.Itoa(v)
-	}
-	return numericValueByLabel
-}
-
-var (
-	itsiNeapStandardActionChangeSeverity = neapStandardActionTypeAndField{itsiNeapActionNotableEventChange, "severity"}
-	itsiNeapStandardActionChangeStatus   = neapStandardActionTypeAndField{itsiNeapActionNotableEventChange, "status"}
-	itsiNeapStandardActionChangeOwner    = neapStandardActionTypeAndField{itsiNeapActionNotableEventChange, "owner"}
-	itsiNeapStandardActionComment        = neapStandardActionTypeAndField{itsiNeapActionNotableEventComment, ""}
-
-	neapStandardActionTfToItsiValueMapping = map[neapStandardActionTypeAndField]map[string]string{
-		itsiNeapStandardActionChangeSeverity: neapActionTfToItsiSeverityTransform(),
-		itsiNeapStandardActionChangeStatus:   neapActionTfToItsiStatusTransform(),
-	}
-
-	neapStandardActions = map[neapStandardAction]neapStandardActionTypeAndField{
-		neapActionChangeSeverity: itsiNeapStandardActionChangeSeverity,
-		neapActionChangeStatus:   itsiNeapStandardActionChangeStatus,
-		neapActionChangeOwner:    itsiNeapStandardActionChangeOwner,
-		neapActionComment:        itsiNeapStandardActionComment,
-	}
-)
+// (3) [ TF Models / NEAP / Rule / Actions / Item ] ____________________________
 
 type neapRuleActionsItemModel struct {
 	ExecuteOn      types.String `tfsdk:"execute_on"`
@@ -517,7 +488,7 @@ func (a *neapRuleActionsItemModel) field(spec neapStandardActionTypeAndField) *t
 	case itsiNeapStandardActionComment:
 		return &a.Comment
 	default:
-		panic("unsupported action type")
+		panic(fmt.Sprintf("unsupported action type '%s'", spec))
 	}
 }
 
@@ -642,7 +613,7 @@ func NEAPRuleActionsItemFromAPIModel(a map[string]any) (item neapRuleActionsItem
 		itemField = f.(string)
 	}
 
-	standardAction := neapStandardActionTypeAndField{itsiNeapActionNotableEventChange, itemField}
+	standardAction := neapStandardActionTypeAndField{itemType, itemField}
 	transform := util.ReverseMap(neapStandardActionTfToItsiValueMapping[standardAction])
 	v := config["value"].(string)
 	if transform != nil {
@@ -655,6 +626,8 @@ func NEAPRuleActionsItemFromAPIModel(a map[string]any) (item neapRuleActionsItem
 	(*item.field(standardAction)) = types.StringValue(v)
 	return
 }
+
+// (4) [ NEAP Resource Schema ] ________________________________________________
 
 type resourceNEAP struct {
 	client models.ClientConfig
@@ -685,11 +658,16 @@ func (r *resourceNEAP) Metadata(_ context.Context, req resource.MetadataRequest,
 func (r *resourceNEAP) criteriaSchema(criteriaType neapCriteriaType) schema.SingleNestedBlock {
 	condition := stringdefault.StaticString("OR")
 	conflicts := []validator.Object{}
+	var description string
 	switch criteriaType {
 	case neapCriteriaTypeActivation:
 		condition = stringdefault.StaticString("AND")
+		description = "Criteria to activate the NEAP Action."
 	case neapCriteriaTypeBreaking:
 		conflicts = []validator.Object{objectvalidator.ConflictsWith(path.MatchRelative().AtName("breaking_criteria"))}
+		description = util.Dedent(`
+			Criteria to break an episode.
+			When the criteria is met, the current episode ends and a new one is created.`)
 	case neapCriteriaTypeFilter:
 		conflicts = []validator.Object{
 			objectvalidator.ConflictsWith(path.MatchRelative().AtName("pause")),
@@ -697,22 +675,19 @@ func (r *resourceNEAP) criteriaSchema(criteriaType neapCriteriaType) schema.Sing
 			objectvalidator.ConflictsWith(path.MatchRelative().AtName("notable_event_count")),
 			objectvalidator.ConflictsWith(path.MatchRelative().AtName("breaking_criteria")),
 		}
+		description = util.Dedent(`
+			Criteria to include events in an episode.
+			Any notable event that matches the criteria is included in the episode.
+		`)
 	default:
 		panic("unexpected criteria type")
 	}
 
 	return schema.SingleNestedBlock{
-		// MarkdownDescription: util.Dedent(`
-		// 	An array of data drilldown objects.
-		// 	Each data drilldown defines filters for raw data associated with entities that belong to the entity type.
-		// `),
-
+		MarkdownDescription: description,
 		Blocks: map[string]schema.Block{
 			"clause": schema.SetNestedBlock{
-				// MarkdownDescription: util.Dedent(`
-				// 	Further filter down to the raw data associated with the entity
-				// 	based on a set of selected entity alias or informational fields.
-				// `),
+				MarkdownDescription: "A set of conditions that would be evaluated against the notable event fields.",
 				NestedObject: schema.NestedBlockObject{
 					Blocks: map[string]schema.Block{
 						"notable_event_field": schema.SetNestedBlock{
@@ -743,7 +718,6 @@ func (r *resourceNEAP) criteriaSchema(criteriaType neapCriteriaType) schema.Sing
 					},
 					Attributes: map[string]schema.Attribute{
 						"condition": schema.StringAttribute{
-							//MarkdownDescription: "Data field.",
 							Optional:   true,
 							Computed:   true,
 							Default:    stringdefault.StaticString("AND"),
@@ -751,9 +725,6 @@ func (r *resourceNEAP) criteriaSchema(criteriaType neapCriteriaType) schema.Sing
 						},
 					},
 				},
-				// Validators: []validator.Set{
-				// 	setvalidator.SizeAtLeast(1),
-				// },
 			},
 			"pause": schema.SetNestedBlock{
 				MarkdownDescription: "Corresponds to the statement: if the flow of events into the episode paused for %%param.pause%% seconds.",
@@ -813,10 +784,8 @@ func (r *resourceNEAP) criteriaSchema(criteriaType neapCriteriaType) schema.Sing
 		Attributes: map[string]schema.Attribute{
 			"condition": schema.StringAttribute{
 				MarkdownDescription: "Computed depends of the criteria type. In case of activation_criteria condition equals AND, otherwise - OR.",
-				//Optional:            true,
-				Computed: true,
-				Default:  condition,
-				// Validators: []validator.String{stringvalidator.OneOf("AND")},
+				Computed:            true,
+				Default:             condition,
 			},
 		},
 		Validators: append([]validator.Object{objectvalidator.IsRequired()}, conflicts...),
@@ -848,12 +817,14 @@ func (r *resourceNEAP) ruleActionsSchema() schema.SetNestedBlock {
 								NestedObject: schema.NestedBlockObject{
 									Attributes: map[string]schema.Attribute{
 										"type": schema.StringAttribute{
-											Required: true,
+											MarkdownDescription: "The name of the custom action.",
+											Required:            true,
 										},
 										"config": schema.StringAttribute{
-											Optional: true,
-											Computed: true,
-											Default:  stringdefault.StaticString("{}"),
+											MarkdownDescription: "JSON-encoded custom action configuration.",
+											Optional:            true,
+											Computed:            true,
+											Default:             stringdefault.StaticString("{}"),
 										},
 									},
 								},
@@ -877,8 +848,6 @@ func (r *resourceNEAP) ruleActionsSchema() schema.SetNestedBlock {
 							neapActionChangeSeverity: schema.StringAttribute{
 								MarkdownDescription: "Change the severity of the episode to the specified value.",
 								Optional:            true,
-								//Computed:            true,
-								//Default:             stringdefault.StaticString(""),
 								Validators: []validator.String{
 									stringvalidator.OneOf(*util.GetSupportedSeverities()...),
 									stringvalidator.ExactlyOneOf(itemTypePaths...),
@@ -888,9 +857,7 @@ func (r *resourceNEAP) ruleActionsSchema() schema.SetNestedBlock {
 							neapActionChangeStatus: schema.StringAttribute{
 								MarkdownDescription: "Change the status of the episode to the specified value.",
 								Optional:            true,
-								//Computed:            true,
-								//Default:             stringdefault.StaticString(""),
-								Validators: []validator.String{stringvalidator.OneOf(*util.GetSupportedStatuses()...)},
+								Validators:          []validator.String{stringvalidator.OneOf(*util.GetSupportedStatuses()...)},
 							},
 
 							neapActionChangeOwner: schema.StringAttribute{
@@ -902,20 +869,6 @@ func (r *resourceNEAP) ruleActionsSchema() schema.SetNestedBlock {
 								MarkdownDescription: "Add a comment to the episode.",
 								Optional:            true,
 							},
-
-							// "type": schema.StringAttribute{
-							// 	Required: true,
-							// },
-							// "config": schema.StringAttribute{
-							// 	Optional: true,
-							// 	Computed: true,
-							// 	Default:  stringdefault.StaticString("{}"),
-							// },
-
-						},
-						Validators: []validator.Object{
-							//objectvalidator.ExactlyOneOf()
-							//objectvalidator.ExactlyOneOf(itemTypePaths...), //!!!!!!!!!
 						},
 					},
 				},
@@ -1127,6 +1080,206 @@ func (r *resourceNEAP) Schema(_ context.Context, _ resource.SchemaRequest, resp 
 	}
 }
 
+// (5) [ NEAP TF <-> ITSI Build / Parse Workflows ] ____________________________
+// (5) [ Neap Build Workflow ]__________________________________________________
+
+type neapBuildWorkflow struct{}
+
+var _ apibuildWorkflow[neapModel] = &neapBuildWorkflow{}
+
+//lint:ignore U1000 used by apibuilder
+func (w *neapBuildWorkflow) buildSteps() []apibuildWorkflowStepFunc[neapModel] {
+	return []apibuildWorkflowStepFunc[neapModel]{w.basics, w.episodeInfo, w.criteria, w.rules}
+}
+
+func (w *neapBuildWorkflow) basics(ctx context.Context, obj neapModel) (map[string]interface{}, diag.Diagnostics) {
+	return map[string]interface{}{
+		"object_type": obj.objectype(),
+		"title":       obj.Title.ValueString(),
+		"description": obj.Description.ValueString(),
+
+		"disabled":                    util.Btoi(obj.Disabled.ValueBool()),
+		"priority":                    obj.Priority.ValueInt64(),
+		"run_time_based_actions_once": obj.RunTimeBasedActionsOnce.ValueBool(),
+		"service_topology_enabled":    obj.ServiceTopologyEnabled.ValueBool(),
+		"entity_factor_enabled":       obj.EntityFactorEnabled.ValueBool(),
+
+		"ace_enabled": 0, //TODO: support smart mode
+	}, nil
+}
+
+func (w *neapBuildWorkflow) episodeInfo(ctx context.Context, obj neapModel) (map[string]interface{}, diag.Diagnostics) {
+	return map[string]interface{}{
+		"group_title":             obj.GroupTitle.ValueString(),
+		"group_description":       obj.GroupDescription.ValueString(),
+		"group_severity":          obj.GroupSeverity.ValueString(),
+		"group_assignee":          obj.GroupAssignee.ValueString(),
+		"group_status":            obj.GroupStatus.ValueString(),
+		"group_instruction":       obj.GroupInstruction.ValueString(),
+		"group_custom_instuction": obj.GroupCustomInstruction.ValueString(),
+		"group_dashboard":         obj.GroupDashboard.ValueString(),
+		"group_dashboard_context": obj.GroupDashboardContext.ValueString(),
+	}, nil
+}
+
+func (w *neapBuildWorkflow) criteria(ctx context.Context, obj neapModel) (map[string]interface{}, diag.Diagnostics) {
+	diags := diag.Diagnostics{}
+
+	var splitByFields []string
+	diags = append(diags, obj.SplitByField.ElementsAs(ctx, &splitByFields, false)...)
+
+	filterCriteria, d := obj.FilterCriteria.apiModel(neapCriteriaTypeFilter)
+	diags.Append(d...)
+
+	breakingCriteria, d := obj.BreakingCriteria.apiModel(neapCriteriaTypeBreaking)
+	diags.Append(d...)
+
+	if diags.HasError() {
+		return nil, diags
+	}
+
+	return map[string]interface{}{
+		"split_by_field":    strings.Join(splitByFields, ","),
+		"filter_criteria":   filterCriteria,
+		"breaking_criteria": breakingCriteria,
+	}, diags
+}
+
+func (w *neapBuildWorkflow) rules(ctx context.Context, obj neapModel) (map[string]interface{}, diag.Diagnostics) {
+	var d, diags diag.Diagnostics
+	rules := make([]map[string]any, len(obj.Rules))
+
+	for i, rule := range obj.Rules {
+		rules[i], d = rule.apiModel()
+		diags.Append(d...)
+	}
+
+	return map[string]interface{}{
+		"rules": rules,
+	}, diags
+}
+
+// (5) [ Neap Parse Workflow ]__________________________________________________
+
+type neapParseWorkflow struct{}
+
+var _ apiparseWorkflow[neapModel] = &neapParseWorkflow{}
+
+//lint:ignore U1000 used by apiparser
+func (w *neapParseWorkflow) parseSteps() []apiparseWorkflowStepFunc[neapModel] {
+	return []apiparseWorkflowStepFunc[neapModel]{w.basics, w.episodeInfo, w.criteria, w.rules}
+}
+
+func (w *neapParseWorkflow) basics(ctx context.Context, fields map[string]interface{}, res *neapModel) (diags diag.Diagnostics) {
+	unexpectedErrorMsg := "NEAP: Unexpected error while populating basic fields of a NEAP model"
+	strFields, err := unpackMap[string](mapSubset(fields, []string{"title", "description"}))
+	if err != nil {
+		diags.AddError(unexpectedErrorMsg, err.Error())
+	}
+	boolFields, err := unpackMap[bool](mapSubset(fields, []string{"run_time_based_actions_once", "service_topology_enabled", "entity_factor_enabled"}))
+	if err != nil {
+		diags.AddError(unexpectedErrorMsg, err.Error())
+	}
+
+	res.Title = types.StringValue(strFields["title"])
+	res.Description = types.StringValue(strFields["description"])
+
+	res.Disabled = types.BoolValue(int(fields["disabled"].(float64)) != 0)
+	res.Priority = types.Int64Value(int64(fields["priority"].(float64)))
+	res.RunTimeBasedActionsOnce = types.BoolValue(boolFields["run_time_based_actions_once"])
+	res.ServiceTopologyEnabled = types.BoolValue(boolFields["service_topology_enabled"])
+	res.EntityFactorEnabled = types.BoolValue(boolFields["entity_factor_enabled"])
+
+	return nil
+}
+
+func (w *neapParseWorkflow) episodeInfo(ctx context.Context, fields map[string]interface{}, res *neapModel) (diags diag.Diagnostics) {
+	strFields, err := unpackMap[string](mapSubset(fields, []string{
+		"group_title",
+		"group_description",
+		"group_severity",
+		"group_assignee",
+		"group_status",
+		"group_instruction",
+		"group_custom_instuction",
+		"group_dashboard",
+		"group_dashboard_context",
+	}))
+
+	if err != nil {
+		diags.AddError("NEAP: Unable to parse episode info fields. ", err.Error())
+		return
+	}
+
+	res.GroupTitle = types.StringValue(strFields["group_title"])
+	res.GroupDescription = types.StringValue(strFields["group_description"])
+	res.GroupSeverity = types.StringValue(strFields["group_severity"])
+	res.GroupAssignee = types.StringValue(strFields["group_assignee"])
+	res.GroupStatus = types.StringValue(strFields["group_status"])
+	res.GroupInstruction = types.StringValue(strFields["group_instruction"])
+	res.GroupCustomInstruction = types.StringValue(strFields["group_custom_instuction"])
+	res.GroupDashboard = types.StringValue(strFields["group_dashboard"])
+	res.GroupDashboardContext = types.StringValue(strFields["group_dashboard_context"])
+
+	return nil
+}
+
+func (w *neapParseWorkflow) criteria(ctx context.Context, fields map[string]interface{}, res *neapModel) (diags diag.Diagnostics) {
+	splitByFields := []string{}
+	if splitByField, ok := fields["split_by_field"]; ok && splitByField != "" {
+		splitByFields = strings.Split(splitByField.(string), ",")
+	}
+	res.SplitByField, diags = types.SetValueFrom(ctx, types.StringType, splitByFields)
+	if diags.HasError() {
+		return
+	}
+
+	itsiFilterCriteria, ok := fields["filter_criteria"].(map[string]interface{})
+	if !ok {
+		diags.AddError("NEAP: Unable to parse filter criteria", "filter_criteria is missing or not in the expected format")
+		return
+	}
+
+	var d diag.Diagnostics
+	res.FilterCriteria, d = newNEAPCriteriaFromAPIModel(itsiFilterCriteria)
+	diags.Append(d...)
+
+	itsiBreakingCriteria, ok := fields["breaking_criteria"].(map[string]interface{})
+	if !ok {
+		diags.AddError("NEAP: Unable to parse breaking criteria", "breaking_criteria is missing or not in the expected format")
+		return
+	}
+	res.BreakingCriteria, d = newNEAPCriteriaFromAPIModel(itsiBreakingCriteria)
+	diags.Append(d...)
+
+	if diags.HasError() {
+		return
+	}
+
+	return nil
+}
+
+func (w *neapParseWorkflow) rules(ctx context.Context, fields map[string]interface{}, res *neapModel) (diags diag.Diagnostics) {
+	rules, err := unpackSlice[map[string]any](fields["rules"])
+	if err != nil {
+		diags.AddError("NEAP: Unable to parse rules", err.Error())
+		return
+	}
+
+	res.Rules = make([]neapRuleModel, len(rules))
+	for i, rule := range rules {
+		r, d := NEAPRuleFromAPIModel(rule)
+		if diags.Append(d...); diags.HasError() {
+			return
+		}
+		res.Rules[i] = r
+	}
+
+	return
+}
+
+// (6) [ NEAP Resource CRUD Operations ] _______________________________________
+
 func (r *resourceNEAP) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	var state neapModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
@@ -1142,7 +1295,7 @@ func (r *resourceNEAP) Read(ctx context.Context, req resource.ReadRequest, resp 
 		return
 	}
 
-	state, diags := newAPIParser[neapModel](b, new(neapParseWorkflow)).parse(ctx, b)
+	state, diags := newAPIParser(b, new(neapParseWorkflow)).parse(ctx, b)
 	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
 		return
 	}
@@ -1155,9 +1308,8 @@ func (r *resourceNEAP) Create(ctx context.Context, req resource.CreateRequest, r
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	//plan.normalize()
 
-	base, diags := newAPIBuilder[neapModel](r.client, new(neapBuildWorkflow)).build(ctx, plan)
+	base, diags := newAPIBuilder(r.client, new(neapBuildWorkflow)).build(ctx, plan)
 	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
 		return
 	}
@@ -1168,26 +1320,22 @@ func (r *resourceNEAP) Create(ctx context.Context, req resource.CreateRequest, r
 		return
 	}
 
-	state := plan
-	state, diags = newAPIParser[neapModel](base, new(neapParseWorkflow)).parse(ctx, base)
+	state, diags := newAPIParser(base, new(neapParseWorkflow)).parse(ctx, base)
 	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
 		return
 	}
 
-	//state.ID = types.StringValue(base.RESTKey)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
 func (r *resourceNEAP) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-
 	var plan neapModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	//plan.normalize()
 
-	base, diags := newAPIBuilder[neapModel](r.client, new(neapBuildWorkflow)).build(ctx, plan)
+	base, diags := newAPIBuilder(r.client, new(neapBuildWorkflow)).build(ctx, plan)
 	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
 		return
 	}
@@ -1204,8 +1352,12 @@ func (r *resourceNEAP) Update(ctx context.Context, req resource.UpdateRequest, r
 		resp.Diagnostics.AddError("Unable to update NEAP", err.Error())
 		return
 	}
+	state, diags := newAPIParser(base, new(neapParseWorkflow)).parse(ctx, base)
+	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
+		return
+	}
 
-	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
 func (r *resourceNEAP) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
@@ -1238,10 +1390,12 @@ func (r *resourceNEAP) ImportState(ctx context.Context, req resource.ImportState
 		return
 	}
 
-	state, diags := newAPIParser[neapModel](b, new(neapParseWorkflow)).parse(ctx, b)
+	state, diags := newAPIParser(b, new(neapParseWorkflow)).parse(ctx, b)
 	if resp.Diagnostics.Append(diags...); diags.HasError() {
 		return
 	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
+
+///

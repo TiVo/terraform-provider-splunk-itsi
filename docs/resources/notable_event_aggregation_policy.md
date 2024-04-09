@@ -21,11 +21,13 @@ Manages a Notable Event Aggregation Policy object within ITSI.
 
 ### Optional
 
-- `breaking_criteria` (Block, Optional) (see [below for nested schema](#nestedblock--breaking_criteria))
+- `breaking_criteria` (Block, Optional) Criteria to break an episode.
+When the criteria is met, the current episode ends and a new one is created. (see [below for nested schema](#nestedblock--breaking_criteria))
 - `description` (String) The description of the notable event aggregation policy.
 - `disabled` (Boolean) Whether the notable event aggregation policy is disabled.
 - `entity_factor_enabled` (Boolean) Whether the entity factor is enabled.
-- `filter_criteria` (Block, Optional) (see [below for nested schema](#nestedblock--filter_criteria))
+- `filter_criteria` (Block, Optional) Criteria to include events in an episode.
+Any notable event that matches the criteria is included in the episode. (see [below for nested schema](#nestedblock--filter_criteria))
 - `group_assignee` (String) The default owner of each episode created by the notable event aggregation policy. (Episode Asignee)
 - `group_custom_instruction` (String) The custom instruction of each episode created by the notable event aggregation policy.
 - `group_dashboard` (String) Customize the Episode dashboard using a JSON-formatted dashboard definition. The first notable event's fields are available to use as tokens in the dashboard.
@@ -36,7 +38,7 @@ Manages a Notable Event Aggregation Policy object within ITSI.
 - `group_status` (String) The default status of each episode created by the notable event aggregation policy.  (Episode Status)
 - `group_title` (String) The default title of each episode created by the notable event aggregation policy. (Episode Title)
 - `priority` (Number)
-- `rule` (Block Set) (see [below for nested schema](#nestedblock--rule))
+- `rule` (Block List) (see [below for nested schema](#nestedblock--rule))
 - `run_time_based_actions_once` (Boolean) If you create an action to add a comment after an episode has existed for 60 seconds, a comment will only be added once for the episode.
 There are 2 conditions that trigger time-based actions:
 - The episode existed for (duration)
@@ -54,7 +56,7 @@ There are 2 conditions that trigger time-based actions:
 Optional:
 
 - `breaking_criteria` (Block Set) Corresponds to the statement: if the episode is broken. Note: applicable only for the Activation Criteria. (see [below for nested schema](#nestedblock--breaking_criteria--breaking_criteria))
-- `clause` (Block Set) (see [below for nested schema](#nestedblock--breaking_criteria--clause))
+- `clause` (Block Set) A set of conditions that would be evaluated against the notable event fields. (see [below for nested schema](#nestedblock--breaking_criteria--clause))
 - `duration` (Block Set) Corresponds to the statement: if the episode existed for %%param.duration%% seconds. (see [below for nested schema](#nestedblock--breaking_criteria--duration))
 - `notable_event_count` (Block Set) Corresponds to the statement: if the number of events in this episode is %%operator%% %%limit%%. (see [below for nested schema](#nestedblock--breaking_criteria--notable_event_count))
 - `pause` (Block Set) Corresponds to the statement: if the flow of events into the episode paused for %%param.pause%% seconds. (see [below for nested schema](#nestedblock--breaking_criteria--pause))
@@ -122,7 +124,7 @@ Required:
 Optional:
 
 - `breaking_criteria` (Block Set) Corresponds to the statement: if the episode is broken. Note: applicable only for the Activation Criteria. (see [below for nested schema](#nestedblock--filter_criteria--breaking_criteria))
-- `clause` (Block Set) (see [below for nested schema](#nestedblock--filter_criteria--clause))
+- `clause` (Block Set) A set of conditions that would be evaluated against the notable event fields. (see [below for nested schema](#nestedblock--filter_criteria--clause))
 - `duration` (Block Set) Corresponds to the statement: if the episode existed for %%param.duration%% seconds. (see [below for nested schema](#nestedblock--filter_criteria--duration))
 - `notable_event_count` (Block Set) Corresponds to the statement: if the number of events in this episode is %%operator%% %%limit%%. (see [below for nested schema](#nestedblock--filter_criteria--notable_event_count))
 - `pause` (Block Set) Corresponds to the statement: if the flow of events into the episode paused for %%param.pause%% seconds. (see [below for nested schema](#nestedblock--filter_criteria--pause))
@@ -190,7 +192,7 @@ Required:
 Optional:
 
 - `actions` (Block Set) (see [below for nested schema](#nestedblock--rule--actions))
-- `activation_criteria` (Block, Optional) (see [below for nested schema](#nestedblock--rule--activation_criteria))
+- `activation_criteria` (Block, Optional) Criteria to activate the NEAP Action. (see [below for nested schema](#nestedblock--rule--activation_criteria))
 - `description` (String) The description of the notable event aggregation policy rule.
 - `priority` (Number) The priority of the notable event aggregation policy rule.
 - `title` (String) The title of the notable event aggregation policy rule.
@@ -227,11 +229,11 @@ Optional:
 
 Required:
 
-- `type` (String)
+- `type` (String) The name of the custom action.
 
 Optional:
 
-- `config` (String)
+- `config` (String) JSON-encoded custom action configuration.
 
 
 
@@ -242,7 +244,7 @@ Optional:
 Optional:
 
 - `breaking_criteria` (Block Set) Corresponds to the statement: if the episode is broken. Note: applicable only for the Activation Criteria. (see [below for nested schema](#nestedblock--rule--activation_criteria--breaking_criteria))
-- `clause` (Block Set) (see [below for nested schema](#nestedblock--rule--activation_criteria--clause))
+- `clause` (Block Set) A set of conditions that would be evaluated against the notable event fields. (see [below for nested schema](#nestedblock--rule--activation_criteria--clause))
 - `duration` (Block Set) Corresponds to the statement: if the episode existed for %%param.duration%% seconds. (see [below for nested schema](#nestedblock--rule--activation_criteria--duration))
 - `notable_event_count` (Block Set) Corresponds to the statement: if the number of events in this episode is %%operator%% %%limit%%. (see [below for nested schema](#nestedblock--rule--activation_criteria--notable_event_count))
 - `pause` (Block Set) Corresponds to the statement: if the flow of events into the episode paused for %%param.pause%% seconds. (see [below for nested schema](#nestedblock--rule--activation_criteria--pause))
