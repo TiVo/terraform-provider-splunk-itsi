@@ -301,6 +301,9 @@ func (r *resourceKpiThresholdTemplate) Update(ctx context.Context, req resource.
 		}
 	}
 	plan.ID = types.StringValue(base.RESTKey)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	base, diags = kpiThresholdTemplate(ctx, plan, r.client)
 	if diags.HasError() {
@@ -311,6 +314,10 @@ func (r *resourceKpiThresholdTemplate) Update(ctx context.Context, req resource.
 	if err != nil {
 		diags.AddError("Failed to update kpi threshold template.", err.Error())
 		resp.Diagnostics.Append(diags...)
+		return
+	}
+	resp.Diagnostics.Append(populateKpiThresholdTemplateModel(ctx, base, &plan)...)
+	if resp.Diagnostics.HasError() {
 		return
 	}
 	// Set refreshed state
@@ -405,7 +412,7 @@ func populateKpiThresholdTemplateModel(ctx context.Context, b *models.Base, tfMo
 	}
 	diags = append(diags, marshalBasicTypesByTag("json", interfaceMap, tfModelKpiThresholdTemplate)...)
 
-	/*tfPolicies := []PolicyModel{}
+	tfPolicies := []PolicyModel{}
 
 	timeVariateThresholdsSpecificationData := interfaceMap["time_variate_thresholds_specification"].(map[string]interface{})
 	for policyName, pData := range timeVariateThresholdsSpecificationData["policies"].(map[string]interface{}) {
@@ -427,7 +434,6 @@ func populateKpiThresholdTemplateModel(ctx context.Context, b *models.Base, tfMo
 			tfTimeBlocks = append(tfTimeBlocks, tfTimeBlock)
 		}
 		var diags_ diag.Diagnostics
-		timeBlocksElementType := PolicyModel.TimeBlocks
 		tfPolicy.TimeBlocks = tfTimeBlocks
 		diags.Append(diags_...)
 		tfAggregatedThresholds := ThresholdSettingModel{}
@@ -442,8 +448,8 @@ func populateKpiThresholdTemplateModel(ctx context.Context, b *models.Base, tfMo
 		tfPolicy.EntityThresholds = tfEntityThresholds
 		tfPolicies = append(tfPolicies, tfPolicy)
 	}
-	tfModelKpiThresholdTemplate.TimeVariateThresholdsSpecification = TimeVariateThresholdsSpecificationModel{}
-	tfModelKpiThresholdTemplate.TimeVariateThresholdsSpecification.Policies = tfPolicies*/
+	tfModelKpiThresholdTemplate.TimeVariateThresholdsSpecification = &TimeVariateThresholdsSpecificationModel{}
+	tfModelKpiThresholdTemplate.TimeVariateThresholdsSpecification.Policies = tfPolicies
 
 	tfModelKpiThresholdTemplate.ID = types.StringValue(b.RESTKey)
 	return
