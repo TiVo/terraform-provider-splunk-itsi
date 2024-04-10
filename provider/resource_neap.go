@@ -857,7 +857,7 @@ func (r *resourceNEAP) ruleActionsSchema() schema.SetNestedBlock {
 								MarkdownDescription: "Change the severity of the episode to the specified value.",
 								Optional:            true,
 								Validators: []validator.String{
-									stringvalidator.OneOf(*util.GetSupportedSeverities()...),
+									stringvalidator.OneOf(util.GetSupportedSeverities()...),
 									stringvalidator.ExactlyOneOf(itemTypePaths...),
 								},
 							},
@@ -865,7 +865,7 @@ func (r *resourceNEAP) ruleActionsSchema() schema.SetNestedBlock {
 							neapActionChangeStatus: schema.StringAttribute{
 								MarkdownDescription: "Change the status of the episode to the specified value.",
 								Optional:            true,
-								Validators:          []validator.String{stringvalidator.OneOf(*util.GetSupportedStatuses()...)},
+								Validators:          []validator.String{stringvalidator.OneOf(util.GetSupportedStatuses()...)},
 							},
 
 							neapActionChangeOwner: schema.StringAttribute{
@@ -1025,7 +1025,7 @@ func (r *resourceNEAP) Schema(_ context.Context, _ resource.SchemaRequest, resp 
 				Default:             stringdefault.StaticString("%severity%"),
 				Validators: []validator.String{stringvalidator.OneOf(
 					append(
-						*util.GetSupportedSeverities(),
+						util.GetSupportedSeverities(),
 						[]string{
 							"%severity%",
 							"%last_severity%",
@@ -1047,7 +1047,7 @@ func (r *resourceNEAP) Schema(_ context.Context, _ resource.SchemaRequest, resp 
 
 				Validators: []validator.String{stringvalidator.OneOf(
 					append(
-						*util.GetSupportedStatuses(),
+						util.GetSupportedStatuses(),
 						[]string{
 							"%status%",
 							"%last_status%"}...)...),
