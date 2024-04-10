@@ -94,6 +94,8 @@ func TestUnique(t *testing.T) {
 	list := []int{1, 2, 2, 3, 3, 3}
 	uniqueList := Unique(list)
 
+	sort.Ints(uniqueList)
+
 	if len(uniqueList) != 3 {
 		t.Errorf("Expected unique list length to be 3")
 	}
