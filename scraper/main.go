@@ -263,7 +263,11 @@ func runGenerateCommand(clientConfig models.ClientConfig, objectType string, log
 
 	for count, offset := base.GetPageSize(), 0; offset >= 0; offset += count {
 		ctx := context.Background()
-		items, err := base.Dump(ctx, &models.Parameters{Offset: offset, Count: count, Fields: []string{"_key", "title"}, Filter: ""})
+		fields := []string{}
+		if base.IsFilterSupported() {
+			fields = []string{"_key", "title"}
+		}
+		items, err := base.Dump(ctx, &models.Parameters{Offset: offset, Count: count, Fields: fields, Filter: ""})
 		if err != nil {
 			errors = append(errors, err)
 			break

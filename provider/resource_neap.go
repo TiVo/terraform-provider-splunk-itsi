@@ -154,7 +154,7 @@ type neapModel struct {
 }
 
 func (n neapModel) objectype() string {
-	return itsiResourceTypeNEAP
+	return "itsi" + itsiResourceTypeNEAP
 }
 
 func (n neapModel) title() string {
