@@ -9,6 +9,7 @@ import (
 
 	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/terraform-plugin-framework/path"
+	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/objectvalidator"
@@ -80,8 +81,8 @@ var (
 	itsiNeapStandardActionComment        = neapStandardActionTypeAndField{itsiNeapActionNotableEventComment, ""}
 
 	neapStandardActionTfToItsiValueMapping = map[neapStandardActionTypeAndField]map[string]string{
-		itsiNeapStandardActionChangeSeverity: neapActionTfToItsiSeverityTransform(),
-		itsiNeapStandardActionChangeStatus:   neapActionTfToItsiStatusTransform(),
+		itsiNeapStandardActionChangeSeverity: tfToItsiEpisodeSeverityTransform(),
+		itsiNeapStandardActionChangeStatus:   tfToItsiEpisodeStatusTransform(),
 	}
 
 	neapStandardActions = map[neapStandardAction]neapStandardActionTypeAndField{
@@ -90,6 +91,9 @@ var (
 		neapActionChangeOwner:    itsiNeapStandardActionChangeOwner,
 		neapActionComment:        itsiNeapStandardActionComment,
 	}
+
+	neapEpisodeStatusTemplateValues   = util.NewSet("%status%", "%last_status%")
+	neapEpisodeSeverityTemplateValues = util.NewSet("%severity%", "%last_severity%", "%lowest_severity%", "%highest_severity%")
 )
 
 // (2) [ NEAP helper functions ] _______________________________________________
@@ -101,7 +105,7 @@ func notableEventAggregationPolicyBase(clientConfig models.ClientConfig, key str
 
 // [ NEAP TF to ITSI Value Mapping Functions ] _________________________________
 
-func neapActionTfToItsiSeverityTransform() map[string]string {
+func tfToItsiEpisodeSeverityTransform() map[string]string {
 	numericValueByLabel := make(map[string]string)
 	for label, info := range util.SeverityMap {
 		numericValueByLabel[label] = strconv.Itoa(info.SeverityValue)
@@ -109,7 +113,7 @@ func neapActionTfToItsiSeverityTransform() map[string]string {
 	return numericValueByLabel
 }
 
-func neapActionTfToItsiStatusTransform() map[string]string {
+func tfToItsiEpisodeStatusTransform() map[string]string {
 	numericValueByLabel := make(map[string]string)
 	for label, v := range util.StatusInfoMap {
 		numericValueByLabel[label] = strconv.Itoa(v)
@@ -225,6 +229,10 @@ func (c *neapCriteriaModel) apiModel(criteriaType neapCriteriaType) (criteria ma
 		})
 	}
 
+	for range c.BreakingCriteria {
+		criteriaItems = append(criteriaItems, map[string]any{"type": "breaking_criteria"})
+	}
+
 	criteria["items"] = criteriaItems
 	return
 }
@@ -242,36 +250,51 @@ func newNEAPCriteriaFromAPIModel(c map[string]any) (criteria *neapCriteriaModel,
 		return
 	}
 
+	getLimit := func(c map[string]any) basetypes.Int64Value {
+		i, err := util.Atoi(c["limit"])
+		if err != nil {
+			diags.AddError("NEAP: Invalid Criteria", fmt.Sprintf("Invalid limit: %s", err.Error()))
+		}
+		return types.Int64Value(int64(i))
+	}
+
 	for _, item := range items {
 		itemType := item["type"].(string)
+		config, ok := item["config"].(map[string]any)
+		if !ok && itemType != "breaking_criteria" {
+			diags.AddError("NEAP: Invalid Criteria", fmt.Sprintf("invalid criteria item config for %s criteria type", itemType))
+			continue
+		}
+
 		switch itemType {
+		case "breaking_criteria":
+			if criteria.BreakingCriteria == nil {
+				criteria.BreakingCriteria = []neapCriteriaClauseBreakingCriteriaModel{}
+			}
+			criteria.BreakingCriteria = append(criteria.BreakingCriteria, neapCriteriaClauseBreakingCriteriaModel{types.StringValue("")})
 		case "notable_event_count":
-			config := item["config"].(map[string]any)
 			if criteria.NotableEventCount == nil {
 				criteria.NotableEventCount = []neapCriteriaClauseNotableEventCountModel{}
 			}
 			criteria.NotableEventCount = append(criteria.NotableEventCount, neapCriteriaClauseNotableEventCountModel{
 				Operator: types.StringValue(config["operator"].(string)),
-				Limit:    types.Int64Value(int64(config["limit"].(float64))),
+				Limit:    getLimit(config),
 			})
 		case "pause":
-			config := item["config"].(map[string]any)
 			if criteria.Pause == nil {
 				criteria.Pause = []neapCriteriaClausePauseModel{}
 			}
 			criteria.Pause = append(criteria.Pause, neapCriteriaClausePauseModel{
-				Limit: types.Int64Value(int64(config["limit"].(float64))),
+				Limit: getLimit(config),
 			})
 		case "duration":
-			config := item["config"].(map[string]any)
 			if criteria.Duration == nil {
 				criteria.Duration = []neapCriteriaClauseDurationModel{}
 			}
 			criteria.Duration = append(criteria.Duration, neapCriteriaClauseDurationModel{
-				Limit: types.Int64Value(int64(config["limit"].(float64))),
+				Limit: getLimit(config),
 			})
 		case "clause":
-			config := item["config"].(map[string]any)
 			if criteria.Clause == nil {
 				criteria.Clause = []neapCriteriaClauseModel{}
 			}
@@ -780,7 +803,7 @@ func (r *resourceNEAP) criteriaSchema(criteriaType neapCriteriaType) schema.Sing
 				NestedObject: schema.NestedBlockObject{
 					Attributes: map[string]schema.Attribute{
 						"config": schema.StringAttribute{
-							Optional: true,
+							//Optional: true,
 							Computed: true,
 							Default:  stringdefault.StaticString(""),
 						},
@@ -828,11 +851,19 @@ func (r *resourceNEAP) ruleActionsSchema() schema.SetNestedBlock {
 											MarkdownDescription: "The name of the custom action.",
 											Required:            true,
 										},
+										// NOTE:
+										// As of terraform plugin framework 1.7.0 & terraform 1.7.5,
+										// setting the "config" attribute as Computed and Optional triggers a bug,
+										// where the planned value is can be set to the default value, even if the attribute actually
+										// has a different value set in the terraform config.
+										// This bug is intermittent and doesn't always occur.
+										// This is why we are currently setting the "config" attribute as Required.
 										"config": schema.StringAttribute{
 											MarkdownDescription: "JSON-encoded custom action configuration.",
-											Optional:            true,
-											Computed:            true,
-											Default:             stringdefault.StaticString("{}"),
+											Required:            true,
+											// Optional:            true,
+											// Computed:            true,
+											// Default:             stringdefault.StaticString("{}"),
 										},
 									},
 								},
@@ -1026,11 +1057,7 @@ func (r *resourceNEAP) Schema(_ context.Context, _ resource.SchemaRequest, resp 
 				Validators: []validator.String{stringvalidator.OneOf(
 					append(
 						util.GetSupportedSeverities(),
-						[]string{
-							"%severity%",
-							"%last_severity%",
-							"%lowest_severity%",
-							"%highest_severity%"}...)...),
+						neapEpisodeSeverityTemplateValues.ToSlice()...)...),
 				},
 			},
 			"group_assignee": schema.StringAttribute{
@@ -1048,9 +1075,7 @@ func (r *resourceNEAP) Schema(_ context.Context, _ resource.SchemaRequest, resp 
 				Validators: []validator.String{stringvalidator.OneOf(
 					append(
 						util.GetSupportedStatuses(),
-						[]string{
-							"%status%",
-							"%last_status%"}...)...),
+						neapEpisodeStatusTemplateValues.ToSlice()...)...),
 				},
 			},
 			"group_instruction": schema.StringAttribute{
@@ -1117,17 +1142,35 @@ func (w *neapBuildWorkflow) basics(ctx context.Context, obj neapModel) (map[stri
 }
 
 func (w *neapBuildWorkflow) episodeInfo(ctx context.Context, obj neapModel) (map[string]interface{}, diag.Diagnostics) {
+	var diags diag.Diagnostics
+
+	episodeSeverity := obj.GroupSeverity.ValueString()
+	episodeStatus := obj.GroupStatus.ValueString()
+
+	var ok bool
+
+	if !neapEpisodeSeverityTemplateValues.Contains(episodeSeverity) {
+		if episodeSeverity, ok = tfToItsiEpisodeSeverityTransform()[episodeSeverity]; !ok {
+			diags.AddError("NEAP: Invalid Episode Severity", fmt.Sprintf("unsupported severity: %s", episodeSeverity))
+		}
+	}
+	if !neapEpisodeStatusTemplateValues.Contains(episodeStatus) {
+		if episodeStatus, ok = tfToItsiEpisodeStatusTransform()[episodeStatus]; !ok {
+			diags.AddError("NEAP: Invalid Episode Status", fmt.Sprintf("unsupported episode status: %s", episodeStatus))
+		}
+	}
+
 	return map[string]interface{}{
 		"group_title":             obj.GroupTitle.ValueString(),
 		"group_description":       obj.GroupDescription.ValueString(),
-		"group_severity":          obj.GroupSeverity.ValueString(),
+		"group_severity":          episodeSeverity,
 		"group_assignee":          obj.GroupAssignee.ValueString(),
-		"group_status":            obj.GroupStatus.ValueString(),
+		"group_status":            episodeStatus,
 		"group_instruction":       obj.GroupInstruction.ValueString(),
 		"group_custom_instuction": obj.GroupCustomInstruction.ValueString(),
 		"group_dashboard":         obj.GroupDashboard.ValueString(),
 		"group_dashboard_context": obj.GroupDashboardContext.ValueString(),
-	}, nil
+	}, diags
 }
 
 func (w *neapBuildWorkflow) criteria(ctx context.Context, obj neapModel) (map[string]interface{}, diag.Diagnostics) {
@@ -1184,21 +1227,22 @@ func (w *neapParseWorkflow) basics(ctx context.Context, fields map[string]interf
 	if err != nil {
 		diags.AddError(unexpectedErrorMsg, err.Error())
 	}
-	boolFields, err := unpackMap[bool](mapSubset(fields, []string{"run_time_based_actions_once", "service_topology_enabled", "entity_factor_enabled"}))
-	if err != nil {
-		diags.AddError(unexpectedErrorMsg, err.Error())
-	}
 
 	res.Title = types.StringValue(strFields["title"])
 	res.Description = types.StringValue(strFields["description"])
+	res.Disabled = types.BoolValue(util.Atob(fields["disabled"]))
 
-	res.Disabled = types.BoolValue(int(fields["disabled"].(float64)) != 0)
-	res.Priority = types.Int64Value(int64(fields["priority"].(float64)))
-	res.RunTimeBasedActionsOnce = types.BoolValue(boolFields["run_time_based_actions_once"])
-	res.ServiceTopologyEnabled = types.BoolValue(boolFields["service_topology_enabled"])
-	res.EntityFactorEnabled = types.BoolValue(boolFields["entity_factor_enabled"])
+	if priority, err := util.Atoi(fields["priority"]); err == nil {
+		res.Priority = types.Int64Value(int64(priority))
+	} else {
+		diags.AddError(unexpectedErrorMsg, err.Error())
+	}
 
-	return nil
+	res.RunTimeBasedActionsOnce = types.BoolValue(util.Atob(fields["run_time_based_actions_once"]))
+	res.ServiceTopologyEnabled = types.BoolValue(util.Atob(fields["service_topology_enabled"]))
+	res.EntityFactorEnabled = types.BoolValue(util.Atob(fields["entity_factor_enabled"]))
+
+	return
 }
 
 func (w *neapParseWorkflow) episodeInfo(ctx context.Context, fields map[string]interface{}, res *neapModel) (diags diag.Diagnostics) {
@@ -1219,11 +1263,25 @@ func (w *neapParseWorkflow) episodeInfo(ctx context.Context, fields map[string]i
 		return
 	}
 
+	var episodeSeverity, epsisodeStatus string
+	var ok bool
+	episodeSeverity, epsisodeStatus = strFields["group_severity"], strFields["group_status"]
+	if !neapEpisodeSeverityTemplateValues.Contains(episodeSeverity) {
+		if episodeSeverity, ok = util.ReverseMap(tfToItsiEpisodeSeverityTransform())[episodeSeverity]; !ok {
+			diags.AddError("NEAP: Invalid Episode Severity", fmt.Sprintf("unsupported severity: %s", episodeSeverity))
+		}
+	}
+	if !neapEpisodeStatusTemplateValues.Contains(epsisodeStatus) {
+		if epsisodeStatus, ok = util.ReverseMap(tfToItsiEpisodeStatusTransform())[epsisodeStatus]; !ok {
+			diags.AddError("NEAP: Invalid Episode Status", fmt.Sprintf("unsupported episode status: %s", epsisodeStatus))
+		}
+	}
+
 	res.GroupTitle = types.StringValue(strFields["group_title"])
 	res.GroupDescription = types.StringValue(strFields["group_description"])
-	res.GroupSeverity = types.StringValue(strFields["group_severity"])
+	res.GroupSeverity = types.StringValue(episodeSeverity)
 	res.GroupAssignee = types.StringValue(strFields["group_assignee"])
-	res.GroupStatus = types.StringValue(strFields["group_status"])
+	res.GroupStatus = types.StringValue(epsisodeStatus)
 	res.GroupInstruction = types.StringValue(strFields["group_instruction"])
 	res.GroupCustomInstruction = types.StringValue(strFields["group_custom_instuction"])
 	res.GroupDashboard = types.StringValue(strFields["group_dashboard"])
