@@ -56,7 +56,7 @@ var Formatters map[string]TFFormatter = map[string]TFFormatter{
 	//"entity":                           entityTFFormat,
 	//"entity_type":                      entityTypeTFFormat,
 	//"service":                          serviceTFFormat,
-	"notable_event_aggregation_policy": notableEventAggregationPolicyTFFormat,
+	//"notable_event_aggregation_policy": notableEventAggregationPolicyTFFormat,
 }
 
 func JSONify(base *models.Base, formatter TFFormatter) (json.RawMessage, error) {

@@ -56,6 +56,8 @@ const (
 type neapStandardAction = string
 
 const (
+	itsiResourceTypeNEAP = "notable_event_aggregation_policy"
+
 	neapActionChangeSeverity neapStandardAction = "change_severity"
 	neapActionChangeStatus   neapStandardAction = "change_status"
 	neapActionChangeOwner    neapStandardAction = "change_owner"
@@ -91,6 +93,12 @@ var (
 )
 
 // (2) [ NEAP helper functions ] _______________________________________________
+
+func notableEventAggregationPolicyBase(clientConfig models.ClientConfig, key string, title string) *models.Base {
+	base := models.NewBase(clientConfig, key, title, itsiResourceTypeNEAP)
+	return base
+}
+
 // [ NEAP TF to ITSI Value Mapping Functions ] _________________________________
 
 func neapActionTfToItsiSeverityTransform() map[string]string {
@@ -146,7 +154,7 @@ type neapModel struct {
 }
 
 func (n neapModel) objectype() string {
-	return "notable_event_aggregation_policy"
+	return itsiResourceTypeNEAP
 }
 
 func (n neapModel) title() string {
