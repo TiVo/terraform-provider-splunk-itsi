@@ -374,6 +374,16 @@ func marshalBasicTypesByTag(tag string, in map[string]interface{}, out any) (dia
 					field.Set(reflect.ValueOf(types.BoolValue(v)))
 				}
 			}
+		} else {
+			switch field.Type().Name() {
+			case "StringValue":
+				field.Set(reflect.ValueOf(types.StringNull()))
+			case "Float64Value":
+				field.Set(reflect.ValueOf(types.Float64Null()))
+			case "Int64Value":
+				field.Set(reflect.ValueOf(types.Int64Null()))
+			}
+
 		}
 	}
 	return
