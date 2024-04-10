@@ -277,18 +277,18 @@ Optional:
 
 Required:
 
+- `is_max_static` (Boolean) True when maximum threshold value is a static value, false otherwise.
+- `is_min_static` (Boolean) True when min threshold value is a static value, false otherwise.
+
+Optional:
+
 - `base_severity_label` (String) Base severity label assigned for the threshold (info, normal, low, medium, high, critical).
 - `gauge_max` (Number) Maximum value for the threshold gauge specified by user
 - `gauge_min` (Number) Minimum value for the threshold gauge specified by user.
-- `is_max_static` (Boolean) True when maximum threshold value is a static value, false otherwise.
-- `is_min_static` (Boolean) True when min threshold value is a static value, false otherwise.
 - `metric_field` (String) Thresholding field from the search.
 - `render_boundary_max` (Number) Upper bound value to use to render the graph for the thresholds.
 - `render_boundary_min` (Number) Lower bound value to use to render the graph for the thresholds.
 - `search` (String) Generated search used to compute the thresholds for this KPI.
-
-Optional:
-
 - `threshold_levels` (Block Set) (see [below for nested schema](#nestedblock--time_variate_thresholds_specification--policies--aggregate_thresholds--threshold_levels))
 
 <a id="nestedblock--time_variate_thresholds_specification--policies--aggregate_thresholds--threshold_levels"></a>
@@ -308,18 +308,18 @@ Required:
 
 Required:
 
+- `is_max_static` (Boolean) True when maximum threshold value is a static value, false otherwise.
+- `is_min_static` (Boolean) True when min threshold value is a static value, false otherwise.
+
+Optional:
+
 - `base_severity_label` (String) Base severity label assigned for the threshold (info, normal, low, medium, high, critical).
 - `gauge_max` (Number) Maximum value for the threshold gauge specified by user
 - `gauge_min` (Number) Minimum value for the threshold gauge specified by user.
-- `is_max_static` (Boolean) True when maximum threshold value is a static value, false otherwise.
-- `is_min_static` (Boolean) True when min threshold value is a static value, false otherwise.
 - `metric_field` (String) Thresholding field from the search.
 - `render_boundary_max` (Number) Upper bound value to use to render the graph for the thresholds.
 - `render_boundary_min` (Number) Lower bound value to use to render the graph for the thresholds.
 - `search` (String) Generated search used to compute the thresholds for this KPI.
-
-Optional:
-
 - `threshold_levels` (Block Set) (see [below for nested schema](#nestedblock--time_variate_thresholds_specification--policies--entity_thresholds--threshold_levels))
 
 <a id="nestedblock--time_variate_thresholds_specification--policies--entity_thresholds--threshold_levels"></a>
