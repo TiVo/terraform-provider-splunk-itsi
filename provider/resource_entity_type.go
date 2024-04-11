@@ -24,7 +24,14 @@ import (
 )
 
 const (
+	itsiResourceTypeEntityType     = "entity_type"
 	entityTypeDefaultDashboardType = "navigation_link"
+)
+
+// Ensure the implementation satisfies the expected interfaces.
+var (
+	_ resource.Resource = &resourceEntityType{}
+	_ tfmodel           = &entityTypeModel{}
 )
 
 // =================== [ Entity Type ] ===================
@@ -36,6 +43,14 @@ type entityTypeModel struct {
 	DashboardDrilldown []entityTypeDashboardDrilldownModel `tfsdk:"dashboard_drilldown"`
 	DataDrilldown      []entityTypeDataDrilldownModel      `tfsdk:"data_drilldown"`
 	VitalMetric        []entityTypeVitalMetricModel        `tfsdk:"vital_metric"`
+}
+
+func (et entityTypeModel) objectype() string {
+	return itsiResourceTypeEntityType
+}
+
+func (et entityTypeModel) title() string {
+	return et.Title.String()
 }
 
 // =================== [ Entity Type / Dashboard Drilldown ] ===================
@@ -111,11 +126,6 @@ type entityTypeVitalMetricAlertRuleEntityFilterModel struct {
 	FieldType types.String `tfsdk:"field_type"`
 	Value     types.String `tfsdk:"value"`
 }
-
-// Ensure the implementation satisfies the expected interfaces.
-var (
-	_ resource.Resource = &resourceEntityType{}
-)
 
 type resourceEntityType struct {
 	client models.ClientConfig
@@ -403,31 +413,31 @@ func (r *resourceEntityType) Schema(_ context.Context, _ resource.SchemaRequest,
 
 // =================== [ Entity Type API / Builder] ===================
 
-type entityTypeAPIBuilder struct {
-	entityTypeModel
-	client models.ClientConfig
-	body   map[string]interface{}
-}
+type entityTypeBuildWorkflow struct{}
 
-func newEntityTypeAPIBuilder(m entityTypeModel, clientConfig models.ClientConfig) *entityTypeAPIBuilder {
-	return &entityTypeAPIBuilder{
-		entityTypeModel: m,
-		client:          clientConfig,
-		body:            make(map[string]interface{}),
+var _ apibuildWorkflow[entityTypeModel] = &entityTypeBuildWorkflow{}
+
+//lint:ignore U1000 used by apibuilder
+func (w *entityTypeBuildWorkflow) buildSteps() []apibuildWorkflowStepFunc[entityTypeModel] {
+	return []apibuildWorkflowStepFunc[entityTypeModel]{
+		w.basics,
+		w.dashboardDrilldowns,
+		w.dataDrilldowns,
+		w.vitalMetrics,
 	}
 }
 
-func (b *entityTypeAPIBuilder) buildBasics(ctx context.Context) (diags diag.Diagnostics) {
-	b.body["object_type"] = "entity_type"
-	b.body["sec_grp"] = "default_itsi_security_group"
-	b.body["title"] = b.Title.ValueString()
-	b.body["description"] = b.Description.ValueString()
-	return
+func (w *entityTypeBuildWorkflow) basics(ctx context.Context, obj entityTypeModel) (map[string]any, diag.Diagnostics) {
+	return map[string]any{
+		"object_type": itsiResourceTypeEntityType,
+		"sec_grp":     "default_itsi_security_group",
+		"title":       obj.Title.ValueString(),
+		"description": obj.Description.ValueString(),
+	}, nil
 }
 
-func (b *entityTypeAPIBuilder) buildDashboardDrilldowns(ctx context.Context) (diags diag.Diagnostics) {
-	drilldowns := b.DashboardDrilldown
-
+func (w *entityTypeBuildWorkflow) dashboardDrilldowns(ctx context.Context, obj entityTypeModel) (map[string]any, diag.Diagnostics) {
+	drilldowns := obj.DashboardDrilldown
 	drilldownsAPI := make([]map[string]interface{}, len(drilldowns))
 	for i, drilldown := range drilldowns {
 		params, _ := drilldown.getParams(ctx)
@@ -462,12 +472,14 @@ func (b *entityTypeAPIBuilder) buildDashboardDrilldowns(ctx context.Context) (di
 			},
 		}
 	}
-	b.body["dashboard_drilldowns"] = drilldownsAPI
-	return
+
+	return map[string]any{
+		"dashboard_drilldowns": drilldownsAPI,
+	}, nil
 }
 
-func (b *entityTypeAPIBuilder) buildDataDrilldowns(ctx context.Context) (diags diag.Diagnostics) {
-	drilldowns := b.DataDrilldown
+func (w *entityTypeBuildWorkflow) dataDrilldowns(ctx context.Context, obj entityTypeModel) (res map[string]any, diags diag.Diagnostics) {
+	drilldowns := obj.DataDrilldown
 
 	drilldownsAPI := make([]map[string]interface{}, len(drilldowns))
 	for i, drilldown := range drilldowns {
@@ -522,12 +534,14 @@ func (b *entityTypeAPIBuilder) buildDataDrilldowns(ctx context.Context) (diags d
 		}
 
 	}
-	b.body["data_drilldowns"] = drilldownsAPI
-	return
+
+	return map[string]any{
+		"data_drilldowns": drilldownsAPI,
+	}, nil
 }
 
-func (b *entityTypeAPIBuilder) buildVitalMetrics(ctx context.Context) (diags diag.Diagnostics) {
-	vitalMetrics := b.VitalMetric
+func (w *entityTypeBuildWorkflow) vitalMetrics(ctx context.Context, obj entityTypeModel) (res map[string]any, diags diag.Diagnostics) {
+	vitalMetrics := obj.VitalMetric
 
 	vitalMetricsAPI := make([]map[string]interface{}, len(vitalMetrics))
 
@@ -590,80 +604,48 @@ func (b *entityTypeAPIBuilder) buildVitalMetrics(ctx context.Context) (diags dia
 		vitalMetricsAPI[i] = vmAPI
 	}
 
-	b.body["vital_metrics"] = vitalMetricsAPI
-
-	return
-}
-
-func (b *entityTypeAPIBuilder) build(ctx context.Context) (config *models.Base, diags diag.Diagnostics) {
-	type builderFunc func(context.Context) diag.Diagnostics
-	buildSteps := []builderFunc{
-		b.buildBasics,
-		b.buildDashboardDrilldowns,
-		b.buildDataDrilldowns,
-		b.buildVitalMetrics,
-	}
-
-	for _, step := range buildSteps {
-		diags = append(diags, step(ctx)...)
-	}
-	if diags.HasError() {
-		return
-	}
-
-	config = entityTypeBase(b.client, b.ID.ValueString(), b.Title.ValueString())
-	if err := config.PopulateRawJSON(ctx, b.body); err != nil {
-		diags.AddError("Entity type: failed to populate json", err.Error())
-	}
-	return
+	return map[string]any{
+		"vital_metrics": vitalMetricsAPI,
+	}, diags
 }
 
 // =================== [ Entity Type API / Parser ] ===================
 
-type entityTypeAPIParser struct {
-	base   *models.Base
-	fields map[string]interface{}
-	m      entityTypeModel
+type entityTypeParseWorkflow struct{}
+
+var _ apiparseWorkflow[entityTypeModel] = &entityTypeParseWorkflow{}
+
+//lint:ignore U1000 used by apiparser
+func (w *entityTypeParseWorkflow) parseSteps() []apiparseWorkflowStepFunc[entityTypeModel] {
+	return []apiparseWorkflowStepFunc[entityTypeModel]{
+		w.basics,
+		w.dashboardDrilldowns,
+		w.dataDrilldowns,
+		w.vitalMetrics,
+	}
 }
 
-func newEntityTypeAPIParser(base *models.Base) (parser *entityTypeAPIParser, diags diag.Diagnostics) {
-	if base == nil || base.RawJson == nil {
-		diags.AddError("Unable to populate entity type model", "base object is nil or empty.")
-		return
-	}
-
-	fields, err := base.RawJson.ToInterfaceMap()
-	if err != nil {
-		diags.AddError("Unable to populate entity model", err.Error())
-		return
-	}
-
-	parser = &entityTypeAPIParser{base: base, fields: fields}
-	return
-}
-
-func (p *entityTypeAPIParser) parseBasics(ctx context.Context) (diags diag.Diagnostics) {
-	p.m.ID = types.StringValue(p.base.RESTKey)
-	stringMap, err := unpackMap[string](mapSubset[string](p.fields, []string{"title", "description"}))
+func (w *entityTypeParseWorkflow) basics(ctx context.Context, fields map[string]any, res *entityTypeModel) (diags diag.Diagnostics) {
+	stringMap, err := unpackMap[string](mapSubset[string](fields, []string{"title", "description"}))
 	if err != nil {
 		diags.AddError("Unable to populate entity type model", err.Error())
 		return
 	}
-	p.m.Title = types.StringValue(stringMap["title"])
-	p.m.Description = types.StringValue(stringMap["description"])
+	res.Title = types.StringValue(stringMap["title"])
+	res.Description = types.StringValue(stringMap["description"])
 	return
 }
 
-func (p *entityTypeAPIParser) parseDashboardDrilldowns(ctx context.Context) (diags diag.Diagnostics) {
-	var apiDrilldownList interface{}
+func (w *entityTypeParseWorkflow) dashboardDrilldowns(ctx context.Context, fields map[string]any, res *entityTypeModel) (diags diag.Diagnostics) {
+	var apiDrilldownList any
 	var ok bool
-	if apiDrilldownList, ok = p.fields["dashboard_drilldowns"]; !ok {
+	if apiDrilldownList, ok = fields["dashboard_drilldowns"]; !ok {
 		return
 	}
 
 	dashboardDrilldowns := []entityTypeDashboardDrilldownModel{}
 
-	apiDrilldowns, err := unpackSlice[map[string]interface{}](apiDrilldownList)
+	apiDrilldowns, err := unpackSlice[map[string]any](apiDrilldownList)
 	if err != nil {
 		diags.AddError("Unable to populate entity type model", err.Error())
 		return
@@ -674,7 +656,7 @@ func (p *entityTypeAPIParser) parseDashboardDrilldowns(ctx context.Context) (dia
 		id := types.StringValue(apiDrilldown["id"].(string))
 		baseURL := types.StringValue(apiDrilldown["base_url"].(string))
 
-		apiParams := apiDrilldown["params"].(map[string]interface{})
+		apiParams := apiDrilldown["params"].(map[string]any)
 
 		drilldownParams := map[string]string{}
 		if aliasParamMap, ok := apiParams["alias_param_map"]; ok {
@@ -702,20 +684,19 @@ func (p *entityTypeAPIParser) parseDashboardDrilldowns(ctx context.Context) (dia
 		})
 	}
 
-	p.m.DashboardDrilldown = dashboardDrilldowns
-
+	res.DashboardDrilldown = dashboardDrilldowns
 	return
 }
 
-func (p *entityTypeAPIParser) parseDataDrilldowns(ctx context.Context) (diags diag.Diagnostics) {
-	var apiDrilldownList interface{}
+func (w *entityTypeParseWorkflow) dataDrilldowns(ctx context.Context, fields map[string]any, res *entityTypeModel) (diags diag.Diagnostics) {
+	var apiDrilldownList any
 	var ok bool
-	if apiDrilldownList, ok = p.fields["data_drilldowns"]; !ok {
+	if apiDrilldownList, ok = fields["data_drilldowns"]; !ok {
 		return
 	}
 
 	dataDrilldowns := []entityTypeDataDrilldownModel{}
-	apiDrilldowns, err := unpackSlice[map[string]interface{}](apiDrilldownList)
+	apiDrilldowns, err := unpackSlice[map[string]any](apiDrilldownList)
 	if err != nil {
 		diags.AddError("Unable to populate entity type model", err.Error())
 		return
@@ -725,12 +706,12 @@ func (p *entityTypeAPIParser) parseDataDrilldowns(ctx context.Context) (diags di
 		title := types.StringValue(apiDrilldown["title"].(string))
 		drilldownType := types.StringValue(apiDrilldown["type"].(string))
 
-		apiStaticFilters := apiDrilldown["static_filter"].(map[string]interface{})
+		apiStaticFilters := apiDrilldown["static_filter"].(map[string]any)
 		if _, ok := apiStaticFilters["filters"]; !ok {
-			apiStaticFilters["filters"] = []interface{}{apiStaticFilters}
+			apiStaticFilters["filters"] = []any{apiStaticFilters}
 		}
 
-		apiStaticFiltersList, err := unpackSlice[map[string]interface{}](apiStaticFilters["filters"])
+		apiStaticFiltersList, err := unpackSlice[map[string]any](apiStaticFilters["filters"])
 		if err != nil {
 			diags.AddError("Unable to populate entity type model", err.Error())
 			return
@@ -756,10 +737,10 @@ func (p *entityTypeAPIParser) parseDataDrilldowns(ctx context.Context) (diags di
 
 		tfEntityFilters := []entityTypeDataDrilldownEntityFieldFilterModel{}
 		if entityFieldFilter, ok := apiDrilldown["entity_field_filter"]; ok {
-			_entityFieldFilter := entityFieldFilter.(map[string]interface{})
-			var apiEntityFilters []map[string]interface{}
+			_entityFieldFilter := entityFieldFilter.(map[string]any)
+			var apiEntityFilters []map[string]any
 			if filters, ok := _entityFieldFilter["filters"]; ok {
-				apiEntityFilters, err = unpackSlice[map[string]interface{}](filters)
+				apiEntityFilters, err = unpackSlice[map[string]any](filters)
 				if err != nil {
 					diags.AddError("Unable to populate entity type model", err.Error())
 					return
@@ -783,19 +764,19 @@ func (p *entityTypeAPIParser) parseDataDrilldowns(ctx context.Context) (diags di
 		})
 	}
 
-	p.m.DataDrilldown = dataDrilldowns
+	res.DataDrilldown = dataDrilldowns
 	return
 }
 
-func (p *entityTypeAPIParser) parseVitalMetrics(ctx context.Context) (diags diag.Diagnostics) {
-	var apiVitalMetricsList interface{}
+func (w *entityTypeParseWorkflow) vitalMetrics(ctx context.Context, fields map[string]any, res *entityTypeModel) (diags diag.Diagnostics) {
+	var apiVitalMetricsList any
 	var ok bool
-	if apiVitalMetricsList, ok = p.fields["vital_metrics"]; !ok {
+	if apiVitalMetricsList, ok = fields["vital_metrics"]; !ok {
 		return
 	}
 
 	vitalMetrics := []entityTypeVitalMetricModel{}
-	apiVitalMetrics, err := unpackSlice[map[string]interface{}](apiVitalMetricsList)
+	apiVitalMetrics, err := unpackSlice[map[string]any](apiVitalMetricsList)
 	if err != nil {
 		diags.AddError("Unable to populate entity type model", err.Error())
 		return
@@ -810,8 +791,8 @@ func (p *entityTypeAPIParser) parseVitalMetrics(ctx context.Context) (diags diag
 
 		matchingEntityFields := map[string]string{}
 
-		apiMatchingEntityFields := apiVitalMetric["matching_entity_fields"].([]interface{})
-		apiSplitByFields := apiVitalMetric["split_by_fields"].([]interface{})
+		apiMatchingEntityFields := apiVitalMetric["matching_entity_fields"].([]any)
+		apiSplitByFields := apiVitalMetric["split_by_fields"].([]any)
 		if len(apiMatchingEntityFields) != len(apiSplitByFields) {
 			diags.AddError("Unable to populate entity type model", "matching_entity_fields and split_by_fields should be of the same length")
 			return
@@ -828,13 +809,13 @@ func (p *entityTypeAPIParser) parseVitalMetrics(ctx context.Context) (diags diag
 
 		tfAlertRule := []entityTypeVitalMetricAlertRuleModel{}
 
-		apiAlertRule, ok := apiVitalMetric["alert_rule"].(map[string]interface{})
+		apiAlertRule, ok := apiVitalMetric["alert_rule"].(map[string]any)
 		if ok && len(apiAlertRule) > 0 {
 
-			apiAlertRuleEntityFilters := apiAlertRule["entity_filter"].([]interface{})
+			apiAlertRuleEntityFilters := apiAlertRule["entity_filter"].([]any)
 			tfAlertRuleEntityFilters := []entityTypeVitalMetricAlertRuleEntityFilterModel{}
 			for _, apiAlertRuleEntityFilter := range apiAlertRuleEntityFilters {
-				apiAlertRuleEntityFilterMap := apiAlertRuleEntityFilter.(map[string]interface{})
+				apiAlertRuleEntityFilterMap := apiAlertRuleEntityFilter.(map[string]any)
 				tfAlertRuleEntityFilters = append(tfAlertRuleEntityFilters, entityTypeVitalMetricAlertRuleEntityFilterModel{
 					Field:     types.StringValue(apiAlertRuleEntityFilterMap["field"].(string)),
 					FieldType: types.StringValue(apiAlertRuleEntityFilterMap["field_type"].(string)),
@@ -842,8 +823,8 @@ func (p *entityTypeAPIParser) parseVitalMetrics(ctx context.Context) (diags diag
 				})
 			}
 
-			criticalThresholdStr := apiAlertRule["critical_threshold"].([]interface{})
-			warningThresholdStr := apiAlertRule["warning_threshold"].([]interface{})
+			criticalThresholdStr := apiAlertRule["critical_threshold"].([]any)
+			warningThresholdStr := apiAlertRule["warning_threshold"].([]any)
 
 			idx := 0
 			if criticalThresholdStr[0].(string) == "-inf" {
@@ -882,35 +863,7 @@ func (p *entityTypeAPIParser) parseVitalMetrics(ctx context.Context) (diags diag
 		})
 	}
 
-	p.m.VitalMetric = vitalMetrics
-
-	return
-}
-
-func (p *entityTypeAPIParser) parse(ctx context.Context) (m entityTypeModel, diags diag.Diagnostics) {
-	type parserFunc func(context.Context) diag.Diagnostics
-	parseSteps := []parserFunc{
-		p.parseBasics,
-		p.parseDashboardDrilldowns,
-		p.parseDataDrilldowns,
-		p.parseVitalMetrics,
-	}
-
-	for _, step := range parseSteps {
-		diags = append(diags, step(ctx)...)
-	}
-
-	m = p.m
-	return
-}
-
-func entityTypeModelFromBase(ctx context.Context, base *models.Base) (m entityTypeModel, diags diag.Diagnostics) {
-	p, diags := newEntityTypeAPIParser(base)
-	if diags.HasError() {
-		return
-	}
-	m, d := p.parse(ctx)
-	diags = append(diags, d...)
+	res.VitalMetric = vitalMetrics
 	return
 }
 
@@ -931,7 +884,7 @@ func (r *resourceEntityType) Read(ctx context.Context, req resource.ReadRequest,
 		return
 	}
 
-	state, diags := entityTypeModelFromBase(ctx, b)
+	state, diags := newAPIParser(b, new(entityTypeParseWorkflow)).parse(ctx, b)
 	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
 		return
 	}
@@ -945,7 +898,7 @@ func (r *resourceEntityType) Create(ctx context.Context, req resource.CreateRequ
 		return
 	}
 
-	base, diags := newEntityTypeAPIBuilder(plan, r.client).build(ctx)
+	base, diags := newAPIBuilder(r.client, new(entityTypeBuildWorkflow)).build(ctx, plan)
 	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
 		return
 	}
@@ -968,7 +921,7 @@ func (r *resourceEntityType) Update(ctx context.Context, req resource.UpdateRequ
 		return
 	}
 
-	base, diags := newEntityTypeAPIBuilder(plan, r.client).build(ctx)
+	base, diags := newAPIBuilder(r.client, new(entityTypeBuildWorkflow)).build(ctx, plan)
 	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
 		return
 	}
@@ -1019,7 +972,7 @@ func (r *resourceEntityType) ImportState(ctx context.Context, req resource.Impor
 		return
 	}
 
-	state, diags := entityTypeModelFromBase(ctx, b)
+	state, diags := newAPIParser(b, new(entityTypeParseWorkflow)).parse(ctx, b)
 	if resp.Diagnostics.Append(diags...); diags.HasError() {
 		return
 	}
