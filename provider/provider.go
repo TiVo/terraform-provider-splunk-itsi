@@ -66,7 +66,7 @@ func Provider() *schema.Provider {
 		},
 		ResourcesMap: map[string]*schema.Resource{
 			//"itsi_service": ResourceService(),
-			"itsi_neap": ResourceNotableEventAggregationPolicy(),
+			//"itsi_neap": ResourceNotableEventAggregationPolicy(),
 		},
 	}
 }
