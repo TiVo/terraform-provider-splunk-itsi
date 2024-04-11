@@ -325,7 +325,7 @@ Read-Only:
 
 Optional:
 
-- `actions` (Block Set) (see [below for nested schema](#nestedblock--rule--actions))
+- `actions` (Block List) (see [below for nested schema](#nestedblock--rule--actions))
 - `activation_criteria` (Block, Optional) Criteria to activate the NEAP Action. (see [below for nested schema](#nestedblock--rule--activation_criteria))
 - `description` (String) The description of the notable event aggregation policy rule.
 - `priority` (Number) The priority of the notable event aggregation policy rule.

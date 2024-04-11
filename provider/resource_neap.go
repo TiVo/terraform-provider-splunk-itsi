@@ -12,6 +12,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
+	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/objectvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
@@ -823,7 +824,7 @@ func (r *resourceNEAP) criteriaSchema(criteriaType neapCriteriaType) schema.Sing
 	}
 }
 
-func (r *resourceNEAP) ruleActionsSchema() schema.SetNestedBlock {
+func (r *resourceNEAP) ruleActionsSchema() schema.ListNestedBlock {
 	itemTypes := []string{
 		"custom",
 		//standard actions:
@@ -838,7 +839,7 @@ func (r *resourceNEAP) ruleActionsSchema() schema.SetNestedBlock {
 		itemTypePaths[i] = path.MatchRelative().AtParent().AtName(itemType)
 	}
 
-	return schema.SetNestedBlock{
+	return schema.ListNestedBlock{
 		NestedObject: schema.NestedBlockObject{
 			Blocks: map[string]schema.Block{
 				"item": schema.SetNestedBlock{
@@ -910,6 +911,8 @@ func (r *resourceNEAP) ruleActionsSchema() schema.SetNestedBlock {
 							},
 						},
 					},
+					//NOTE: this validation doesn't seem to work
+					Validators: []validator.Set{setvalidator.SizeAtLeast(1)},
 				},
 			},
 			Attributes: map[string]schema.Attribute{
@@ -919,6 +922,8 @@ func (r *resourceNEAP) ruleActionsSchema() schema.SetNestedBlock {
 				},
 			},
 		},
+		//NOTE: this validation doesn't seem to work
+		Validators: []validator.List{listvalidator.SizeBetween(1, 1)},
 	}
 
 }
