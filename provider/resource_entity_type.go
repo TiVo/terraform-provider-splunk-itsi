@@ -26,6 +26,10 @@ import (
 const (
 	itsiResourceTypeEntityType     = "entity_type"
 	entityTypeDefaultDashboardType = "navigation_link"
+
+	entityTypeDashboardTypeXMLDashboard = "xml_dashboard"
+	entityTypeDashboardTypeUDFDashboard = "udf_dashboard"
+	entityTypeDashboardTypeNavigation   = "navigation_link"
 )
 
 // Ensure the implementation satisfies the expected interfaces.
@@ -162,6 +166,12 @@ func (r *resourceEntityType) dashboardDrilldownSchema() schema.SetNestedBlock {
 		`),
 		NestedObject: schema.NestedBlockObject{
 			Attributes: map[string]schema.Attribute{
+				//NOTE:
+				// As of terraform plugin framework 1.7.0 & terraform 1.7.5,
+				// setting this object's fields to Computed + Optional triggers bugs
+				// in terraform plugin framework, leading to weird and confusing plans,
+				// where the planned value may be wrong/different from what's specified in the terraform config.
+				// This is why we are currently setting the "dashboard_id", "dashboard_type" and "base_url" attributes as Required.
 				"title": schema.StringAttribute{
 					MarkdownDescription: "The name of the dashboard.",
 					Required:            true,
@@ -172,29 +182,35 @@ func (r *resourceEntityType) dashboardDrilldownSchema() schema.SetNestedBlock {
 						This setting exists because for internal purposes, navigation suggestions are treated as dashboards.
 						This setting is only required if is_splunk_dashboard is false.
 					`),
-					Optional: true,
-					Computed: true,
-					Default:  stringdefault.StaticString(""),
+					Required: true,
+					// Optional: true,
+					// Computed: true,
+					// Default:  stringdefault.StaticString(""),
 				},
 				"dashboard_id": schema.StringAttribute{
 					MarkdownDescription: "A unique identifier for the xml dashboard.",
-					Optional:            true,
-					Computed:            true,
-					Default:             stringdefault.StaticString(""),
+					Required:            true,
+					// Optional:            true,
+					// Computed:            true,
+					// Default:             stringdefault.StaticString(""),
 				},
 				"dashboard_type": schema.StringAttribute{
-					MarkdownDescription: util.Dedent(fmt.Sprintf(`
+					MarkdownDescription: util.Dedent(`
 						The type of dashboard being added.
 						The following options are available:
-						* xml_dashboard - a Splunk XML dashboard. Any dashboards you add must be of this type.
+						* xml_dashboard - a Splunk XML dashboard.
+						* udf_dashboard - a Splunk UDF (Unified Dashboard Framework) dashboard.
 						* navigation_link - a navigation URL. Should be used when base_url is specified.
-						Defaults to %s.
-					`, entityTypeDefaultDashboardType)),
-					Optional: true,
-					Computed: true,
-					Default:  stringdefault.StaticString(entityTypeDefaultDashboardType),
+					`),
+					Required: true,
+					// Optional: true,
+					// Computed: true,
+					// Default:  stringdefault.StaticString(entityTypeDefaultDashboardType),
 					Validators: []validator.String{
-						stringvalidator.OneOf("xml_dashboard", "navigation_link"),
+						stringvalidator.OneOf(
+							entityTypeDashboardTypeXMLDashboard,
+							entityTypeDashboardTypeUDFDashboard,
+							entityTypeDashboardTypeNavigation),
 					},
 				},
 				"params": schema.MapAttribute{
@@ -446,7 +462,7 @@ func (w *entityTypeBuildWorkflow) dashboardDrilldowns(ctx context.Context, obj e
 		dashboardType := drilldown.DashboardType.ValueString()
 		var dashboardID, dashboardBaseURL string
 
-		if dashboardType == "xml_dashboard" {
+		if util.NewSet(entityTypeDashboardTypeXMLDashboard, entityTypeDashboardTypeUDFDashboard).Contains(dashboardType) {
 			dashboardID = drilldown.DashboardID.ValueString()
 		} else {
 			dashboardBaseURL = drilldown.BaseURL.ValueString()
@@ -626,7 +642,7 @@ func (w *entityTypeParseWorkflow) parseSteps() []apiparseWorkflowStepFunc[entity
 }
 
 func (w *entityTypeParseWorkflow) basics(ctx context.Context, fields map[string]any, res *entityTypeModel) (diags diag.Diagnostics) {
-	stringMap, err := unpackMap[string](mapSubset[string](fields, []string{"title", "description"}))
+	stringMap, err := unpackMap[string](mapSubset(fields, []string{"title", "description"}))
 	if err != nil {
 		diags.AddError("Unable to populate entity type model", err.Error())
 		return
@@ -660,13 +676,13 @@ func (w *entityTypeParseWorkflow) dashboardDrilldowns(ctx context.Context, field
 
 		drilldownParams := map[string]string{}
 		if aliasParamMap, ok := apiParams["alias_param_map"]; ok {
-			aliasParamTuple, err := unpackSlice[map[string]string](aliasParamMap)
+			aliasParamTuple, err := unpackSlice[map[string]any](aliasParamMap)
 			if err != nil {
 				diags.AddError("Unable to populate entity type model", err.Error())
 				return
 			}
 			for _, _aliasParamTuple := range aliasParamTuple {
-				drilldownParams[_aliasParamTuple["alias"]] = _aliasParamTuple["param"]
+				drilldownParams[_aliasParamTuple["alias"].(string)] = _aliasParamTuple["param"].(string)
 			}
 		}
 
@@ -786,7 +802,7 @@ func (w *entityTypeParseWorkflow) vitalMetrics(ctx context.Context, fields map[s
 
 		tfVMName := types.StringValue(apiVitalMetric["metric_name"].(string))
 		tfVMSearch := types.StringValue(apiVitalMetric["search"].(string))
-		tfVMIsKey := types.BoolValue(apiVitalMetric["is_key"].(bool))
+		tfVMIsKey := types.BoolValue(util.Atob(apiVitalMetric["is_key"]))
 		tfVMUnit := types.StringValue(apiVitalMetric["unit"].(string))
 
 		matchingEntityFields := map[string]string{}
