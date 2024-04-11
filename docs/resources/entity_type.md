@@ -117,19 +117,19 @@ SPL searches that represent the overall health of entities of that type. (see [b
 
 Required:
 
-- `title` (String) The name of the dashboard.
-
-Optional:
-
 - `base_url` (String) An internal or external URL that points to the dashboard.
 This setting exists because for internal purposes, navigation suggestions are treated as dashboards.
 This setting is only required if is_splunk_dashboard is false.
 - `dashboard_id` (String) A unique identifier for the xml dashboard.
 - `dashboard_type` (String) The type of dashboard being added.
 The following options are available:
-* xml_dashboard - a Splunk XML dashboard. Any dashboards you add must be of this type.
+* xml_dashboard - a Splunk XML dashboard.
+* udf_dashboard - a Splunk UDF (Unified Dashboard Framework) dashboard.
 * navigation_link - a navigation URL. Should be used when base_url is specified.
-Defaults to navigation_link.
+- `title` (String) The name of the dashboard.
+
+Optional:
+
 - `params` (Map of String) A set of parameters for the entity dashboard drilldown that provide a mapping of a URL parameter and its alias.
 
 
