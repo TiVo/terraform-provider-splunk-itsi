@@ -265,6 +265,7 @@ func (r *resourceKpiThresholdTemplate) Schema(_ context.Context, _ resource.Sche
 		Blocks: map[string]schema.Block{
 			"time_variate_thresholds_specification": schema.SingleNestedBlock{
 				Blocks: map[string]schema.Block{
+
 					"policies": schema.SetNestedBlock{
 						Description: "Map object of policies keyed by policy_name. ",
 						NestedObject: schema.NestedBlockObject{

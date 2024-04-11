@@ -63,12 +63,13 @@ func init() {
 }
 
 type restConfig struct {
-	RestInterface string `yaml:"rest_interface"`
-	ObjectType    string `yaml:"object_type"`
-	RestKeyField  string `yaml:"rest_key_field"`
-	TFIDField     string `yaml:"tfid_field"`
-	MaxPageSize   int    `yaml:"max_page_size"`
-	GenerateKey   bool   `yaml:"generate_key"`
+	RestInterface          string `yaml:"rest_interface"`
+	ObjectType             string `yaml:"object_type"`
+	RestKeyField           string `yaml:"rest_key_field"`
+	TFIDField              string `yaml:"tfid_field"`
+	MaxPageSize            int    `yaml:"max_page_size"`
+	GenerateKey            bool   `yaml:"generate_key"`
+	UnimplementedFiltering bool   `yaml:"unimplemented_filtering"`
 }
 
 type Base struct {
@@ -287,6 +288,10 @@ func (b *Base) GetPageSize() int {
 		return -1
 	}
 	return maxPageSize
+}
+
+func (b *Base) IsFilterSupported() bool {
+	return !b.restConfig.UnimplementedFiltering
 }
 
 func (b *Base) PopulateRawJSON(ctx context.Context, body map[string]interface{}) error {

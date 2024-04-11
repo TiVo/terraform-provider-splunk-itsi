@@ -4,6 +4,7 @@ Version 2.0.0 of the Splunk ITSI terraform provider is a major release and inclu
 
 ## Table of Contents:
 - [Changes to the Splunk Search data source](#changes-to-the-splunk-search-data-source)
+- [Changes to the Notable Event Aggregation policy resource](#changes-to-the-notable-event-aggregation-policy-resource)
 - [Splunk Lookup data source removal](#splunk-lookup-data-source-removal)
 - [Splunk Collection Fields data source removal](#splunk-collection-fields-data-source-removal)
 - [Legacy collection entry resources removal](#legacy-collection-entry-resources-removal)
@@ -17,6 +18,15 @@ The splunk_search data source has undergone notable schema changes:
 * `is_mv` and `mv_separator` fields have been removed, leveraging the JSON structure for more flexible results handling.
 
 Please refer to the [`splunk_search`](https://registry.terraform.io/providers/TiVo/splunk-itsi/2.0.0/docs/data-sources/splunk_search) for the full schema reference and usage examples.
+
+## Changes to the Notable Event Aggregation policy resource
+
+!> The notable event aggregation policy (NEAP) resource has been renamed from `neap` to `notable_event_aggregation_policy` and has significant schema changes.
+In order to migrate to the new resource version, practitioners should remove the terraform state of the neap objects created with the old 1.x provider versions (use `terraform state rm`), update the terraform config to match the new resource name and config schema and then re-import the objects back using `terraform import`.
+
+* The NEAP's schema has been updated to allow for invoking arbitrary Custom Actions.
+
+Please refer to the [notable event aggregation policy docs](https://registry.terraform.io/providers/TiVo/splunk-itsi/2.0.0/docs/resources/notable_event_aggregation_policy) for the full schema reference and usage examples.
 
 ## Splunk lookup data source removal
 

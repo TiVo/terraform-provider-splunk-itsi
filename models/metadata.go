@@ -110,6 +110,7 @@ notable_event_aggregation_policy:
     tfid_field: _key
     max_page_size: 100
     generate_key: true
+    unimplemented_filtering: true
 
 correlation_search:
     rest_interface: event_management_interface

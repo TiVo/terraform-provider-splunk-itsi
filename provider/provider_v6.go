@@ -223,6 +223,9 @@ func (p *itsiProvider) Resources(_ context.Context) []func() resource.Resource {
 		func() resource.Resource {
 			return NewResourceService()
 		},
+		func() resource.Resource {
+			return NewResourceNEAP()
+		},
 	}
 }
 
