@@ -5,7 +5,6 @@ import (
 	"crypto/sha1"
 	"encoding/hex"
 	"fmt"
-	"strconv"
 
 	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
@@ -23,6 +22,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/tivo/terraform-provider-splunk-itsi/models"
+	"github.com/tivo/terraform-provider-splunk-itsi/provider/util"
 )
 
 // Ensure the implementation satisfies the expected interfaces.
@@ -550,10 +550,11 @@ func serviceModelFromBase(ctx context.Context, b *models.Base) (m ServiceState, 
 				continue
 			}
 			if val, ok := kpi["urgency"]; ok {
-				if urgency, ok := val.(float64); ok {
+				if urgency, err := util.Atoi(val); err == nil {
 					kpiTF.Urgency = types.Int64Value(int64(urgency))
-				} else if urgency, err := strconv.Atoi(val.(string)); err == nil {
-					kpiTF.Urgency = types.Int64Value(int64(urgency))
+				} else {
+					diags.AddError("Unable to parse urgency from service model", err.Error())
+					continue
 				}
 			}
 
@@ -586,7 +587,10 @@ func serviceModelFromBase(ctx context.Context, b *models.Base) (m ServiceState, 
 
 	m.ServiceDependsOn = []ServiceDependsOnState{}
 	serviceDependsOn, err := unpackSlice[map[string]interface{}](interfaceMap["services_depends_on"])
-
+	if err != nil {
+		diags.AddError("Unable to unpack services_depends_on from service model", err.Error())
+		return
+	}
 	for _, serviceDepend := range serviceDependsOn {
 		serviceDependsOn := ServiceDependsOnState{}
 		serviceDependsOn.Service = types.StringValue(serviceDepend["serviceid"].(string))
@@ -617,9 +621,8 @@ func serviceStateToJson(ctx context.Context, clientConfig models.ClientConfig, m
 	body["title"] = m.Title.ValueString()
 	body["description"] = m.Description.ValueString()
 
-	convert := map[bool]int{true: 1, false: 0}
-	body["is_healthscore_calculate_by_entity_enabled"] = convert[m.IsHealthscoreCalculateByEntityEnabled.ValueBool()]
-	body["enabled"] = convert[m.Enabled.ValueBool()]
+	body["is_healthscore_calculate_by_entity_enabled"] = util.Btoi(m.IsHealthscoreCalculateByEntityEnabled.ValueBool())
+	body["enabled"] = util.Btoi(m.Enabled.ValueBool())
 
 	body["sec_grp"] = m.SecurityGroup.ValueString()
 

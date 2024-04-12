@@ -472,7 +472,7 @@ func (r *resourceKpiBaseSearch) ImportState(ctx context.Context, req resource.Im
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
-func kpiBaseSearchModelFromBase(ctx context.Context, b *models.Base) (m KpiBaseSearchState, diags diag.Diagnostics) {
+func kpiBaseSearchModelFromBase(_ context.Context, b *models.Base) (m KpiBaseSearchState, diags diag.Diagnostics) {
 	//var d diag.Diagnostics
 	if b == nil || b.RawJson == nil {
 		diags.AddError("Unable to populate entity model", "base object is nil or empty.")
