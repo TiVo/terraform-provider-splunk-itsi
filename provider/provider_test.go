@@ -1,21 +1,15 @@
 package provider
 
 import (
-	// "io"
-	// "os"
-	// "strings"
 	"testing"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+	"github.com/hashicorp/terraform-plugin-framework/providerserver"
+	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
 )
 
-// providerFactories are used to instantiate a provider during acceptance testing.
-// The factory function will be invoked for every Terraform CLI command executed
-// to create a provider server to which the CLI can reattach.
-var providerFactories = map[string]func() (*schema.Provider, error){
-	"itsi": func() (p *schema.Provider, err error) {
-		p = Provider()
-		return p, nil
+var providerFactories = map[string]func() (tfprotov6.ProviderServer, error){
+	"itsi": func() (tfprotov6.ProviderServer, error) {
+		return providerserver.NewProtocol6(New())(), nil
 	},
 }
 

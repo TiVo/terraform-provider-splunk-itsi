@@ -862,6 +862,7 @@ func (r *resourceNEAP) ruleActionsSchema() schema.ListNestedBlock {
 										"config": schema.StringAttribute{
 											MarkdownDescription: "JSON-encoded custom action configuration.",
 											Required:            true,
+											Validators:          []validator.String{stringvalidatorIsJSON(jsonStringTypeObject)},
 											// Optional:            true,
 											// Computed:            true,
 											// Default:             stringdefault.StaticString("{}"),
