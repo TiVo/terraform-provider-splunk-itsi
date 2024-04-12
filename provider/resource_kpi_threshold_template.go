@@ -167,7 +167,7 @@ func kpiThresholdSettingsToModel(attrName string, apiThresholdSetting map[string
 	return diags
 }
 
-func kpiThresholdThresholdSettingsAttributesToPayload(ctx context.Context, source ThresholdSettingModel) (interface{}, diag.Diagnostics) {
+func kpiThresholdThresholdSettingsAttributesToPayload(_ context.Context, source ThresholdSettingModel) (interface{}, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	thresholdSetting := map[string]interface{}{}
 	diags.Append(unmarshalBasicTypesByTag("json", &source, thresholdSetting)...)
@@ -265,6 +265,7 @@ func (r *resourceKpiThresholdTemplate) Schema(_ context.Context, _ resource.Sche
 		Blocks: map[string]schema.Block{
 			"time_variate_thresholds_specification": schema.SingleNestedBlock{
 				Blocks: map[string]schema.Block{
+
 					"policies": schema.SetNestedBlock{
 						Description: "Map object of policies keyed by policy_name. ",
 						NestedObject: schema.NestedBlockObject{
@@ -552,7 +553,7 @@ func kpiThresholdTemplate(ctx context.Context, tfKpiThresholdTemplate modelKpiTh
 	return base, nil
 }
 
-func populateKpiThresholdTemplateModel(ctx context.Context, b *models.Base, tfModelKpiThresholdTemplate *modelKpiThresholdTemplate) (diags diag.Diagnostics) {
+func populateKpiThresholdTemplateModel(_ context.Context, b *models.Base, tfModelKpiThresholdTemplate *modelKpiThresholdTemplate) (diags diag.Diagnostics) {
 	interfaceMap, err := b.RawJson.ToInterfaceMap()
 	if err != nil {
 		diags.AddError("Failed to populate interfaceMap.", err.Error())

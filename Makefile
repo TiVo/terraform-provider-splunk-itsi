@@ -33,7 +33,10 @@ scraper:
 	go build -o ./bin/scraper github.com/tivo/terraform-provider-splunk-itsi/scraper
 
 test: fmt
-	go test -v -cover github.com/tivo/terraform-provider-splunk-itsi/... -tags test_setup
+	go test -v -cover -parallel=4 github.com/tivo/terraform-provider-splunk-itsi/... -tags test_setup
+
+testacc:
+	TF_ACC=1 go test -v -cover -timeout 10m ./...
 
 docs: fmt
 	go generate ./...

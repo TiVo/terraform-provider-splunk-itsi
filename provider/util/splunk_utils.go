@@ -69,20 +69,18 @@ var SeverityMap = map[string]SeverityInfo{
 	},
 }
 
-func GetSupportedStatuses() *[]string {
-	labels := []string{}
+func GetSupportedStatuses() (labels []string) {
 	for k := range StatusInfoMap {
 		labels = append(labels, k)
 	}
-	return &labels
+	return
 }
 
-func GetSupportedSeverities() *[]string {
-	labels := []string{}
+func GetSupportedSeverities() (labels []string) {
 	for k := range SeverityMap {
 		labels = append(labels, k)
 	}
-	return &labels
+	return
 }
 
 func GetSeverityInfoByValue(severityValue int) (*SeverityInfo, error) {
