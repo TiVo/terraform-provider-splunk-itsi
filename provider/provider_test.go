@@ -1,9 +1,13 @@
 package provider
 
 import (
+	"context"
 	"testing"
 
+	"github.com/hashicorp/terraform-plugin-framework/datasource"
+	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
+	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
 )
 
@@ -19,8 +23,50 @@ func testAccPreCheck(t *testing.T) {
 	// function.
 }
 
-func TestProvider(t *testing.T) {
-	if err := Provider().InternalValidate(); err != nil {
-		t.Fatalf("err: %s", err)
+func testDataSourceSchema[T datasource.DataSource](t *testing.T, d T) {
+	ctx := context.Background()
+	schemaRequest := datasource.SchemaRequest{}
+	schemaResponse := &datasource.SchemaResponse{}
+
+	d.Schema(ctx, schemaRequest, schemaResponse)
+	if schemaResponse.Diagnostics.HasError() {
+		t.Fatalf("Failed to validate schema: %s", schemaResponse.Diagnostics)
+	}
+
+	diagnostics := schemaResponse.Schema.ValidateImplementation(ctx)
+	if diagnostics.HasError() {
+		t.Fatalf("Schema validation diagnostics: %+v", diagnostics)
+	}
+}
+
+func testResourceSchema[T resource.Resource](t *testing.T, r T) {
+	ctx := context.Background()
+	schemaRequest := resource.SchemaRequest{}
+	schemaResponse := &resource.SchemaResponse{}
+
+	r.Schema(ctx, schemaRequest, schemaResponse)
+	if schemaResponse.Diagnostics.HasError() {
+		t.Fatalf("Failed to validate schema: %s", schemaResponse.Diagnostics)
+	}
+
+	diagnostics := schemaResponse.Schema.ValidateImplementation(ctx)
+	if diagnostics.HasError() {
+		t.Fatalf("Schema validation diagnostics: %+v", diagnostics)
+	}
+}
+
+func TestProviderSchema(t *testing.T) {
+	ctx := context.Background()
+	schemaRequest := provider.SchemaRequest{}
+	schemaResponse := &provider.SchemaResponse{}
+
+	New().Schema(ctx, schemaRequest, schemaResponse)
+	if schemaResponse.Diagnostics.HasError() {
+		t.Fatalf("Failed to validate schema: %s", schemaResponse.Diagnostics)
+	}
+
+	diagnostics := schemaResponse.Schema.ValidateImplementation(ctx)
+	if diagnostics.HasError() {
+		t.Fatalf("Schema validation diagnostics: %+v", diagnostics)
 	}
 }
