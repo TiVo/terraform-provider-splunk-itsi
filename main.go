@@ -8,7 +8,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
 	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
 	"github.com/hashicorp/terraform-plugin-go/tfprotov6/tf6server"
-	"github.com/hashicorp/terraform-plugin-mux/tf5to6server"
 	"github.com/hashicorp/terraform-plugin-mux/tf6muxserver"
 	"github.com/tivo/terraform-provider-splunk-itsi/provider"
 )
@@ -33,17 +32,8 @@ func main() {
 	flag.BoolVar(&debug, "debug", false, "set to true to run the provider with support for debuggers like delve")
 	flag.Parse()
 
-	upgradedSdkServer, err := tf5to6server.UpgradeServer(
-		ctx,
-		provider.Provider().GRPCProvider, // ITSI provider tf5
-	)
-	if err != nil {
-		log.Fatal(err)
-	}
-
 	providers := []func() tfprotov6.ProviderServer{
 		providerserver.NewProtocol6(provider.New()), // ITSI provider tf6
-		func() tfprotov6.ProviderServer { return upgradedSdkServer },
 	}
 
 	muxServer, err := tf6muxserver.NewMuxServer(ctx, providers...)
