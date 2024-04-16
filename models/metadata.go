@@ -81,6 +81,14 @@ kpi_threshold_template:
     max_page_size: 100
     generate_key: true
 
+kpi_threshold_template_manifest:
+    rest_interface: itoa_interface
+    object_type: kpi_threshold_template
+    rest_key_field: _key
+    tfid_field: title
+    max_page_size: 100
+    generate_key: true
+
 event_management_state:
     rest_interface: itoa_interface
     object_type: event_management_state

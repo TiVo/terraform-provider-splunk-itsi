@@ -226,6 +226,9 @@ func (p *itsiProvider) Resources(_ context.Context) []func() resource.Resource {
 		func() resource.Resource {
 			return NewResourceNEAP()
 		},
+		func() resource.Resource {
+			return NewResourceKPIThresholdTemplateManifest()
+		},
 	}
 }
 
