@@ -11,14 +11,14 @@ func NewLimiter(n int) *Limiter {
 }
 
 func (l *Limiter) Acquire() {
-	if len(*l) == 0 {
+	if cap(*l) == 0 {
 		return
 	}
 	<-(*l)
 }
 
 func (l *Limiter) Release() {
-	if len(*l) == 0 {
+	if cap(*l) == 0 {
 		return
 	}
 	(*l) <- struct{}{}
