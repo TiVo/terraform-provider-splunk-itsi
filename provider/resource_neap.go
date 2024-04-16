@@ -1167,15 +1167,15 @@ func (w *neapBuildWorkflow) episodeInfo(ctx context.Context, obj neapModel) (map
 	}
 
 	return map[string]interface{}{
-		"group_title":             obj.GroupTitle.ValueString(),
-		"group_description":       obj.GroupDescription.ValueString(),
-		"group_severity":          episodeSeverity,
-		"group_assignee":          obj.GroupAssignee.ValueString(),
-		"group_status":            episodeStatus,
-		"group_instruction":       obj.GroupInstruction.ValueString(),
-		"group_custom_instuction": obj.GroupCustomInstruction.ValueString(),
-		"group_dashboard":         obj.GroupDashboard.ValueString(),
-		"group_dashboard_context": obj.GroupDashboardContext.ValueString(),
+		"group_title":              obj.GroupTitle.ValueString(),
+		"group_description":        obj.GroupDescription.ValueString(),
+		"group_severity":           episodeSeverity,
+		"group_assignee":           obj.GroupAssignee.ValueString(),
+		"group_status":             episodeStatus,
+		"group_instruction":        obj.GroupInstruction.ValueString(),
+		"group_custom_instruction": obj.GroupCustomInstruction.ValueString(),
+		"group_dashboard":          obj.GroupDashboard.ValueString(),
+		"group_dashboard_context":  obj.GroupDashboardContext.ValueString(),
 	}, diags
 }
 
@@ -1259,7 +1259,7 @@ func (w *neapParseWorkflow) episodeInfo(ctx context.Context, fields map[string]i
 		"group_assignee",
 		"group_status",
 		"group_instruction",
-		"group_custom_instuction",
+		"group_custom_instruction",
 		"group_dashboard",
 		"group_dashboard_context",
 	}))
@@ -1289,7 +1289,7 @@ func (w *neapParseWorkflow) episodeInfo(ctx context.Context, fields map[string]i
 	res.GroupAssignee = types.StringValue(strFields["group_assignee"])
 	res.GroupStatus = types.StringValue(epsisodeStatus)
 	res.GroupInstruction = types.StringValue(strFields["group_instruction"])
-	res.GroupCustomInstruction = types.StringValue(strFields["group_custom_instuction"])
+	res.GroupCustomInstruction = types.StringValue(strFields["group_custom_instruction"])
 	res.GroupDashboard = types.StringValue(strFields["group_dashboard"])
 	res.GroupDashboardContext = types.StringValue(strFields["group_dashboard_context"])
 
