@@ -163,7 +163,7 @@ func (n neapModel) objectype() string {
 }
 
 func (n neapModel) title() string {
-	return n.Title.String()
+	return n.Title.ValueString()
 }
 
 // (3) [ TF Models / NEAP / Criteria ] _________________________________________
