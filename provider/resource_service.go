@@ -12,7 +12,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/mapdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/setdefault"
@@ -146,6 +145,7 @@ func (r *resourceService) Schema(ctx context.Context, req resource.SchemaRequest
 						"description": schema.StringAttribute{
 							Description: "User-defined description for the KPI. ",
 							Optional:    true,
+							Computed:    true,
 						},
 						"type": schema.StringAttribute{
 							Optional:    true,
@@ -193,6 +193,7 @@ func (r *resourceService) Schema(ctx context.Context, req resource.SchemaRequest
 						},
 						"threshold_template_id": schema.StringAttribute{
 							Optional: true,
+							Computed: true,
 						},
 					},
 				},
@@ -270,18 +271,19 @@ func (r *resourceService) Schema(ctx context.Context, req resource.SchemaRequest
 			},
 			"description": schema.StringAttribute{
 				Optional:    true,
+				Computed:    true,
 				Description: "User-defined description for the service.",
 			},
 			"enabled": schema.BoolAttribute{
-				Optional:    true,
-				Computed:    true,
-				Default:     booldefault.StaticBool(true),
+				Optional: true,
+				Computed: true,
+				//Default:     booldefault.StaticBool(true),
 				Description: "Boolean value defining whether the service should be enabled.",
 			},
 			"is_healthscore_calculate_by_entity_enabled": schema.BoolAttribute{
-				Optional:    true,
-				Computed:    true,
-				Default:     booldefault.StaticBool(true),
+				Optional: true,
+				Computed: true,
+				//Default:     booldefault.StaticBool(true),
 				Description: "Set the Service Health Score calculation to account for the severity levels of individual entities if at least one KPI is split by entity.",
 			},
 			"security_group": schema.StringAttribute{

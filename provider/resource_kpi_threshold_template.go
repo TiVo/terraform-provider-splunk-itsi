@@ -9,6 +9,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -65,7 +66,6 @@ type ThresholdSettingModel struct {
 	MetricField       types.String             `json:"metricField" tfsdk:"metric_field"`
 	RenderBoundaryMax types.Float64            `json:"renderBoundaryMax" tfsdk:"render_boundary_max"`
 	RenderBoundaryMin types.Float64            `json:"renderBoundaryMin" tfsdk:"render_boundary_min"`
-	Search            types.String             `json:"search" tfsdk:"search"`
 	ThresholdLevels   []KpiThresholdLevelModel `tfsdk:"threshold_levels"`
 }
 
@@ -103,6 +103,7 @@ func getKpiThresholdSettingsBlocksAttrs() (map[string]schema.Block, map[string]s
 		map[string]schema.Attribute{
 			"base_severity_label": schema.StringAttribute{
 				Optional: true,
+				Computed: true,
 				Validators: []validator.String{
 					stringvalidator.OneOf("info", "critical", "high", "medium", "low", "normal"),
 				},
@@ -110,10 +111,12 @@ func getKpiThresholdSettingsBlocksAttrs() (map[string]schema.Block, map[string]s
 			},
 			"gauge_max": schema.Float64Attribute{
 				Optional:    true,
+				Computed:    true,
 				Description: "Maximum value for the threshold gauge specified by user",
 			},
 			"gauge_min": schema.Float64Attribute{
 				Optional:    true,
+				Computed:    true,
 				Description: "Minimum value for the threshold gauge specified by user.",
 			},
 			"is_max_static": schema.BoolAttribute{
@@ -126,25 +129,24 @@ func getKpiThresholdSettingsBlocksAttrs() (map[string]schema.Block, map[string]s
 			},
 			"metric_field": schema.StringAttribute{
 				Optional:    true,
+				Computed:    true,
 				Description: "Thresholding field from the search.",
 			},
 			"render_boundary_max": schema.Float64Attribute{
 				Optional:    true,
+				Computed:    true,
 				Description: "Upper bound value to use to render the graph for the thresholds.",
 			},
 			"render_boundary_min": schema.Float64Attribute{
 				Optional:    true,
+				Computed:    true,
 				Description: "Lower bound value to use to render the graph for the thresholds.",
-			},
-			"search": schema.StringAttribute{
-				Optional:    true,
-				Description: "Generated search used to compute the thresholds for this KPI.",
 			},
 		}
 }
 
 func kpiThresholdSettingsToModel(attrName string, apiThresholdSetting map[string]interface{}, tfthresholdSettingModel *ThresholdSettingModel, settingType string) (diags diag.Diagnostics) {
-	marshalBasicTypesByTag("json", apiThresholdSetting, tfthresholdSettingModel)
+	diags.Append(marshalBasicTypesByTag("json", apiThresholdSetting, tfthresholdSettingModel)...)
 
 	thresholdLevels := []KpiThresholdLevelModel{}
 	for _, tData_ := range apiThresholdSetting["thresholdLevels"].([]interface{}) {
@@ -158,13 +160,11 @@ func kpiThresholdSettingsToModel(attrName string, apiThresholdSetting map[string
 			}
 			tData["dynamicParam"] = 0
 		}
-		marshalBasicTypesByTag("json", tData, thresholdLevel)
+		diags.Append(marshalBasicTypesByTag("json", tData, thresholdLevel)...)
 		thresholdLevels = append(thresholdLevels, *thresholdLevel)
 	}
-	var diags_ diag.Diagnostics
 	tfthresholdSettingModel.ThresholdLevels = thresholdLevels
-	diags.Append(diags_...)
-	return diags
+	return
 }
 
 func kpiThresholdThresholdSettingsAttributesToPayload(_ context.Context, source ThresholdSettingModel) (interface{}, diag.Diagnostics) {
@@ -237,6 +237,23 @@ func (r *resourceKpiThresholdTemplate) ValidateConfig(ctx context.Context, req r
 			}
 		}
 	}*/
+}
+
+func (r *resourceKpiThresholdTemplate) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	if req.State.Raw.IsNull() || req.Plan.Raw.IsNull() {
+		return
+	}
+
+	var plan, config modelKpiThresholdTemplate
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	if config.Description.IsNull() && plan.Description.IsUnknown() {
+		plan.Description = types.StringValue("")
+	}
+
+	resp.Diagnostics.Append(resp.Plan.Set(ctx, plan)...)
+	tflog.Trace(ctx, "Finished modifying plan for service resource")
+
 }
 
 // Metadata returns the resource type name.
@@ -336,7 +353,8 @@ func (r *resourceKpiThresholdTemplate) Schema(_ context.Context, _ resource.Sche
 			},
 			"description": schema.StringAttribute{
 				Optional:    true,
-				Description: "User defined description of the entity.",
+				Computed:    true,
+				Description: "User-defined description for the kpi Threshold Template.",
 			},
 			"adaptive_thresholds_is_enabled": schema.BoolAttribute{
 				Required:    true,
@@ -351,8 +369,10 @@ func (r *resourceKpiThresholdTemplate) Schema(_ context.Context, _ resource.Sche
 				Description: "If true, thresholds for alerts are pulled from time_variate_thresholds_specification.",
 			},
 			"sec_grp": schema.StringAttribute{
-				Required:    true,
+				Optional:    true,
+				Computed:    true,
 				Description: "The team the object belongs to. ",
+				Default:     stringdefault.StaticString("default_itsi_security_group"),
 			},
 		},
 	}
@@ -412,8 +432,7 @@ func (r *resourceKpiThresholdTemplate) Read(ctx context.Context, req resource.Re
 	}
 
 	// Set refreshed state
-	diags = resp.State.Set(ctx, &state)
-	resp.Diagnostics.Append(diags...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
 // Update updates the resource and sets the updated Terraform state on success.

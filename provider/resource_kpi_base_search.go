@@ -12,7 +12,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/float64default"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
@@ -23,6 +22,10 @@ import (
 )
 
 var _ validator.String = baseSearchValidator{}
+
+const (
+	itsiResourceKpiBaseSearch = "kpi_base_search"
+)
 
 type baseSearchValidator struct{}
 
@@ -154,6 +157,48 @@ func (r *resourceKpiBaseSearch) ModifyPlan(ctx context.Context, req resource.Mod
 
 }
 
+// =================== [ KPI Base Search API / Builder] ===================
+
+type kpiBaseSearchBuildWorkflow struct{}
+
+func (w *kpiBaseSearchBuildWorkflow) buildSteps() []apibuildWorkflowStepFunc[KpiBaseSearchState] {
+	return []apibuildWorkflowStepFunc[KpiBaseSearchState]{
+		w.basics,
+		w.metrics,
+	}
+}
+
+func (w *kpiBaseSearchBuildWorkflow) basics(ctx context.Context, obj KpiBaseSearchState) (map[string]any, diag.Diagnostics) {
+
+	body := map[string]interface{}{}
+	diags := unmarshalBasicTypesByTag("json", &obj, body)
+
+	body["objectType"] = itsiResourceKpiBaseSearch
+	return body, diags
+}
+
+func (w *kpiBaseSearchBuildWorkflow) metrics(ctx context.Context, obj KpiBaseSearchState) (map[string]any, diag.Diagnostics) {
+
+	body := map[string]interface{}{}
+	metrics := []map[string]interface{}{}
+
+	for _, metricState := range obj.Metrics {
+		metric := map[string]interface{}{}
+		if metricState.ID.IsUnknown() {
+			id, _ := uuid.GenerateUUID()
+			metricState.ID = types.StringValue(id)
+		}
+		diags := unmarshalBasicTypesByTag("json", metricState, metric)
+		if diags.HasError() {
+			return nil, diags
+		}
+
+		metrics = append(metrics, metric)
+	}
+	body["metrics"] = metrics
+	return body, nil
+}
+
 type KpiBaseSearchState struct {
 	ID                         types.String `tfsdk:"id" json:"_key"`
 	Title                      types.String `tfsdk:"title" json:"title"`
@@ -246,7 +291,7 @@ func (r *resourceKpiBaseSearch) Schema(ctx context.Context, req resource.SchemaR
 							Optional:    true,
 							Computed:    true,
 							Description: "Custom value to fill data gaps.",
-							Default:     float64default.StaticFloat64(0),
+							//Default:     float64default.StaticFloat64(0),
 						},
 						"gap_severity": schema.StringAttribute{
 							Optional:    true,
@@ -255,7 +300,7 @@ func (r *resourceKpiBaseSearch) Schema(ctx context.Context, req resource.SchemaR
 							Validators: []validator.String{
 								stringvalidator.OneOf("info", "critical", "high", "medium", "low", "normal", "unknown"),
 							},
-							Default: stringdefault.StaticString("unknown"),
+							//Default: stringdefault.StaticString("unknown"),
 						},
 						"unit": schema.StringAttribute{
 							Required:    true,
@@ -270,22 +315,20 @@ func (r *resourceKpiBaseSearch) Schema(ctx context.Context, req resource.SchemaR
 							Description: "Name of this metric",
 						},
 						"gap_severity_color": schema.StringAttribute{
-							Optional:    true,
 							Computed:    true,
 							Description: "Severity color assigned for data gaps.",
-							Default:     stringdefault.StaticString("#CCCCCC"),
+							//Default:     stringdefault.StaticString("#CCCCCC"),
 						},
 						"gap_severity_color_light": schema.StringAttribute{
-							Optional:    true,
 							Computed:    true,
 							Description: "Severity light color assigned for data gaps.",
-							Default:     stringdefault.StaticString("#EEEEEE"),
+							//Default:     stringdefault.StaticString("#EEEEEE"),
 						},
 						"gap_severity_value": schema.StringAttribute{
 							Optional:    true,
 							Description: "Severity value assigned for data gaps.",
 							Computed:    true,
-							Default:     stringdefault.StaticString("-1"),
+							//Default:     stringdefault.StaticString("-1"),
 						},
 					},
 				},
@@ -305,13 +348,14 @@ func (r *resourceKpiBaseSearch) Schema(ctx context.Context, req resource.SchemaR
 			},
 			"description": schema.StringAttribute{
 				Optional:    true,
+				Computed:    true,
 				Description: "General description for this KPI base search.",
 			},
 			"actions": schema.StringAttribute{
 				Optional:    true,
 				Computed:    true,
 				Description: "Set of strings, delimited by comma. Corresponds custom actions stanzas, defined in alert_actions.conf.",
-				Default:     stringdefault.StaticString(""),
+				//Default:     stringdefault.StaticString(""),
 			},
 			"alert_lag": schema.StringAttribute{
 				Required:    true,
@@ -327,8 +371,8 @@ func (r *resourceKpiBaseSearch) Schema(ctx context.Context, req resource.SchemaR
 				Validators:  []validator.String{baseSearchValidator{}},
 			},
 			"entity_alias_filtering_fields": schema.StringAttribute{
-				Required:    false,
 				Optional:    true,
+				Computed:    true,
 				Description: "Fields from this KPI's search events that will be mapped to the alias fields defined in entities for the service containing this KPI. This field enables the KPI search to tie the aliases of entities to the fields from the KPI events in identifying entities at search time.",
 			},
 			"entity_breakdown_id_fields": schema.StringAttribute{
@@ -349,6 +393,7 @@ func (r *resourceKpiBaseSearch) Schema(ctx context.Context, req resource.SchemaR
 			},
 			"metric_qualifier": schema.StringAttribute{
 				Optional:    true,
+				Computed:    true,
 				Description: "Used to further split metrics. Hidden in the UI.",
 			},
 			"search_alert_earliest": schema.StringAttribute{
@@ -356,12 +401,16 @@ func (r *resourceKpiBaseSearch) Schema(ctx context.Context, req resource.SchemaR
 				Description: "Value in minutes. This determines how far back each time window is during KPI search runs.",
 			},
 			"sec_grp": schema.StringAttribute{
-				Required:    true,
+				Optional:    true,
+				Computed:    true,
 				Description: "The team the object belongs to. ",
+				Default:     stringdefault.StaticString("default_itsi_security_group"),
 			},
 			"source_itsi_da": schema.StringAttribute{
-				Required:    true,
+				Computed:    true,
+				Optional:    true,
 				Description: "Source of DA used for this search. See KPI Threshold Templates.",
+				Default:     stringdefault.StaticString("itsi"),
 			},
 		},
 	}
