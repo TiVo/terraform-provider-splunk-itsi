@@ -41,16 +41,7 @@ func NewResourceService() resource.Resource {
 }
 
 func (r *resourceService) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
-	if req.ProviderData == nil {
-		return
-	}
-	client, ok := req.ProviderData.(models.ClientConfig)
-	if !ok {
-		tflog.Error(ctx, "Unable to prepare client")
-		resp.Diagnostics.AddError("Unable to prepare client", "invalid provider data")
-		return
-	}
-	r.client = client
+	configureResourceClient(ctx, resourceNameService, req, &r.client, resp)
 }
 
 type ServiceState struct {
@@ -98,7 +89,7 @@ type RuleState struct {
 }
 
 func (r *resourceService) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + "_service"
+	configureResourceMetadata(req, resp, resourceNameService)
 }
 
 /*

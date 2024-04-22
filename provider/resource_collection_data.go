@@ -219,21 +219,11 @@ func collectionDataEntryIsValid() entryDataValidator {
 // resource methods
 
 func (r *resourceCollectionData) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
-	if req.ProviderData == nil {
-		return
-	}
-
-	client, ok := req.ProviderData.(models.ClientConfig)
-	if !ok {
-		tflog.Error(ctx, "Unable to prepare client")
-		resp.Diagnostics.AddError("Unable to prepare client", "invalid provider data")
-		return
-	}
-	r.client = client
+	configureResourceClient(ctx, resourceNameCollectionData, req, &r.client, resp)
 }
 
 func (r *resourceCollectionData) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + "_collection_data"
+	configureResourceMetadata(req, resp, resourceNameCollectionData)
 }
 
 func (r *resourceCollectionData) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {

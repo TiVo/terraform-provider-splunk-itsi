@@ -195,20 +195,11 @@ type resourceKpiBaseSearch struct {
 }
 
 func (r *resourceKpiBaseSearch) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
-	if req.ProviderData == nil {
-		return
-	}
-	client, ok := req.ProviderData.(models.ClientConfig)
-	if !ok {
-		tflog.Error(ctx, "Unable to prepare client")
-		resp.Diagnostics.AddError("Unable to prepare client", "invalid provider data")
-		return
-	}
-	r.client = client
+	configureResourceClient(ctx, resourceNameKPIBaseSearch, req, &r.client, resp)
 }
 
 func (r *resourceKpiBaseSearch) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + "_kpi_base_search"
+	configureResourceMetadata(req, resp, resourceNameKPIBaseSearch)
 }
 
 func (r *resourceKpiBaseSearch) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
