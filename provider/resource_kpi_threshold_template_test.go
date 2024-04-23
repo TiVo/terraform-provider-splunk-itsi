@@ -46,7 +46,6 @@ func TestResourceKpiThresholdTemplatePlan(t *testing.T) {
 					        gauge_max           = 4
 					        render_boundary_min = -4
 					        render_boundary_max = 4
-					        search              = ""
 					        is_min_static       = false
 					        threshold_levels {
 					          severity_label  = "critical"
@@ -79,7 +78,6 @@ func TestResourceKpiThresholdTemplatePlan(t *testing.T) {
 					        metric_field        = ""
 					        render_boundary_max = 100
 					        render_boundary_min = 0
-					        search              = ""
 					      }
 					    }
 					    policies {
@@ -94,7 +92,6 @@ func TestResourceKpiThresholdTemplatePlan(t *testing.T) {
 					        gauge_max           = 4
 					        render_boundary_min = -4
 					        render_boundary_max = 4
-					        search              = ""
 					        is_min_static       = false
 					        threshold_levels {
 					          severity_label  = "critical"
@@ -127,7 +124,6 @@ func TestResourceKpiThresholdTemplatePlan(t *testing.T) {
 					        metric_field        = ""
 					        render_boundary_max = 100
 					        render_boundary_min = 0
-					        search              = ""
 					      }
 					    }
 					  }

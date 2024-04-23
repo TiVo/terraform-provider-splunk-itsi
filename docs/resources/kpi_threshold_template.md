@@ -236,13 +236,13 @@ resource "itsi_kpi_threshold_template" "static" {
 
 - `adaptive_thresholding_training_window` (String) The earliest time for the Adaptive Threshold training algorithm to run over (latest time is always 'now') (e.g. '-7d')
 - `adaptive_thresholds_is_enabled` (Boolean) Determines if adaptive threshold is enabled for this KPI threshold template.
-- `sec_grp` (String) The team the object belongs to.
 - `time_variate_thresholds` (Boolean) If true, thresholds for alerts are pulled from time_variate_thresholds_specification.
 - `title` (String) Name of this KPI threshold template.
 
 ### Optional
 
-- `description` (String) User defined description of the entity.
+- `description` (String) User-defined description for the kpi Threshold Template.
+- `sec_grp` (String) The team the object belongs to.
 - `time_variate_thresholds_specification` (Block, Optional) (see [below for nested schema](#nestedblock--time_variate_thresholds_specification))
 
 ### Read-Only
@@ -288,7 +288,6 @@ Optional:
 - `metric_field` (String) Thresholding field from the search.
 - `render_boundary_max` (Number) Upper bound value to use to render the graph for the thresholds.
 - `render_boundary_min` (Number) Lower bound value to use to render the graph for the thresholds.
-- `search` (String) Generated search used to compute the thresholds for this KPI.
 - `threshold_levels` (Block Set) (see [below for nested schema](#nestedblock--time_variate_thresholds_specification--policies--aggregate_thresholds--threshold_levels))
 
 <a id="nestedblock--time_variate_thresholds_specification--policies--aggregate_thresholds--threshold_levels"></a>
@@ -319,7 +318,6 @@ Optional:
 - `metric_field` (String) Thresholding field from the search.
 - `render_boundary_max` (Number) Upper bound value to use to render the graph for the thresholds.
 - `render_boundary_min` (Number) Lower bound value to use to render the graph for the thresholds.
-- `search` (String) Generated search used to compute the thresholds for this KPI.
 - `threshold_levels` (Block Set) (see [below for nested schema](#nestedblock--time_variate_thresholds_specification--policies--entity_thresholds--threshold_levels))
 
 <a id="nestedblock--time_variate_thresholds_specification--policies--entity_thresholds--threshold_levels"></a>
