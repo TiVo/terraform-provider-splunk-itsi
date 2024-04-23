@@ -180,6 +180,17 @@ func (r *resourceKpiBaseSearch) ModifyPlan(ctx context.Context, req resource.Mod
 
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	resp.Diagnostics.Append(diags...)
+	properties := []*types.String{
+		&plan.Actions, &plan.Description,
+		&plan.EntityAliasFilteringFields, &plan.MetricQualifier,
+	}
+
+	for _, p := range properties {
+		if p.IsUnknown() {
+			*p = types.StringNull()
+		}
+	}
+
 	oldMetricsByTitle := map[string]Metric{}
 
 	// save metrics from state
@@ -190,6 +201,7 @@ func (r *resourceKpiBaseSearch) ModifyPlan(ctx context.Context, req resource.Mod
 	}
 
 	// compare with planned metrics, forget ones with unchanged IDs
+	planMetrics := []Metric{}
 	for _, metricState := range plan.Metrics {
 		if metricState.ID.IsUnknown() {
 			if metricToRemap, ok := oldMetricsByTitle[metricState.Title.ValueString()]; ok {
@@ -215,7 +227,9 @@ func (r *resourceKpiBaseSearch) ModifyPlan(ctx context.Context, req resource.Mod
 				*p.prop = types.StringValue(p.def)
 			}
 		}
+		planMetrics = append(planMetrics, metricState)
 	}
+	plan.Metrics = planMetrics
 
 	if len(oldMetricsByTitle) > 0 {
 		filter := []string{}
@@ -262,7 +276,7 @@ func (w *kpiBaseSearchBuildWorkflow) metrics(ctx context.Context, obj KpiBaseSea
 			id, _ := uuid.GenerateUUID()
 			metricState.ID = types.StringValue(id)
 		}
-		diags := unmarshalBasicTypesByTag("json", metricState, metric)
+		diags := unmarshalBasicTypesByTag("json", &metricState, metric)
 		if diags.HasError() {
 			return nil, diags
 		}
