@@ -58,8 +58,6 @@ resource "itsi_kpi_base_search" "my_kpi_base_search" {
 - `is_entity_breakdown` (Boolean) Determines if search breaks down by entities. See KPI definition.
 - `is_service_entity_filter` (Boolean) If true a filter is used on the search based on the entities included in the service.
 - `search_alert_earliest` (String) Value in minutes. This determines how far back each time window is during KPI search runs.
-- `sec_grp` (String) The team the object belongs to.
-- `source_itsi_da` (String) Source of DA used for this search. See KPI Threshold Templates.
 - `title` (String) Name of this KPI base search.
 
 ### Optional
@@ -69,6 +67,8 @@ resource "itsi_kpi_base_search" "my_kpi_base_search" {
 - `entity_alias_filtering_fields` (String) Fields from this KPI's search events that will be mapped to the alias fields defined in entities for the service containing this KPI. This field enables the KPI search to tie the aliases of entities to the fields from the KPI events in identifying entities at search time.
 - `metric_qualifier` (String) Used to further split metrics. Hidden in the UI.
 - `metrics` (Block Set) (see [below for nested schema](#nestedblock--metrics))
+- `sec_grp` (String) The team the object belongs to.
+- `source_itsi_da` (String) Source of DA used for this search. See KPI Threshold Templates.
 
 ### Read-Only
 
@@ -90,12 +90,12 @@ Optional:
 
 - `gap_custom_alert_value` (Number) Custom value to fill data gaps.
 - `gap_severity` (String) Severity level assigned for data gaps (info, normal, low, medium, high, critical, or unknown).
-- `gap_severity_color` (String) Severity color assigned for data gaps.
-- `gap_severity_color_light` (String) Severity light color assigned for data gaps.
 - `gap_severity_value` (String) Severity value assigned for data gaps.
 
 Read-Only:
 
+- `gap_severity_color` (String) Severity color assigned for data gaps.
+- `gap_severity_color_light` (String) Severity light color assigned for data gaps.
 - `id` (String) Generated metric _key
 
 ## Import
