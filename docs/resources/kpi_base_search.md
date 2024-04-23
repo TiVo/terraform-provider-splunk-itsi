@@ -90,12 +90,12 @@ Optional:
 
 - `gap_custom_alert_value` (Number) Custom value to fill data gaps.
 - `gap_severity` (String) Severity level assigned for data gaps (info, normal, low, medium, high, critical, or unknown).
+- `gap_severity_color` (String) Severity color assigned for data gaps.
+- `gap_severity_color_light` (String) Severity light color assigned for data gaps.
 - `gap_severity_value` (String) Severity value assigned for data gaps.
 
 Read-Only:
 
-- `gap_severity_color` (String) Severity color assigned for data gaps.
-- `gap_severity_color_light` (String) Severity light color assigned for data gaps.
 - `id` (String) Generated metric _key
 
 ## Import
