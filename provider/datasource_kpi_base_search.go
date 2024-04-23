@@ -30,20 +30,11 @@ func NewKpiBaseSearchDataSource() datasource.DataSource {
 }
 
 func (d *dataSourceKpiBaseSearch) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + "_kpi_base_search"
+	configureDataSourceMetadata(req, resp, datasourceNameKPIBaseSearch)
 }
 
-func (d *dataSourceKpiBaseSearch) Configure(ctx context.Context, req datasource.ConfigureRequest, _ *datasource.ConfigureResponse) {
-	if req.ProviderData == nil {
-		return
-	}
-
-	client, ok := req.ProviderData.(models.ClientConfig)
-	if !ok {
-		tflog.Error(ctx, "Unable to prepare client")
-		return
-	}
-	d.client = client
+func (d *dataSourceKpiBaseSearch) Configure(ctx context.Context, req datasource.ConfigureRequest, resp *datasource.ConfigureResponse) {
+	configureDataSourceClient(ctx, datasourceNameKPIBaseSearch, req, &d.client, resp)
 }
 
 // KpiSearchDataSource schema

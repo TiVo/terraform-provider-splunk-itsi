@@ -35,21 +35,12 @@ func NewDataSourceEntityType() datasource.DataSource {
 	return &dataSourceEntityType{}
 }
 
-func (d *dataSourceEntityType) Configure(ctx context.Context, req datasource.ConfigureRequest, _ *datasource.ConfigureResponse) {
-	if req.ProviderData == nil {
-		return
-	}
-
-	client, ok := req.ProviderData.(models.ClientConfig)
-	if !ok {
-		tflog.Error(ctx, "Unable to prepare client")
-		return
-	}
-	d.client = client
+func (d *dataSourceEntityType) Configure(ctx context.Context, req datasource.ConfigureRequest, resp *datasource.ConfigureResponse) {
+	configureDataSourceClient(ctx, datasourceNameEntityType, req, &d.client, resp)
 }
 
 func (d *dataSourceEntityType) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + "_entity_type"
+	configureDataSourceMetadata(req, resp, datasourceNameEntityType)
 }
 
 func (d *dataSourceEntityType) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
