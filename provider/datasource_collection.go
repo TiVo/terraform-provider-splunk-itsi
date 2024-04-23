@@ -48,20 +48,12 @@ func NewDataSourceCollection() datasource.DataSource {
 	return &dataSourceCollection{}
 }
 
-func (d *dataSourceCollection) Configure(ctx context.Context, req datasource.ConfigureRequest, _ *datasource.ConfigureResponse) {
-	if req.ProviderData == nil {
-		return
-	}
-
-	client, ok := req.ProviderData.(models.ClientConfig)
-	if !ok {
-		return
-	}
-	d.client = client
+func (d *dataSourceCollection) Configure(ctx context.Context, req datasource.ConfigureRequest, resp *datasource.ConfigureResponse) {
+	configureDataSourceClient(ctx, datasourceNameCollection, req, &d.client, resp)
 }
 
 func (d *dataSourceCollection) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + "_splunk_collection"
+	configureDataSourceMetadata(req, resp, datasourceNameCollection)
 }
 
 func (d *dataSourceCollection) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {

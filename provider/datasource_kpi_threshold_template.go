@@ -31,22 +31,13 @@ type dataSourceKpiThresholdTemplateModel struct {
 	ID    types.String `tfsdk:"id"`
 }
 
-func (d *dataSourceKpiThresholdTemplate) Configure(ctx context.Context, req datasource.ConfigureRequest, _ *datasource.ConfigureResponse) {
-	if req.ProviderData == nil {
-		return
-	}
-
-	client, ok := req.ProviderData.(models.ClientConfig)
-	if !ok {
-		tflog.Error(ctx, "Unable to prepare client")
-		return
-	}
-	d.client = client
+func (d *dataSourceKpiThresholdTemplate) Configure(ctx context.Context, req datasource.ConfigureRequest, resp *datasource.ConfigureResponse) {
+	configureDataSourceClient(ctx, datasourceNameKPIThresholdTemplate, req, &d.client, resp)
 }
 
 // Metadata returns the data source type name.
 func (d *dataSourceKpiThresholdTemplate) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
-	resp.TypeName = "itsi_kpi_threshold_template"
+	configureDataSourceMetadata(req, resp, datasourceNameKPIThresholdTemplate)
 }
 
 // Schema defines the schema for the data source.
