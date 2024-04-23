@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"time"
 
@@ -23,6 +24,72 @@ const (
 	defaultPort       = 8089
 	cacheSize         = 1000
 )
+
+// data sources
+
+type datasourceName string
+
+const (
+	datasourceNameCollection           datasourceName = "splunk_collection"
+	datasourceNameCollectionData       datasourceName = "collection_data"
+	datasourceNameEntityType           datasourceName = "entity_type"
+	datasourceNameKPIBaseSearch        datasourceName = "kpi_base_search"
+	datasourceNameKPIThresholdTemplate datasourceName = "kpi_threshold_template"
+	datasourceNameSplunkSearch         datasourceName = "splunk_search"
+)
+
+func configureDataSourceClient(ctx context.Context, name datasourceName, req datasource.ConfigureRequest, client *models.ClientConfig, resp *datasource.ConfigureResponse) {
+	if req.ProviderData == nil {
+		return
+	}
+
+	c, ok := req.ProviderData.(models.ClientConfig)
+	if !ok {
+		details := fmt.Sprintf("Unable to prepare client for data source %s", name)
+		tflog.Error(ctx, details)
+		resp.Diagnostics.AddError("Unable to prepare client", details)
+		return
+	}
+	*client = c
+}
+
+func configureDataSourceMetadata(req datasource.MetadataRequest, resp *datasource.MetadataResponse, name datasourceName) {
+	resp.TypeName = req.ProviderTypeName + "_" + string(name)
+}
+
+// resources
+
+type resourceName string
+
+const (
+	resourceNameCollection           resourceName = "splunk_collection"
+	resourceNameCollectionData       resourceName = "collection_data"
+	resourceNameEntity               resourceName = "entity"
+	resourceNameEntityType           resourceName = "entity_type"
+	resourceNameKPIBaseSearch        resourceName = "kpi_base_search"
+	resourceNameKPIThresholdTemplate resourceName = "kpi_threshold_template"
+	resourceNameNEAP                 resourceName = "notable_event_aggregation_policy"
+	resourceNameService              resourceName = "service"
+)
+
+func configureResourceClient(ctx context.Context, name resourceName, req resource.ConfigureRequest, client *models.ClientConfig, resp *resource.ConfigureResponse) {
+	if req.ProviderData == nil {
+		return
+	}
+
+	c, ok := req.ProviderData.(models.ClientConfig)
+	if !ok {
+		details := fmt.Sprintf("Unable to prepare client for resource %s", name)
+		tflog.Error(ctx, details)
+		resp.Diagnostics.AddError("Unable to prepare client", details)
+		return
+	}
+	*client = c
+}
+
+func configureResourceMetadata(req resource.MetadataRequest, resp *resource.MetadataResponse, name resourceName) {
+	resp.TypeName = req.ProviderTypeName + "_" + string(name)
+}
 
 var retryPolicy backoff.Policy = backoff.Exponential(
 	backoff.WithMinInterval(500*time.Millisecond),

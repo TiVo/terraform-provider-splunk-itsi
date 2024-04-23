@@ -77,21 +77,12 @@ func NewDataSourceSplunkSearch() datasource.DataSource {
 	return &dataSourceSplunkSearch{}
 }
 
-func (d *dataSourceSplunkSearch) Configure(ctx context.Context, req datasource.ConfigureRequest, _ *datasource.ConfigureResponse) {
-	if req.ProviderData == nil {
-		return
-	}
-
-	client, ok := req.ProviderData.(models.ClientConfig)
-	if !ok {
-		tflog.Error(ctx, "Unable to prepare client")
-		return
-	}
-	d.client = client
+func (d *dataSourceSplunkSearch) Configure(ctx context.Context, req datasource.ConfigureRequest, resp *datasource.ConfigureResponse) {
+	configureDataSourceClient(ctx, datasourceNameSplunkSearch, req, &d.client, resp)
 }
 
 func (d *dataSourceSplunkSearch) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + "_splunk_search"
+	configureDataSourceMetadata(req, resp, datasourceNameSplunkSearch)
 }
 
 func (d *dataSourceSplunkSearch) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {

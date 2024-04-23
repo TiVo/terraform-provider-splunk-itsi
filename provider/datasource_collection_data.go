@@ -31,21 +31,12 @@ func NewDataSourceCollectionData() datasource.DataSource {
 	return &dataSourceCollectionData{}
 }
 
-func (d *dataSourceCollectionData) Configure(ctx context.Context, req datasource.ConfigureRequest, _ *datasource.ConfigureResponse) {
-	if req.ProviderData == nil {
-		return
-	}
-
-	client, ok := req.ProviderData.(models.ClientConfig)
-	if !ok {
-		tflog.Error(ctx, "Unable to prepare client")
-		return
-	}
-	d.client = client
+func (d *dataSourceCollectionData) Configure(ctx context.Context, req datasource.ConfigureRequest, resp *datasource.ConfigureResponse) {
+	configureDataSourceClient(ctx, datasourceNameCollectionData, req, &d.client, resp)
 }
 
 func (d *dataSourceCollectionData) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + "_collection_data"
+	configureDataSourceMetadata(req, resp, datasourceNameCollectionData)
 }
 
 func (d *dataSourceCollectionData) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
