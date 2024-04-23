@@ -13,6 +13,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/tivo/terraform-provider-splunk-itsi/models"
 	"github.com/tivo/terraform-provider-splunk-itsi/provider/util"
 )
@@ -238,6 +239,10 @@ func (r *resourceKpiThresholdTemplate) ValidateConfig(ctx context.Context, req r
 	}*/
 }
 
+const (
+	BASE_SEVERITY_LABEL_DEFAULT = "normal"
+)
+
 func (r *resourceKpiThresholdTemplate) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
 	if req.State.Raw.IsNull() || req.Plan.Raw.IsNull() {
 		return
@@ -250,8 +255,36 @@ func (r *resourceKpiThresholdTemplate) ModifyPlan(ctx context.Context, req resou
 		plan.Description = types.StringValue("")
 	}
 
+	populateDefaults := func(tsm *ThresholdSettingModel) {
+		properties := []*types.Float64{
+			&tsm.GaugeMax, &tsm.GaugeMin,
+			&tsm.RenderBoundaryMax, &tsm.RenderBoundaryMin,
+		}
+
+		for _, p := range properties {
+			if p.IsUnknown() {
+				*p = types.Float64Null()
+			}
+		}
+
+		if tsm.MetricField.IsUnknown() {
+			tsm.MetricField = types.StringNull()
+		}
+		tsm.BaseSeverityLabel = types.StringValue(BASE_SEVERITY_LABEL_DEFAULT)
+	}
+	if plan.TimeVariateThresholdsSpecification != nil {
+		policies := []PolicyModel{}
+		for _, policy := range plan.TimeVariateThresholdsSpecification.Policies {
+			populateDefaults(&policy.AggregateThresholds)
+			populateDefaults(&policy.EntityThresholds)
+
+			policies = append(policies, policy)
+		}
+		plan.TimeVariateThresholdsSpecification.Policies = policies
+	}
+
 	resp.Diagnostics.Append(resp.Plan.Set(ctx, plan)...)
-	tflog.Trace(ctx, "Finished modifying plan for service resource")
+	tflog.Trace(ctx, "Finished modifying plan for kpi threshold template resource")
 
 }
 
