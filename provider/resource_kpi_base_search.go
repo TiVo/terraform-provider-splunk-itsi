@@ -68,12 +68,70 @@ var (
 	_ resource.ResourceWithImportState = &resourceKpiBaseSearch{}
 	_ resource.ResourceWithConfigure   = &resourceKpiBaseSearch{}
 	_ resource.ResourceWithModifyPlan  = &resourceKpiBaseSearch{}
+
+	_ tfmodel = &KpiBaseSearchState{}
 )
+
+type KpiBaseSearchState struct {
+	ID                         types.String `tfsdk:"id" json:"_key"`
+	Title                      types.String `tfsdk:"title" json:"title"`
+	Description                types.String `tfsdk:"description" json:"description"`
+	Actions                    types.String `tfsdk:"actions" json:"actions"`
+	AlertLag                   types.String `tfsdk:"alert_lag" json:"alert_lag"`
+	AlertPeriod                types.String `tfsdk:"alert_period" json:"alert_period"`
+	BaseSearch                 types.String `tfsdk:"base_search" json:"base_search"`
+	EntityAliasFilteringFields types.String `tfsdk:"entity_alias_filtering_fields" json:"entity_alias_filtering_fields"`
+	EntityBreakdownIDFields    types.String `tfsdk:"entity_breakdown_id_fields" json:"entity_breakdown_id_fields"`
+	EntityIDFields             types.String `tfsdk:"entity_id_fields" json:"entity_id_fields"`
+	IsEntityBreakdown          types.Bool   `tfsdk:"is_entity_breakdown" json:"is_entity_breakdown"`
+	IsServiceEntityFilter      types.Bool   `tfsdk:"is_service_entity_filter" json:"is_service_entity_filter"`
+	MetricQualifier            types.String `tfsdk:"metric_qualifier" json:"metric_qualifier"`
+	SearchAlertEarliest        types.String `tfsdk:"search_alert_earliest" json:"search_alert_earliest"`
+	SecGrp                     types.String `tfsdk:"sec_grp" json:"sec_grp"`
+	SourceItsiDa               types.String `tfsdk:"source_itsi_da" json:"source_itsi_da"`
+
+	Metrics []Metric `tfsdk:"metrics"`
+}
+
+type Metric struct {
+	ID                    types.String  `tfsdk:"id" json:"_key"`
+	AggregateStatOp       types.String  `tfsdk:"aggregate_statop" json:"aggregate_statop"`
+	EntityStatOp          types.String  `tfsdk:"entity_statop" json:"entity_statop"`
+	FillGaps              types.String  `tfsdk:"fill_gaps" json:"fill_gaps"`
+	GapCustomAlertValue   types.Float64 `tfsdk:"gap_custom_alert_value" json:"gap_custom_alert_value"`
+	GapSeverity           types.String  `tfsdk:"gap_severity" json:"gap_severity"`
+	GapSeverityValue      types.String  `tfsdk:"gap_severity_value" json:"gap_severity_value"`
+	ThresholdField        types.String  `tfsdk:"threshold_field" json:"threshold_field"`
+	Title                 types.String  `tfsdk:"title" json:"title"`
+	Unit                  types.String  `tfsdk:"unit" json:"unit"`
+	GapSeverityColor      types.String  `tfsdk:"gap_severity_color" json:"gap_severity_color"`
+	GapSeverityColorLight types.String  `tfsdk:"gap_severity_color_light" json:"gap_severity_color_light"`
+}
+
+type resourceKpiBaseSearch struct {
+	client models.ClientConfig
+}
+
+func (kbs KpiBaseSearchState) objectype() string {
+	return itsiResourceKpiBaseSearch
+}
+
+func (kbs KpiBaseSearchState) title() string {
+	return kbs.Title.String()
+}
 
 func kpiBaseSearchBase(clientConfig models.ClientConfig, key string, title string) *models.Base {
 	base := models.NewBase(clientConfig, key, title, "kpi_base_search")
 	return base
 }
+
+const (
+	GAP_CUSTOM_ALERT_VALUE_DEFAULT   = "0"
+	GAP_SEVERITY_DEFAULT             = "unknown"
+	GAP_SEVERITY_COLOR_DEFAULT       = "#CCCCCC"
+	GAP_SEVERITY_COLOR_LIGHT_DEFAULT = "#EEEEEE"
+	GAP_SEVERITY_VALUE_DEFAULT       = "-1"
+)
 
 func (r *resourceKpiBaseSearch) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
 	if req.State.Raw.IsNull() {
@@ -122,7 +180,7 @@ func (r *resourceKpiBaseSearch) ModifyPlan(ctx context.Context, req resource.Mod
 
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	resp.Diagnostics.Append(diags...)
-	oldMetricsByTitle := map[string]*Metric{}
+	oldMetricsByTitle := map[string]Metric{}
 
 	// save metrics from state
 	if state.Metrics != nil {
@@ -140,6 +198,22 @@ func (r *resourceKpiBaseSearch) ModifyPlan(ctx context.Context, req resource.Mod
 			}
 		} else {
 			delete(oldMetricsByTitle, metricState.Title.ValueString())
+		}
+
+		properties := []struct {
+			prop *types.String
+			def  string
+		}{
+			{&metricState.GapSeverity, GAP_SEVERITY_DEFAULT},
+			{&metricState.GapSeverityValue, GAP_SEVERITY_VALUE_DEFAULT},
+			{&metricState.GapSeverityColor, GAP_SEVERITY_COLOR_DEFAULT},
+			{&metricState.GapSeverityColorLight, GAP_SEVERITY_COLOR_LIGHT_DEFAULT},
+		}
+
+		for _, p := range properties {
+			if p.prop.IsUnknown() {
+				*p.prop = types.StringValue(p.def)
+			}
 		}
 	}
 
@@ -199,44 +273,43 @@ func (w *kpiBaseSearchBuildWorkflow) metrics(ctx context.Context, obj KpiBaseSea
 	return body, nil
 }
 
-type KpiBaseSearchState struct {
-	ID                         types.String `tfsdk:"id" json:"_key"`
-	Title                      types.String `tfsdk:"title" json:"title"`
-	Description                types.String `tfsdk:"description" json:"description"`
-	Actions                    types.String `tfsdk:"actions" json:"actions"`
-	AlertLag                   types.String `tfsdk:"alert_lag" json:"alert_lag"`
-	AlertPeriod                types.String `tfsdk:"alert_period" json:"alert_period"`
-	BaseSearch                 types.String `tfsdk:"base_search" json:"base_search"`
-	EntityAliasFilteringFields types.String `tfsdk:"entity_alias_filtering_fields" json:"entity_alias_filtering_fields"`
-	EntityBreakdownIDFields    types.String `tfsdk:"entity_breakdown_id_fields" json:"entity_breakdown_id_fields"`
-	EntityIDFields             types.String `tfsdk:"entity_id_fields" json:"entity_id_fields"`
-	IsEntityBreakdown          types.Bool   `tfsdk:"is_entity_breakdown" json:"is_entity_breakdown"`
-	IsServiceEntityFilter      types.Bool   `tfsdk:"is_service_entity_filter" json:"is_service_entity_filter"`
-	MetricQualifier            types.String `tfsdk:"metric_qualifier" json:"metric_qualifier"`
-	SearchAlertEarliest        types.String `tfsdk:"search_alert_earliest" json:"search_alert_earliest"`
-	SecGrp                     types.String `tfsdk:"sec_grp" json:"sec_grp"`
-	SourceItsiDa               types.String `tfsdk:"source_itsi_da" json:"source_itsi_da"`
+// =================== [ KPI Base Search API / Parser ] ===================
 
-	Metrics []*Metric `tfsdk:"metrics"`
+type kpiBaseSearchParseWorkflow struct{}
+
+var _ apiparseWorkflow[KpiBaseSearchState] = &kpiBaseSearchParseWorkflow{}
+
+func (w *kpiBaseSearchParseWorkflow) parseSteps() []apiparseWorkflowStepFunc[KpiBaseSearchState] {
+	return []apiparseWorkflowStepFunc[KpiBaseSearchState]{
+		w.basics,
+		w.metrics,
+	}
 }
 
-type Metric struct {
-	ID                    types.String  `tfsdk:"id" json:"_key"`
-	AggregateStatOp       types.String  `tfsdk:"aggregate_statop" json:"aggregate_statop"`
-	EntityStatOp          types.String  `tfsdk:"entity_statop" json:"entity_statop"`
-	FillGaps              types.String  `tfsdk:"fill_gaps" json:"fill_gaps"`
-	GapCustomAlertValue   types.Float64 `tfsdk:"gap_custom_alert_value" json:"gap_custom_alert_value"`
-	GapSeverity           types.String  `tfsdk:"gap_severity" json:"gap_severity"`
-	GapSeverityValue      types.String  `tfsdk:"gap_severity_value" json:"gap_severity_value"`
-	ThresholdField        types.String  `tfsdk:"threshold_field" json:"threshold_field"`
-	Title                 types.String  `tfsdk:"title" json:"title"`
-	Unit                  types.String  `tfsdk:"unit" json:"unit"`
-	GapSeverityColor      types.String  `tfsdk:"gap_severity_color" json:"gap_severity_color"`
-	GapSeverityColorLight types.String  `tfsdk:"gap_severity_color_light" json:"gap_severity_color_light"`
+func (w *kpiBaseSearchParseWorkflow) basics(ctx context.Context, fields map[string]any, res *KpiBaseSearchState) (diags diag.Diagnostics) {
+	return marshalBasicTypesByTag("json", fields, res)
 }
 
-type resourceKpiBaseSearch struct {
-	client models.ClientConfig
+func (w *kpiBaseSearchParseWorkflow) metrics(ctx context.Context, fields map[string]any, res *KpiBaseSearchState) (diags diag.Diagnostics) {
+	if v, ok := fields["metrics"]; ok && v != nil {
+		metrics, err := unpackSlice[map[string]interface{}](v.([]interface{}))
+		if err != nil {
+			diags.AddError("Unable to unpack metrics in the KPI BS model", err.Error())
+			return
+		}
+		metricStates := []Metric{}
+		for _, metric := range metrics {
+			metricState := Metric{}
+			diags = append(diags, marshalBasicTypesByTag("json", metric, &metricState)...)
+			if diags.HasError() {
+				return
+			}
+
+			metricStates = append(metricStates, metricState)
+		}
+		res.Metrics = metricStates
+	}
+	return
 }
 
 func (r *resourceKpiBaseSearch) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
@@ -421,7 +494,7 @@ func (r *resourceKpiBaseSearch) Create(ctx context.Context, req resource.CreateR
 
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 
-	base, diags := kpiBaseSearchJson(ctx, r.client, plan)
+	base, diags := newAPIBuilder(r.client, new(kpiBaseSearchBuildWorkflow)).build(ctx, plan)
 	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
 		return
 	}
@@ -451,7 +524,7 @@ func (r *resourceKpiBaseSearch) Read(ctx context.Context, req resource.ReadReque
 		return
 	}
 
-	state, diags := kpiBaseSearchModelFromBase(ctx, b)
+	state, diags := newAPIParser(b, new(kpiBaseSearchParseWorkflow)).parse(ctx, b)
 	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
 		return
 	}
@@ -462,7 +535,8 @@ func (r *resourceKpiBaseSearch) Update(ctx context.Context, req resource.UpdateR
 	var plan KpiBaseSearchState
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 
-	base, diags := kpiBaseSearchJson(ctx, r.client, plan)
+	base, diags := newAPIBuilder(r.client, new(kpiBaseSearchBuildWorkflow)).build(ctx, plan)
+
 	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
 		return
 	}
@@ -513,80 +587,10 @@ func (r *resourceKpiBaseSearch) ImportState(ctx context.Context, req resource.Im
 		return
 	}
 
-	state, diags := kpiBaseSearchModelFromBase(ctx, b)
+	state, diags := newAPIParser(b, new(kpiBaseSearchParseWorkflow)).parse(ctx, b)
 	if resp.Diagnostics.Append(diags...); diags.HasError() {
 		return
 	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
-}
-
-func kpiBaseSearchModelFromBase(_ context.Context, b *models.Base) (m KpiBaseSearchState, diags diag.Diagnostics) {
-	//var d diag.Diagnostics
-	if b == nil || b.RawJson == nil {
-		diags.AddError("Unable to populate entity model", "base object is nil or empty.")
-		return
-	}
-
-	interfaceMap, err := b.RawJson.ToInterfaceMap()
-	if err != nil {
-		diags.AddError("Unable to populate KPI Base search model", err.Error())
-		return
-	}
-
-	diags = append(diags, marshalBasicTypesByTag("json", interfaceMap, &m)...)
-
-	if v, ok := interfaceMap["metrics"]; ok && v != nil {
-		metrics, err := unpackSlice[map[string]interface{}](v.([]interface{}))
-		if err != nil {
-			diags.AddError("Unable to unpack metrics in the KPI BS model", err.Error())
-			return
-		}
-		metricStates := []*Metric{}
-		for _, metric := range metrics {
-			metricState := &Metric{}
-			diags = append(diags, marshalBasicTypesByTag("json", metric, metricState)...)
-			if diags.HasError() {
-				return
-			}
-
-			metricStates = append(metricStates, metricState)
-		}
-		m.Metrics = metricStates
-	}
-
-	m.ID = types.StringValue(b.RESTKey)
-
-	return
-}
-
-func kpiBaseSearchJson(ctx context.Context, clientConfig models.ClientConfig, m KpiBaseSearchState) (config *models.Base, diags diag.Diagnostics) {
-
-	body := map[string]interface{}{}
-	diags = append(diags, unmarshalBasicTypesByTag("json", &m, body)...)
-	if diags.HasError() {
-		return
-	}
-
-	metrics := []map[string]interface{}{}
-	for _, metricState := range m.Metrics {
-		metric := map[string]interface{}{}
-		if metricState.ID.IsUnknown() {
-			id, _ := uuid.GenerateUUID()
-			metricState.ID = types.StringValue(id)
-		}
-		diags = append(diags, unmarshalBasicTypesByTag("json", metricState, metric)...)
-		if diags.HasError() {
-			return
-		}
-
-		metrics = append(metrics, metric)
-	}
-	body["metrics"] = metrics
-
-	config = kpiBaseSearchBase(clientConfig, m.ID.ValueString(), m.Title.ValueString())
-	if err := config.PopulateRawJSON(ctx, body); err != nil {
-		diags.AddError("Unable to populate base object", err.Error())
-	}
-	return
 }
