@@ -162,21 +162,11 @@ func NewResouceCollection() resource.Resource {
 }
 
 func (r *resourceCollection) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
-	if req.ProviderData == nil {
-		return
-	}
-
-	client, ok := req.ProviderData.(models.ClientConfig)
-	if !ok {
-		tflog.Error(ctx, "Unable to prepare client")
-		resp.Diagnostics.AddError("Unable to prepare client", "invalid provider data")
-		return
-	}
-	r.client = client
+	configureResourceClient(ctx, resourceNameCollection, req, &r.client, resp)
 }
 
 func (r *resourceCollection) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + "_splunk_collection"
+	configureResourceMetadata(req, resp, resourceNameCollection)
 }
 
 func collectionIDSchema() schema.SingleNestedBlock {
