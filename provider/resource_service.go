@@ -281,7 +281,7 @@ func (r *resourceService) Schema(ctx context.Context, req resource.SchemaRequest
 				Optional:    true,
 				Description: "The team the object belongs to.",
 				Computed:    true,
-				Default:     stringdefault.StaticString("default_itsi_security_group"),
+				Default:     stringdefault.StaticString(itsiDefaultSecurityGroup),
 			},
 			"tags": schema.SetAttribute{
 				Optional:    true,

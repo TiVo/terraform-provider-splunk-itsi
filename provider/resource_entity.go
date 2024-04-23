@@ -125,7 +125,7 @@ func entity(ctx context.Context, clientConfig models.ClientConfig, m entityModel
 
 	body := map[string]interface{}{}
 	body["object_type"] = "entity"
-	body["sec_grp"] = "default_itsi_security_group"
+	body["sec_grp"] = itsiDefaultSecurityGroup
 
 	body["title"] = title
 	body["description"] = m.Description.ValueString()

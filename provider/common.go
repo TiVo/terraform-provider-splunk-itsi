@@ -23,6 +23,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 )
 
+const itsiDefaultSecurityGroup = "default_itsi_security_group"
+
 var cleanerRegex *regexp.Regexp
 
 var templateResourceSchema = `

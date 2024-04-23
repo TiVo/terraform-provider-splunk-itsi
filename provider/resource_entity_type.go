@@ -435,7 +435,7 @@ func (w *entityTypeBuildWorkflow) buildSteps() []apibuildWorkflowStepFunc[entity
 func (w *entityTypeBuildWorkflow) basics(ctx context.Context, obj entityTypeModel) (map[string]any, diag.Diagnostics) {
 	return map[string]any{
 		"object_type": itsiResourceTypeEntityType,
-		"sec_grp":     "default_itsi_security_group",
+		"sec_grp":     itsiDefaultSecurityGroup,
 		"title":       obj.Title.ValueString(),
 		"description": obj.Description.ValueString(),
 	}, nil
