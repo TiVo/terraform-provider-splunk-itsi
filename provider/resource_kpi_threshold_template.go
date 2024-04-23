@@ -394,7 +394,7 @@ func (r *resourceKpiThresholdTemplate) Schema(_ context.Context, _ resource.Sche
 				Optional:    true,
 				Computed:    true,
 				Description: "The team the object belongs to. ",
-				Default:     stringdefault.StaticString("default_itsi_security_group"),
+				Default:     stringdefault.StaticString(itsiDefaultSecurityGroup),
 			},
 		},
 	}

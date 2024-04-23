@@ -11,6 +11,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/tivo/terraform-provider-splunk-itsi/models"
+	"github.com/tivo/terraform-provider-splunk-itsi/provider/util"
 )
 
 var (
@@ -119,8 +120,7 @@ func (d *dataSourceCollection) Read(ctx context.Context, req datasource.ReadRequ
 		return
 	}
 
-	fieldsMap := map[string]struct{}{}
-
+	fields := util.NewSet[string]()
 	for _, item := range arr {
 
 		item_, ok := item.(map[string]interface{})
@@ -130,14 +130,9 @@ func (d *dataSourceCollection) Read(ctx context.Context, req datasource.ReadRequ
 
 		for k := range item_ {
 			if k[0] != '_' {
-				fieldsMap[k] = struct{}{}
+				fields.Add(k)
 			}
 		}
-	}
-
-	fields := make([]string, 0, len(fieldsMap))
-	for f := range fieldsMap {
-		fields = append(fields, f)
 	}
 
 	api.config = api.config.Normalize()
@@ -145,7 +140,7 @@ func (d *dataSourceCollection) Read(ctx context.Context, req datasource.ReadRequ
 	config.Owner = api.config.Owner
 	config.FieldTypes = api.config.FieldTypes
 	config.Accelerations = api.config.Accelerations
-	config.Fields, diags = types.SetValueFrom(ctx, config.Fields.ElementType(ctx), fields)
+	config.Fields, diags = types.SetValueFrom(ctx, config.Fields.ElementType(ctx), fields.ToSlice())
 	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
 		return
 	}
