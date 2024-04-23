@@ -54,7 +54,7 @@ func (et entityTypeModel) objectype() string {
 }
 
 func (et entityTypeModel) title() string {
-	return et.Title.String()
+	return et.Title.ValueString()
 }
 
 // =================== [ Entity Type / Dashboard Drilldown ] ===================

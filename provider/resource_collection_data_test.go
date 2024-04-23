@@ -7,11 +7,11 @@ import (
 	"github.com/tivo/terraform-provider-splunk-itsi/provider/util"
 )
 
-func TestResourceCollectionSchema(t *testing.T) {
-	testResourceSchema(t, new(resourceCollection))
+func TestResourceCollectionDataSchema(t *testing.T) {
+	testResourceSchema(t, new(resourceCollectionData))
 }
 
-func TestResourceCollectionPlan(t *testing.T) {
+func TestResourceCollectionDataPlan(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: providerFactories,
 		PreCheck:                 func() { testAccPreCheck(t) },
@@ -26,8 +26,18 @@ func TestResourceCollectionPlan(t *testing.T) {
 						timeout  = 20
 					}
 
-					resource "itsi_splunk_collection" "test" {
-						name = "example_collection"
+					resource "itsi_collection_data" "test_data" {
+					  scope = "example_scope"
+					  collection {
+					    name = "collection-data-test"
+					  }
+
+					  entry {
+					    data = jsonencode({
+					      name  = "abc"
+					      color = [["123"]]
+					    })
+					  }
 					}
 				`),
 				PlanOnly:           true,

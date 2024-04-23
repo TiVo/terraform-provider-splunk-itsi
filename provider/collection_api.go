@@ -174,8 +174,8 @@ func (api *collectionConfigAPI) Model(ctx context.Context, objectType string) (m
 	var accelerations []string
 
 	if !api.config.FieldTypes.IsNull() {
-		for field, fieldType := range api.config.FieldTypes.Elements() {
-			fieldTypes[field] = fieldType.String()
+		if diags.Append(api.config.FieldTypes.ElementsAs(ctx, &fieldTypes, false)...); diags.HasError() {
+			return
 		}
 	}
 	if !api.config.Accelerations.IsNull() {
