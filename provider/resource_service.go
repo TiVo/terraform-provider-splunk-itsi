@@ -331,6 +331,11 @@ type KpiMapFields struct {
 	Urgency types.Int64
 }
 
+const (
+	SERVICE_ENABLED_DEFAULT                  = true
+	SERVICE_IS_HEALTHSCORE_BY_ENTITY_ENABLED = true
+)
+
 func (r *resourceService) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
 	if req.State.Raw.IsNull() || req.Plan.Raw.IsNull() {
 		return
@@ -342,6 +347,24 @@ func (r *resourceService) ModifyPlan(ctx context.Context, req resource.ModifyPla
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+
+	properties := []struct {
+		prop *types.Bool
+		def  bool
+	}{
+		{&plan.Enabled, SERVICE_ENABLED_DEFAULT},
+		{&plan.IsHealthscoreCalculateByEntityEnabled, SERVICE_IS_HEALTHSCORE_BY_ENTITY_ENABLED},
+	}
+
+	for _, p := range properties {
+		if p.prop.IsUnknown() {
+			*p.prop = types.BoolValue(p.def)
+		}
+	}
+
+	if plan.Description.IsUnknown() {
+		plan.Description = types.StringNull()
+	}
 
 	kpiOldKeys := map[string]*KpiMapFields{}
 	for _, kpi := range state.KPIs {
@@ -365,6 +388,7 @@ func (r *resourceService) ModifyPlan(ctx context.Context, req resource.ModifyPla
 		}
 	}
 
+	tfKpis := []KpiState{}
 	for _, kpi := range plan.KPIs {
 		internalIdentifier := ""
 		resp.Diagnostics.Append(getKpiHashKey(kpi, &internalIdentifier)...)
@@ -373,7 +397,19 @@ func (r *resourceService) ModifyPlan(ctx context.Context, req resource.ModifyPla
 			kpi.ID = existingKpi.ID
 			kpi.Urgency = existingKpi.Urgency
 		}
+
+		properties := []*types.String{
+			&kpi.Description, &kpi.ThresholdTemplateID,
+		}
+
+		for _, p := range properties {
+			if p.IsUnknown() {
+				*p = types.StringNull()
+			}
+		}
+		tfKpis = append(tfKpis, kpi)
 	}
+	plan.KPIs = tfKpis
 	resp.Diagnostics.Append(resp.Plan.Set(ctx, plan)...)
 	tflog.Trace(ctx, "Finished modifying plan for service resource")
 }
