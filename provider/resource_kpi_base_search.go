@@ -515,11 +515,17 @@ func (r *resourceKpiBaseSearch) Create(ctx context.Context, req resource.CreateR
 
 	base, err := base.Create(ctx)
 	if err != nil {
-		resp.Diagnostics.AddError("Unable to create entity", err.Error())
+		resp.Diagnostics.AddError("Unable to create Kpi Base Search", err.Error())
 		return
 	}
 
-	plan.ID = types.StringValue(base.RESTKey)
+	// populate computed fields
+	plan, diags = newAPIParser(base, new(kpiBaseSearchParseWorkflow)).parse(ctx, base)
+	if err != nil {
+		resp.Diagnostics.AddError("Unable to parse computed fields from Kpi Base Search", err.Error())
+		return
+	}
+
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
@@ -554,6 +560,7 @@ func (r *resourceKpiBaseSearch) Update(ctx context.Context, req resource.UpdateR
 	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
 		return
 	}
+
 	existing, err := base.Find(ctx)
 	if err != nil {
 		resp.Diagnostics.AddError("Unable to update KPI Base Search", err.Error())
@@ -565,6 +572,13 @@ func (r *resourceKpiBaseSearch) Update(ctx context.Context, req resource.UpdateR
 	}
 	if err := base.Update(ctx); err != nil {
 		resp.Diagnostics.AddError("Unable to update KPI Base Search", err.Error())
+		return
+	}
+
+	// populate computed fields
+	plan, diags = newAPIParser(base, new(kpiBaseSearchParseWorkflow)).parse(ctx, base)
+	if err != nil {
+		resp.Diagnostics.AddError("Unable to parse computed fields from Kpi Base Search", err.Error())
 		return
 	}
 
