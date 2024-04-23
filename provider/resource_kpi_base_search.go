@@ -394,11 +394,13 @@ func (r *resourceKpiBaseSearch) Schema(ctx context.Context, req resource.SchemaR
 						},
 						"gap_severity_color": schema.StringAttribute{
 							Computed:    true,
+							Optional:    true,
 							Description: "Severity color assigned for data gaps.",
 							//Default:     stringdefault.StaticString("#CCCCCC"),
 						},
 						"gap_severity_color_light": schema.StringAttribute{
 							Computed:    true,
+							Optional:    true,
 							Description: "Severity light color assigned for data gaps.",
 							//Default:     stringdefault.StaticString("#EEEEEE"),
 						},
