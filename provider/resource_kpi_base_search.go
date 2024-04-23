@@ -484,7 +484,7 @@ func (r *resourceKpiBaseSearch) Schema(ctx context.Context, req resource.SchemaR
 				Optional:    true,
 				Computed:    true,
 				Description: "The team the object belongs to. ",
-				Default:     stringdefault.StaticString("default_itsi_security_group"),
+				Default:     stringdefault.StaticString(itsiDefaultSecurityGroup),
 			},
 			"source_itsi_da": schema.StringAttribute{
 				Computed:    true,
