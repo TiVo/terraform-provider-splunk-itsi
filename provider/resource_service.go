@@ -625,7 +625,7 @@ func serviceModelFromBase(ctx context.Context, b *models.Base) (m ServiceState, 
 
 	m.ServiceDependsOn = []ServiceDependsOnState{}
 	serviceDependsOn, err := unpackSlice[map[string]interface{}](interfaceMap["services_depends_on"])
-	if err != nil {
+	if interfaceMap["services_depends_on"] != nil && err != nil {
 		diags.AddError("Unable to unpack services_depends_on from service model", err.Error())
 		return
 	}
