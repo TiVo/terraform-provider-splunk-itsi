@@ -140,6 +140,8 @@ func (d *collectionDataModel) Normalize(ctx context.Context) (diags diag.Diagnos
 
 // validations
 
+// entryDataValidator validates the collection entry data field.
+
 type entryDataValidator struct{}
 
 func (v entryDataValidator) Description(ctx context.Context) string {
@@ -216,6 +218,48 @@ func collectionDataEntryIsValid() entryDataValidator {
 	return entryDataValidator{}
 }
 
+// entrysetValidator validates the collection entry set, ensuring that each entry has a unique ID.
+
+type entrySetValidator struct{}
+
+const entrySetValidatorDescription = "Each item in the collection must have a unique ID."
+
+func (v entrySetValidator) Description(ctx context.Context) string {
+	return entrySetValidatorDescription
+}
+func (v entrySetValidator) MarkdownDescription(ctx context.Context) string {
+	return entrySetValidatorDescription
+}
+
+func (v entrySetValidator) ValidateSet(ctx context.Context, req validator.SetRequest, resp *validator.SetResponse) {
+	if req.ConfigValue.IsUnknown() || req.ConfigValue.IsNull() {
+		return
+	}
+
+	var entries []collectionEntryModel
+	if diags := req.ConfigValue.ElementsAs(ctx, &entries, false); diags.HasError() {
+		resp.Diagnostics.Append(diags...)
+		return
+	}
+
+	ids := util.NewSet[string]()
+	for _, entry := range entries {
+		if entry.ID.IsUnknown() || entry.ID == types.StringNull() {
+			continue
+		}
+
+		if ids.Contains(entry.ID.ValueString()) {
+			errorDetails := util.Dedent(fmt.Sprintf(`
+				Entry with ID %q already exists in the defined collection data.
+				Please ensure that each entry has a unique ID.
+			`, entry.ID.ValueString()))
+
+			resp.Diagnostics.AddError("Duplicate entry ID", errorDetails)
+		}
+		ids.Add(entry.ID.ValueString())
+	}
+}
+
 // resource methods
 
 func (r *resourceCollectionData) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
@@ -246,6 +290,9 @@ func (r *resourceCollectionData) Schema(_ context.Context, _ resource.SchemaRequ
 							Validators:          []validator.String{collectionDataEntryIsValid()},
 						},
 					},
+				},
+				Validators: []validator.Set{
+					new(entrySetValidator),
 				},
 			},
 		},

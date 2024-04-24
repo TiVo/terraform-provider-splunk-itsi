@@ -356,13 +356,13 @@ func (m fieldTypesPlanModifier) PlanModifyMap(_ context.Context, req planmodifie
 		return
 	}
 
-	fieldTypesPlan := make(map[string]struct{})
+	fieldTypesPlan := util.NewSet[string]()
 	for field := range req.PlanValue.Elements() {
-		fieldTypesPlan[field] = struct{}{}
+		fieldTypesPlan.Add(field)
 	}
 
 	for field := range req.StateValue.Elements() {
-		if _, ok := fieldTypesPlan[field]; !ok {
+		if !fieldTypesPlan.Contains(field) {
 			resp.Diagnostics.AddAttributeWarning(path.Root("field_types"),
 				collectionReplaceWarning,
 				fmt.Sprintf("Field type removal (%s) will force collection replacement.", field))

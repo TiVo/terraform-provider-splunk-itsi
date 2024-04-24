@@ -19,10 +19,17 @@ import (
 	"github.com/tivo/terraform-provider-splunk-itsi/provider/util"
 )
 
+const (
+	itsiResourceTypeEntity = "entity"
+)
+
 // Ensure the implementation satisfies the expected interfaces.
 var (
 	_ resource.Resource = &resourceEntity{}
+	_ tfmodel           = &entityModel{}
 )
+
+// =================== [ Entity ] ===================
 
 type entityModel struct {
 	ID types.String `tfsdk:"id"`
@@ -36,141 +43,17 @@ type entityModel struct {
 	EntityTypeIDs types.Set `tfsdk:"entity_type_ids"`
 }
 
+func (m entityModel) objectype() string {
+	return itsiResourceTypeEntity
+}
+
+func (m entityModel) title() string {
+	return m.Title.ValueString()
+}
+
 func entityBase(clientConfig models.ClientConfig, key string, title string) *models.Base {
-	base := models.NewBase(clientConfig, key, title, "entity")
+	base := models.NewBase(clientConfig, key, title, itsiResourceTypeEntity)
 	return base
-}
-
-func entityModelFromBase(ctx context.Context, b *models.Base) (m entityModel, diags diag.Diagnostics) {
-	var d diag.Diagnostics
-	if b == nil || b.RawJson == nil {
-		diags.AddError("Unable to populate entity model", "base object is nil or empty.")
-		return
-	}
-
-	interfaceMap, err := b.RawJson.ToInterfaceMap()
-	if err != nil {
-		diags.AddError("Unable to populate entity model", err.Error())
-		return
-	}
-
-	stringMap, err := unpackMap[string](mapSubset[string](interfaceMap, []string{"title", "description"}))
-	if err != nil {
-		diags.AddError("Unable to populate entity model", err.Error())
-		return
-	}
-
-	m.Title = types.StringValue(stringMap["title"])
-	m.Description = types.StringValue(stringMap["description"])
-
-	if v, ok := interfaceMap["entity_type_ids"]; ok && v != nil {
-		entityTypeIds, err := unpackSlice[string](v.([]interface{}))
-		if err != nil {
-			diags.AddError("Unable to populate entity model", err.Error())
-			return
-		}
-		m.EntityTypeIDs, d = types.SetValueFrom(ctx, types.StringType, entityTypeIds)
-		if diags.Append(d...); diags.HasError() {
-			return
-		}
-	} else {
-		emptySet := []string{}
-		m.EntityTypeIDs, d = types.SetValueFrom(ctx, types.StringType, emptySet)
-		if diags.Append(d...); diags.HasError() {
-			return
-		}
-	}
-
-	fieldsMap, err := unpackMap[map[string]interface{}](mapSubset[string](interfaceMap, []string{"identifier", "informational"}))
-	if err != nil {
-		diags.AddError("Unable to populate entity model", err.Error())
-		return
-	}
-
-	for tfField, itsiField := range map[*types.Map]string{&m.Aliases: "identifier", &m.Info: "informational"} {
-		tfMap := map[string]string{}
-
-		itsiObject := fieldsMap[itsiField]
-		for _, k := range itsiObject["fields"].([]interface{}) {
-			itsiValues, ok := interfaceMap[k.(string)].([]interface{})
-			if !ok {
-				diags.AddError("Unable to populate entity model", fmt.Sprintf("entity resource (%v): type assertion failed for '%v/fields' field", b.RESTKey, itsiField))
-				return
-			}
-			if len(itsiValues) == 0 {
-				diags.AddError("Unable to populate entity model", fmt.Sprintf("entity resource (%v): missing value for '%v/fields/%v' field", b.RESTKey, itsiField, k.(string)))
-				return
-			}
-			values, err := unpackSlice[string](itsiValues)
-			if err != nil {
-				diags.AddError("Unable to populate entity model", err.Error())
-				return
-			}
-			tfMap[k.(string)] = strings.Join(values, ",")
-		}
-
-		*tfField, d = types.MapValueFrom(ctx, types.StringType, tfMap)
-		if diags.Append(d...); diags.HasError() {
-			return
-		}
-	}
-
-	m.ID = types.StringValue(b.RESTKey)
-
-	return
-}
-
-func entity(ctx context.Context, clientConfig models.ClientConfig, m entityModel) (config *models.Base, diags diag.Diagnostics) {
-	title := m.Title.ValueString()
-
-	body := map[string]interface{}{}
-	body["object_type"] = "entity"
-	body["sec_grp"] = "default_itsi_security_group"
-
-	body["title"] = title
-	body["description"] = m.Description.ValueString()
-
-	idFields, infoFields := util.NewSet[string](), util.NewSet[string]()
-	idValues, infoValues := util.NewSetFromSlice[string]([]string{title}), util.NewSet[string]()
-
-	var aliases, info map[string]string
-	var entityTypeIDs []string
-
-	if diags.Append(m.Aliases.ElementsAs(ctx, &aliases, false)...); diags.HasError() {
-		return
-	}
-	if diags.Append(m.Info.ElementsAs(ctx, &info, false)...); diags.HasError() {
-		return
-	}
-	if diags.Append(m.EntityTypeIDs.ElementsAs(ctx, &entityTypeIDs, false)...); diags.HasError() {
-		return
-	}
-
-	for k, v := range aliases {
-		body[k] = strings.Split(v, ",")
-		idFields.Add(k)
-		for _, value := range body[k].([]string) {
-			idValues.Add(value)
-		}
-	}
-
-	for k, v := range info {
-		body[k] = strings.Split(v, ",")
-		infoFields.Add(k)
-		for _, value := range body[k].([]string) {
-			infoValues.Add(value)
-		}
-	}
-
-	body["identifier"] = map[string][]string{"fields": idFields.ToSlice(), "values": idValues.ToSlice()}
-	body["informational"] = map[string][]string{"fields": infoFields.ToSlice(), "values": infoValues.ToSlice()}
-	body["entity_type_ids"] = entityTypeIDs
-
-	config = entityBase(clientConfig, m.ID.ValueString(), title)
-	if err := config.PopulateRawJSON(ctx, body); err != nil {
-		diags.AddError("Unable to populate base object", err.Error())
-	}
-	return
 }
 
 type resourceEntity struct {
@@ -235,6 +118,149 @@ func (r *resourceEntity) Schema(_ context.Context, _ resource.SchemaRequest, res
 	}
 }
 
+// =================== [ Entity API / Builder] ===================
+
+type entityBuildWorkflow struct{}
+
+var _ apibuildWorkflow[entityModel] = &entityBuildWorkflow{}
+
+//lint:ignore U1000 used by apibuilder
+func (w *entityBuildWorkflow) buildSteps() []apibuildWorkflowStepFunc[entityModel] {
+	return []apibuildWorkflowStepFunc[entityModel]{
+		w.basics,
+		w.entityTypes,
+		w.fields,
+	}
+}
+
+func (w *entityBuildWorkflow) basics(ctx context.Context, obj entityModel) (map[string]any, diag.Diagnostics) {
+	return map[string]any{
+		"object_type": itsiResourceTypeEntity,
+		"sec_grp":     itsiDefaultSecurityGroup,
+		"title":       obj.Title.ValueString(),
+		"description": obj.Description.ValueString(),
+	}, nil
+}
+
+func (w *entityBuildWorkflow) entityTypes(ctx context.Context, obj entityModel) (res map[string]any, diags diag.Diagnostics) {
+	var entityTypeIDs []string
+	diags.Append(obj.EntityTypeIDs.ElementsAs(ctx, &entityTypeIDs, false)...)
+	res = map[string]any{"entity_type_ids": entityTypeIDs}
+	return
+}
+
+func (w *entityBuildWorkflow) fields(ctx context.Context, obj entityModel) (res map[string]any, diags diag.Diagnostics) {
+	idFields, infoFields := util.NewSet[string](), util.NewSet[string]()
+	idValues, infoValues := util.NewSetFromSlice([]string{obj.Title.ValueString()}), util.NewSet[string]()
+	var aliases, info map[string]string
+	diags.Append(obj.Aliases.ElementsAs(ctx, &aliases, false)...)
+	diags.Append(obj.Info.ElementsAs(ctx, &info, false)...)
+
+	res = map[string]any{}
+	for k, v := range aliases {
+		res[k] = strings.Split(v, ",")
+		idFields.Add(k)
+		for _, value := range res[k].([]string) {
+			idValues.Add(value)
+		}
+	}
+
+	for k, v := range info {
+		res[k] = strings.Split(v, ",")
+		infoFields.Add(k)
+		for _, value := range res[k].([]string) {
+			infoValues.Add(value)
+		}
+	}
+
+	res["identifier"] = map[string][]string{"fields": idFields.ToSlice(), "values": idValues.ToSlice()}
+	res["informational"] = map[string][]string{"fields": infoFields.ToSlice(), "values": infoValues.ToSlice()}
+
+	return
+}
+
+// =================== [ Entity API / Parser ] ===================
+
+type entityParseWorkflow struct{}
+
+var _ apiparseWorkflow[entityModel] = &entityParseWorkflow{}
+
+//lint:ignore U1000 used by apiparser
+func (w *entityParseWorkflow) parseSteps() []apiparseWorkflowStepFunc[entityModel] {
+	return []apiparseWorkflowStepFunc[entityModel]{
+		w.basics,
+		w.entityTypes,
+		w.fields,
+	}
+}
+
+func (w *entityParseWorkflow) basics(ctx context.Context, fields map[string]any, res *entityModel) (diags diag.Diagnostics) {
+	stringMap, err := unpackMap[string](mapSubset(fields, []string{"title", "description"}))
+	if err != nil {
+		diags.AddError("Unable to populate entity type model", err.Error())
+		return
+	}
+	res.Title = types.StringValue(stringMap["title"])
+	res.Description = types.StringValue(stringMap["description"])
+	return
+}
+
+func (w *entityParseWorkflow) entityTypes(ctx context.Context, fields map[string]any, res *entityModel) (diags diag.Diagnostics) {
+	if v, ok := fields["entity_type_ids"]; ok && v != nil {
+		entityTypeIds, err := unpackSlice[string](v.([]interface{}))
+		if err != nil {
+			diags.AddError("Unable to populate entity model", err.Error())
+			return
+		}
+		res.EntityTypeIDs, diags = types.SetValueFrom(ctx, types.StringType, entityTypeIds)
+	} else {
+		emptySet := []string{}
+		res.EntityTypeIDs, diags = types.SetValueFrom(ctx, types.StringType, emptySet)
+	}
+	return
+}
+
+func (w *entityParseWorkflow) fields(ctx context.Context, fields map[string]any, res *entityModel) (diags diag.Diagnostics) {
+	var d diag.Diagnostics
+	fieldsMap, err := unpackMap[map[string]interface{}](mapSubset[string](fields, []string{"identifier", "informational"}))
+	if err != nil {
+		diags.AddError("Unable to populate entity model", err.Error())
+		return
+	}
+
+	for tfField, itsiField := range map[*types.Map]string{&res.Aliases: "identifier", &res.Info: "informational"} {
+		tfMap := map[string]string{}
+
+		itsiObject := fieldsMap[itsiField]
+		for _, k := range itsiObject["fields"].([]interface{}) {
+			itsiValues, ok := fields[k.(string)].([]interface{})
+			if !ok {
+				diags.AddError("Unable to populate entity model", fmt.Sprintf("entity resource (%v): type assertion failed for '%v/fields' field", res.ID.ValueString(), itsiField))
+				return
+			}
+			if len(itsiValues) == 0 {
+				diags.AddError("Unable to populate entity model", fmt.Sprintf("entity resource (%v): missing value for '%v/fields/%v' field", res.ID.ValueString(), itsiField, k.(string)))
+				return
+			}
+			values, err := unpackSlice[string](itsiValues)
+			if err != nil {
+				diags.AddError("Unable to populate entity model", err.Error())
+				return
+			}
+			tfMap[k.(string)] = strings.Join(values, ",")
+		}
+
+		*tfField, d = types.MapValueFrom(ctx, types.StringType, tfMap)
+		if diags.Append(d...); diags.HasError() {
+			return
+		}
+	}
+
+	return
+}
+
+// =================== [ Entity Resource CRUD ] ===================
+
 func (r *resourceEntity) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	var state entityModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
@@ -250,7 +276,7 @@ func (r *resourceEntity) Read(ctx context.Context, req resource.ReadRequest, res
 		return
 	}
 
-	state, diags := entityModelFromBase(ctx, b)
+	state, diags := newAPIParser(b, new(entityParseWorkflow)).parse(ctx, b)
 	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
 		return
 	}
@@ -259,9 +285,11 @@ func (r *resourceEntity) Read(ctx context.Context, req resource.ReadRequest, res
 
 func (r *resourceEntity) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var plan entityModel
-	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...); resp.Diagnostics.HasError() {
+		return
+	}
 
-	base, diags := entity(ctx, r.client, plan)
+	base, diags := newAPIBuilder(r.client, new(entityBuildWorkflow)).build(ctx, plan)
 	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
 		return
 	}
@@ -279,12 +307,15 @@ func (r *resourceEntity) Create(ctx context.Context, req resource.CreateRequest,
 
 func (r *resourceEntity) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	var plan entityModel
-	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...); resp.Diagnostics.HasError() {
+		return
+	}
 
-	base, diags := entity(ctx, r.client, plan)
+	base, diags := newAPIBuilder(r.client, new(entityBuildWorkflow)).build(ctx, plan)
 	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
 		return
 	}
+
 	existing, err := base.Find(ctx)
 	if err != nil {
 		resp.Diagnostics.AddError("Unable to update entity", err.Error())
@@ -332,7 +363,7 @@ func (r *resourceEntity) ImportState(ctx context.Context, req resource.ImportSta
 		return
 	}
 
-	state, diags := entityModelFromBase(ctx, b)
+	state, diags := newAPIParser(b, new(entityParseWorkflow)).parse(ctx, b)
 	if resp.Diagnostics.Append(diags...); diags.HasError() {
 		return
 	}
