@@ -12,7 +12,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/mapdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/setdefault"
@@ -137,6 +136,7 @@ func (r *resourceService) Schema(ctx context.Context, req resource.SchemaRequest
 						"description": schema.StringAttribute{
 							Description: "User-defined description for the KPI. ",
 							Optional:    true,
+							Computed:    true,
 						},
 						"type": schema.StringAttribute{
 							Optional:    true,
@@ -184,6 +184,7 @@ func (r *resourceService) Schema(ctx context.Context, req resource.SchemaRequest
 						},
 						"threshold_template_id": schema.StringAttribute{
 							Optional: true,
+							Computed: true,
 						},
 					},
 				},
@@ -261,25 +262,26 @@ func (r *resourceService) Schema(ctx context.Context, req resource.SchemaRequest
 			},
 			"description": schema.StringAttribute{
 				Optional:    true,
+				Computed:    true,
 				Description: "User-defined description for the service.",
 			},
 			"enabled": schema.BoolAttribute{
-				Optional:    true,
-				Computed:    true,
-				Default:     booldefault.StaticBool(true),
+				Optional: true,
+				Computed: true,
+				//Default:     booldefault.StaticBool(true),
 				Description: "Boolean value defining whether the service should be enabled.",
 			},
 			"is_healthscore_calculate_by_entity_enabled": schema.BoolAttribute{
-				Optional:    true,
-				Computed:    true,
-				Default:     booldefault.StaticBool(true),
+				Optional: true,
+				Computed: true,
+				//Default:     booldefault.StaticBool(true),
 				Description: "Set the Service Health Score calculation to account for the severity levels of individual entities if at least one KPI is split by entity.",
 			},
 			"security_group": schema.StringAttribute{
 				Optional:    true,
 				Description: "The team the object belongs to.",
 				Computed:    true,
-				Default:     stringdefault.StaticString("default_itsi_security_group"),
+				Default:     stringdefault.StaticString(itsiDefaultSecurityGroup),
 			},
 			"tags": schema.SetAttribute{
 				Optional:    true,
@@ -320,6 +322,11 @@ type KpiMapFields struct {
 	Urgency types.Int64
 }
 
+const (
+	SERVICE_ENABLED_DEFAULT                  = true
+	SERVICE_IS_HEALTHSCORE_BY_ENTITY_ENABLED = true
+)
+
 func (r *resourceService) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
 	if req.State.Raw.IsNull() || req.Plan.Raw.IsNull() {
 		return
@@ -331,6 +338,24 @@ func (r *resourceService) ModifyPlan(ctx context.Context, req resource.ModifyPla
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+
+	properties := []struct {
+		prop *types.Bool
+		def  bool
+	}{
+		{&plan.Enabled, SERVICE_ENABLED_DEFAULT},
+		{&plan.IsHealthscoreCalculateByEntityEnabled, SERVICE_IS_HEALTHSCORE_BY_ENTITY_ENABLED},
+	}
+
+	for _, p := range properties {
+		if p.prop.IsUnknown() {
+			*p.prop = types.BoolValue(p.def)
+		}
+	}
+
+	if plan.Description.IsUnknown() {
+		plan.Description = types.StringNull()
+	}
 
 	kpiOldKeys := map[string]*KpiMapFields{}
 	for _, kpi := range state.KPIs {
@@ -354,6 +379,7 @@ func (r *resourceService) ModifyPlan(ctx context.Context, req resource.ModifyPla
 		}
 	}
 
+	tfKpis := []KpiState{}
 	for _, kpi := range plan.KPIs {
 		internalIdentifier := ""
 		resp.Diagnostics.Append(getKpiHashKey(kpi, &internalIdentifier)...)
@@ -362,7 +388,19 @@ func (r *resourceService) ModifyPlan(ctx context.Context, req resource.ModifyPla
 			kpi.ID = existingKpi.ID
 			kpi.Urgency = existingKpi.Urgency
 		}
+
+		properties := []*types.String{
+			&kpi.Description, &kpi.ThresholdTemplateID,
+		}
+
+		for _, p := range properties {
+			if p.IsUnknown() {
+				*p = types.StringNull()
+			}
+		}
+		tfKpis = append(tfKpis, kpi)
 	}
+	plan.KPIs = tfKpis
 	resp.Diagnostics.Append(resp.Plan.Set(ctx, plan)...)
 	tflog.Trace(ctx, "Finished modifying plan for service resource")
 }
@@ -578,7 +616,7 @@ func serviceModelFromBase(ctx context.Context, b *models.Base) (m ServiceState, 
 
 	m.ServiceDependsOn = []ServiceDependsOnState{}
 	serviceDependsOn, err := unpackSlice[map[string]interface{}](interfaceMap["services_depends_on"])
-	if err != nil {
+	if interfaceMap["services_depends_on"] != nil && err != nil {
 		diags.AddError("Unable to unpack services_depends_on from service model", err.Error())
 		return
 	}

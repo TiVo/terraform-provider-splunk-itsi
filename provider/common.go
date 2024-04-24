@@ -23,6 +23,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 )
 
+const itsiDefaultSecurityGroup = "default_itsi_security_group"
+
 var cleanerRegex *regexp.Regexp
 
 var templateResourceSchema = `
@@ -348,12 +350,7 @@ func marshalBasicTypesByTag(tag string, in map[string]interface{}, out any) (dia
 		if value, ok := in[_tag]; ok && value != nil {
 			switch field.Type().Name() {
 			case "StringValue":
-				val := fmt.Sprintf("%v", value)
-				if val == "" {
-					field.Set(reflect.ValueOf(types.StringNull()))
-				} else {
-					field.Set(reflect.ValueOf(types.StringValue(val)))
-				}
+				field.Set(reflect.ValueOf(types.StringValue(fmt.Sprintf("%v", value))))
 			case "Float64Value":
 				var val float64
 
@@ -383,7 +380,6 @@ func marshalBasicTypesByTag(tag string, in map[string]interface{}, out any) (dia
 			case "Int64Value":
 				field.Set(reflect.ValueOf(types.Int64Null()))
 			}
-
 		}
 	}
 	return
