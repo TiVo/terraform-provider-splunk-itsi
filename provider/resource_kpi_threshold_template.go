@@ -56,16 +56,16 @@ type PolicyModel struct {
 }
 
 type ThresholdSettingModel struct {
-	BaseSeverityLabel types.String              `json:"baseSeverityLabel" tfsdk:"base_severity_label"`
-	GaugeMax          types.Float64             `json:"gaugeMax" tfsdk:"gauge_max"`
-	GaugeMin          types.Float64             `json:"gaugeMin" tfsdk:"gauge_min"`
-	IsMaxStatic       types.Bool                `json:"isMaxStatic" tfsdk:"is_max_static"`
-	IsMinStatic       types.Bool                `json:"isMinStatic" tfsdk:"is_min_static"`
-	MetricField       types.String              `json:"metricField" tfsdk:"metric_field"`
-	RenderBoundaryMax types.Float64             `json:"renderBoundaryMax" tfsdk:"render_boundary_max"`
-	RenderBoundaryMin types.Float64             `json:"renderBoundaryMin" tfsdk:"render_boundary_min"`
-	Search            types.String              `json:"search" tfsdk:"search"`
-	ThresholdLevels   []*KpiThresholdLevelModel `tfsdk:"threshold_levels"`
+	BaseSeverityLabel types.String             `json:"baseSeverityLabel" tfsdk:"base_severity_label"`
+	GaugeMax          types.Float64            `json:"gaugeMax" tfsdk:"gauge_max"`
+	GaugeMin          types.Float64            `json:"gaugeMin" tfsdk:"gauge_min"`
+	IsMaxStatic       types.Bool               `json:"isMaxStatic" tfsdk:"is_max_static"`
+	IsMinStatic       types.Bool               `json:"isMinStatic" tfsdk:"is_min_static"`
+	MetricField       types.String             `json:"metricField" tfsdk:"metric_field"`
+	RenderBoundaryMax types.Float64            `json:"renderBoundaryMax" tfsdk:"render_boundary_max"`
+	RenderBoundaryMin types.Float64            `json:"renderBoundaryMin" tfsdk:"render_boundary_min"`
+	Search            types.String             `json:"search" tfsdk:"search"`
+	ThresholdLevels   []KpiThresholdLevelModel `tfsdk:"threshold_levels"`
 }
 
 type KpiThresholdLevelModel struct {
@@ -145,7 +145,7 @@ func getKpiThresholdSettingsBlocksAttrs() (map[string]schema.Block, map[string]s
 func kpiThresholdSettingsToModel(attrName string, apiThresholdSetting map[string]interface{}, tfthresholdSettingModel *ThresholdSettingModel, settingType string) (diags diag.Diagnostics) {
 	marshalBasicTypesByTag("json", apiThresholdSetting, tfthresholdSettingModel)
 
-	thresholdLevels := []*KpiThresholdLevelModel{}
+	thresholdLevels := []KpiThresholdLevelModel{}
 	for _, tData_ := range apiThresholdSetting["thresholdLevels"].([]interface{}) {
 		tData := tData_.(map[string]interface{})
 		thresholdLevel := &KpiThresholdLevelModel{}
@@ -158,7 +158,7 @@ func kpiThresholdSettingsToModel(attrName string, apiThresholdSetting map[string
 			tData["dynamicParam"] = 0
 		}
 		marshalBasicTypesByTag("json", tData, thresholdLevel)
-		thresholdLevels = append(thresholdLevels, thresholdLevel)
+		thresholdLevels = append(thresholdLevels, *thresholdLevel)
 	}
 	var diags_ diag.Diagnostics
 	tfthresholdSettingModel.ThresholdLevels = thresholdLevels
@@ -208,36 +208,6 @@ type TimeBlockModel struct {
 type resourceKpiThresholdTemplate struct {
 	client models.ClientConfig
 }
-
-/*func (r *resourceKpiThresholdTemplate) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
-	var data modelKpiThresholdTemplate
-
-	diags := req.Config.Get(ctx, &data)
-	resp.Diagnostics.Append(diags...)
-
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	/*for _, policy := range data.TimeVariateThresholdsSpecification.Policies {
-		for _, level := range append(policy.AggregateThresholds.ThresholdLevels, policy.EntityThresholds.ThresholdLevels...) {
-			var isStaticPolicy = policy.PolicyType.ValueString() != "static"
-			if level.DynamicParam.IsNull() && isStaticPolicy {
-				resp.Diagnostics.AddError(
-					"Missing Attribute Configuration",
-					"Expected dynamic_param in case of the non-static thresholds (ex: stdev).",
-				)
-				return
-			} else if !level.DynamicParam.IsNull() && !isStaticPolicy {
-				resp.Diagnostics.AddError(
-					"Wrong Attribute Configuration",
-					"Not expect dynamic_param in case of the static thresholds.",
-				)
-				return
-			}
-		}
-	}
-}*/
 
 // Metadata returns the resource type name.
 func (r *resourceKpiThresholdTemplate) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
