@@ -141,3 +141,7 @@ func resourceExists(resourcetype resourceName, resourceTitle string) (bool, erro
 	}
 	return b != nil, nil
 }
+
+func testAccResourceTitle(title string) string {
+	return "TestAcc_" + title
+}

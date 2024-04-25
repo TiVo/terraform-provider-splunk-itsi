@@ -10,7 +10,7 @@ import (
 	"github.com/tivo/terraform-provider-splunk-itsi/provider/util"
 )
 
-const testAccEntityLifecycle_entityTitle = "TestAccExampleHost"
+var testAccEntityLifecycle_entityTitle = testAccResourceTitle("ExampleHost")
 
 func TestResourceEntitySchema(t *testing.T) {
 	testResourceSchema(t, new(resourceEntity))

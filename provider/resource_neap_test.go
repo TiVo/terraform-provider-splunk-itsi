@@ -13,6 +13,7 @@ func TestResourceNEAPSchema(t *testing.T) {
 
 func TestResourceNEAPPlan(t *testing.T) {
 	resource.Test(t, resource.TestCase{
+		IsUnitTest:               true,
 		ProtoV6ProviderFactories: providerFactories,
 		PreCheck:                 func() { testAccPreCheck(t) },
 		Steps: []resource.TestStep{

@@ -13,6 +13,7 @@ func TestResourceKpiThresholdTemplateSchema(t *testing.T) {
 
 func TestResourceKpiThresholdTemplatePlan(t *testing.T) {
 	resource.Test(t, resource.TestCase{
+		IsUnitTest:               true,
 		ProtoV6ProviderFactories: providerFactories,
 		PreCheck:                 func() { testAccPreCheck(t) },
 		Steps: []resource.TestStep{

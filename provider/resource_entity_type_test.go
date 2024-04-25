@@ -3,9 +3,14 @@ package provider
 import (
 	"testing"
 
+	"github.com/hashicorp/terraform-plugin-testing/config"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/plancheck"
+	"github.com/hashicorp/terraform-plugin-testing/terraform"
 	"github.com/tivo/terraform-provider-splunk-itsi/provider/util"
 )
+
+var testAccEntityTypeLifecycle_entityTypeTitle = testAccResourceTitle("kubernetes_pod")
 
 func TestResourceEntityTypeSchema(t *testing.T) {
 	testResourceSchema(t, new(resourceEntityType))
@@ -13,6 +18,7 @@ func TestResourceEntityTypeSchema(t *testing.T) {
 
 func TestResourceEntityTypePlan(t *testing.T) {
 	resource.Test(t, resource.TestCase{
+		IsUnitTest:               true,
 		ProtoV6ProviderFactories: providerFactories,
 		PreCheck:                 func() { testAccPreCheck(t) },
 		Steps: []resource.TestStep{
@@ -110,4 +116,42 @@ func TestResourceEntityTypePlan(t *testing.T) {
 			},
 		},
 	})
+}
+
+func TestAccResourceEntityTypeLifecycle(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		PreCheck:     func() { testAccPreCheck(t) },
+		CheckDestroy: testAccCheckEntityTypeDestroy,
+		Steps: []resource.TestStep{
+			{
+				ProtoV6ProviderFactories: providerFactories,
+				ConfigDirectory:          config.TestStepDirectory(),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("itsi_entity_type.test", "title", testAccEntityTypeLifecycle_entityTypeTitle),
+					resource.TestCheckResourceAttr("itsi_entity_type.test", "description", "Kubernetes Pod EXAMPLE"),
+					testAccCheckEntityTypeExists,
+				),
+			},
+			{
+				ProtoV6ProviderFactories: providerFactories,
+				ConfigDirectory:          config.TestStepDirectory(),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("itsi_entity_type.test", "description", "TEST DESCRIPTION update"),
+				),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PostApplyPostRefresh: []plancheck.PlanCheck{
+						plancheck.ExpectEmptyPlan(),
+					},
+				},
+			},
+		},
+	})
+}
+
+func testAccCheckEntityTypeExists(s *terraform.State) error {
+	return testAccCheckResourceExists(s, resourceNameEntityType, testAccEntityTypeLifecycle_entityTypeTitle)
+}
+
+func testAccCheckEntityTypeDestroy(s *terraform.State) error {
+	return testAccCheckResourceDestroy(s, resourceNameEntityType, testAccEntityTypeLifecycle_entityTypeTitle)
 }
