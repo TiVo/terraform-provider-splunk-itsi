@@ -32,11 +32,14 @@ fmt:
 scraper:
 	go build -o ./bin/scraper github.com/tivo/terraform-provider-splunk-itsi/scraper
 
+@%:
+	$(eval TEST_ARGS := -run $*)
+
 test: fmt
-	go test -v -cover -parallel=4 github.com/tivo/terraform-provider-splunk-itsi/... -tags test_setup
+	go test -v -cover -parallel=4 $(TEST_ARGS) github.com/tivo/terraform-provider-splunk-itsi/... -tags test_setup
 
 testacc: fmt
-	TF_ACC=1 go test -v -cover -timeout 10m ./...
+	TF_ACC=1 go test -v -cover $(TEST_ARGS) -timeout 10m ./...
 
 docs: fmt
 	go generate ./...

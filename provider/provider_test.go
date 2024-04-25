@@ -2,15 +2,18 @@ package provider
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
+	"github.com/hashicorp/terraform-plugin-testing/terraform"
 	"github.com/tivo/terraform-provider-splunk-itsi/models"
 	"github.com/tivo/terraform-provider-splunk-itsi/provider/util"
 )
@@ -100,4 +103,41 @@ func TestProviderSchema(t *testing.T) {
 	if diagnostics.HasError() {
 		t.Fatalf("Schema validation diagnostics: %+v", diagnostics)
 	}
+}
+
+func testAccCheckResourceExists(s *terraform.State, resourcetype resourceName, resourceTitle string) (err error) {
+	ok, err := checkResourceExists(s, resourcetype, resourceTitle)
+	if err == nil && !ok {
+		err = fmt.Errorf("Resource %s %s does not exist", resourcetype, resourceTitle)
+	}
+	return
+}
+
+func testAccCheckResourceDestroy(s *terraform.State, resourcetype resourceName, resourceTitle string) (err error) {
+	ok, err := checkResourceExists(s, resourcetype, resourceTitle)
+	if err == nil && ok {
+		err = fmt.Errorf("Resource %s %s still exists", resourcetype, resourceTitle)
+	}
+	return
+}
+
+func checkResourceExists(s *terraform.State, resourcetype resourceName, resourceTitle string) (bool, error) {
+	for _, rs := range s.RootModule().Resources {
+		if rs.Type == "itsi_"+string(resourcetype) && rs.Primary.Attributes["title"] == resourceTitle {
+			return resourceExists(resourcetype, resourceTitle)
+		}
+	}
+	return false, nil
+}
+
+func resourceExists(resourcetype resourceName, resourceTitle string) (bool, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(60)*time.Second)
+	defer cancel()
+
+	base := models.NewBase(clientConfig, "", resourceTitle, string(resourcetype))
+	b, err := base.Find(ctx)
+	if err != nil {
+		return false, err
+	}
+	return b != nil, nil
 }
