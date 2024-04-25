@@ -3,9 +3,14 @@ package provider
 import (
 	"testing"
 
+	"github.com/hashicorp/terraform-plugin-testing/config"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/plancheck"
+	"github.com/hashicorp/terraform-plugin-testing/terraform"
 	"github.com/tivo/terraform-provider-splunk-itsi/provider/util"
 )
+
+var testAccResourceKPIBaseSearchLifecycle_kpiBSTitle = testAccResourceTitle("test_base_search")
 
 func TestResourceKPIBaseSearchSchema(t *testing.T) {
 	testResourceSchema(t, new(resourceKpiBaseSearch))
@@ -79,4 +84,42 @@ func TestResourceKPIBaseSearchSchemaPlan(t *testing.T) {
 			},
 		},
 	})
+}
+
+func TestAccResourceKPIBaseSearchLifecycle(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		PreCheck:     func() { testAccPreCheck(t) },
+		CheckDestroy: testAccCheckKPIBaseSearchDestroy,
+		Steps: []resource.TestStep{
+			{
+				ProtoV6ProviderFactories: providerFactories,
+				ConfigDirectory:          config.TestStepDirectory(),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("itsi_kpi_base_search.test", "title", testAccResourceKPIBaseSearchLifecycle_kpiBSTitle),
+					resource.TestCheckResourceAttr("itsi_kpi_base_search.test", "description", "abc"),
+					testAccCheckKPIBaseSearchExists,
+				),
+			},
+			{
+				ProtoV6ProviderFactories: providerFactories,
+				ConfigDirectory:          config.TestStepDirectory(),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("itsi_kpi_base_search.test", "description", "TEST DESCRIPTION update"),
+				),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PostApplyPostRefresh: []plancheck.PlanCheck{
+						plancheck.ExpectEmptyPlan(),
+					},
+				},
+			},
+		},
+	})
+}
+
+func testAccCheckKPIBaseSearchExists(s *terraform.State) error {
+	return testAccCheckResourceExists(s, resourceNameKPIBaseSearch, testAccResourceKPIBaseSearchLifecycle_kpiBSTitle)
+}
+
+func testAccCheckKPIBaseSearchDestroy(s *terraform.State) error {
+	return testAccCheckResourceDestroy(s, resourceNameKPIBaseSearch, testAccResourceKPIBaseSearchLifecycle_kpiBSTitle)
 }
