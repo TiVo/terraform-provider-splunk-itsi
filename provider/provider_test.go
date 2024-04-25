@@ -127,8 +127,18 @@ func testAccCheckResourceDestroy(resourcetype resourceName, resourceTitle string
 }
 
 func checkResourceExists(s *terraform.State, resourcetype resourceName, resourceTitle string) (bool, error) {
+	var titleAttribute string
+	switch resourcetype {
+	case resourceNameCollection:
+		titleAttribute = "name"
+	case resourceNameCollectionData:
+		titleAttribute = "scope"
+	default:
+		titleAttribute = "title"
+	}
+
 	for _, rs := range s.RootModule().Resources {
-		if rs.Type == "itsi_"+string(resourcetype) && rs.Primary.Attributes["title"] == resourceTitle {
+		if rs.Type == "itsi_"+string(resourcetype) && rs.Primary.Attributes[titleAttribute] == resourceTitle {
 			return resourceExists(resourcetype, resourceTitle)
 		}
 	}
@@ -139,6 +149,59 @@ func resourceExists(resourcetype resourceName, resourceTitle string) (bool, erro
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(60)*time.Second)
 	defer cancel()
 
+	switch resourcetype {
+	case resourceNameCollection, resourceNameCollectionData:
+		return collectionModelObjectExists(ctx, resourcetype, resourceTitle)
+	default:
+		return baseModelObjectExists(ctx, resourcetype, resourceTitle)
+	}
+}
+
+func collectionModelObjectExists(ctx context.Context, resourceType resourceName, resourceTitle string) (bool, error) {
+	if !(resourceType == resourceNameCollection || resourceType == resourceNameCollectionData) {
+		return false, fmt.Errorf("resource type %s is not a collection model type.", resourceType)
+	}
+
+	switch resourceType {
+	case resourceNameCollection:
+		collectionID, diags := collectionIDModelFromString(resourceTitle)
+		if diags.HasError() {
+			return false, fmt.Errorf("failed to parse collection ID from title %s: %s", resourceTitle, diags)
+		}
+		ok, diags := NewCollectionAPI(collectionID, clientConfig).CollectionExists(ctx, false)
+		if diags.HasError() {
+			return false, fmt.Errorf("failed to check if collection %s exists: %s", resourceTitle, diags)
+		}
+		return ok, nil
+	case resourceNameCollectionData:
+		collectionID, scope, diags := collectionIDModelAndScopeFromString(resourceTitle + ":" + resourceTitle)
+		if diags.HasError() {
+			return false, fmt.Errorf("failed to parse collection ID and scope from title %s: %s", resourceTitle, diags)
+		}
+		collectionAPI := NewCollectionAPI(collectionID, clientConfig)
+
+		ok, diags := collectionAPI.CollectionExists(ctx, false)
+		if diags.HasError() {
+			return false, fmt.Errorf("failed to check if collection %s exists: %s", resourceTitle, diags)
+		}
+		if !ok {
+			return false, nil
+		}
+		obj, diags := collectionAPI.Query(ctx, fmt.Sprintf(`{"_scope":"%s"}`, scope), []string{}, 0)
+		if diags.HasError() {
+			return false, fmt.Errorf("failed to query collection data %s: %s", resourceTitle, diags)
+		}
+		arr, ok := obj.([]interface{})
+		if !ok {
+			return false, fmt.Errorf("failed to query collection data %s: %s", resourceTitle, diags)
+		}
+		return len(arr) > 0, nil
+	default:
+		return false, fmt.Errorf("not implemented")
+	}
+}
+
+func baseModelObjectExists(ctx context.Context, resourcetype resourceName, resourceTitle string) (bool, error) {
 	base := models.NewBase(clientConfig, "", resourceTitle, string(resourcetype))
 	b, err := base.Find(ctx)
 	if err != nil {
