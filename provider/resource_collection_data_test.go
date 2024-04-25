@@ -13,6 +13,7 @@ func TestResourceCollectionDataSchema(t *testing.T) {
 
 func TestResourceCollectionDataPlan(t *testing.T) {
 	resource.Test(t, resource.TestCase{
+		IsUnitTest:               true,
 		ProtoV6ProviderFactories: providerFactories,
 		PreCheck:                 func() { testAccPreCheck(t) },
 		Steps: []resource.TestStep{
