@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
@@ -16,6 +17,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/lestrrat-go/backoff/v2"
 	"github.com/tivo/terraform-provider-splunk-itsi/models"
+	"github.com/tivo/terraform-provider-splunk-itsi/provider/util"
 )
 
 const (
@@ -23,6 +25,17 @@ const (
 	defaultTimeout    = 60
 	defaultPort       = 8089
 	cacheSize         = 1000
+)
+
+// provider configuration
+
+const (
+	envITSIHost        = "ITSI_HOST"
+	envITSIPort        = "ITSI_PORT"
+	envITSIUser        = "ITSI_USER"
+	envITSIPassword    = "ITSI_PASSWORD"
+	envITSIAccessToken = "ITSI_ACCESS_TOKEN"
+	envITSIInsecure    = "ITSI_INSECURE"
 )
 
 // data sources
@@ -140,7 +153,7 @@ func (p *itsiProvider) Schema(_ context.Context, _ provider.SchemaRequest, resp 
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
 			"host": schema.StringAttribute{
-				Required: true,
+				Optional: true,
 			},
 			"port": schema.Int64Attribute{
 				Optional: true,
@@ -166,6 +179,32 @@ func (p *itsiProvider) Schema(_ context.Context, _ provider.SchemaRequest, resp 
 		},
 		Blocks: map[string]schema.Block{},
 	}
+}
+
+func configStringValueWithEnvFallback(tfValue types.String, env string) string {
+	if res := tfValue.ValueString(); res != "" {
+		return res
+	}
+	return os.Getenv(env)
+}
+
+func configIntValueWithEnvFallback(tfValue types.Int64, env string) int64 {
+	if !tfValue.IsNull() {
+		return tfValue.ValueInt64()
+	}
+	portStr := os.Getenv(env)
+	if val, err := strconv.Atoi(portStr); err == nil {
+		return int64(val)
+	} else {
+		panic("Invalid value for " + env + ": " + portStr)
+	}
+}
+
+func configBoolValueWithEnvFallback(tfValue types.Bool, env string) bool {
+	if !tfValue.IsNull() {
+		return tfValue.ValueBool()
+	}
+	return util.Atob(os.Getenv(env))
 }
 
 // Configure prepares a ITSI API client for data sources and resources.
@@ -201,12 +240,12 @@ func (p *itsiProvider) Configure(ctx context.Context, req provider.ConfigureRequ
 		return
 	}
 
-	host := config.Host.ValueString()
-	port := config.Port.ValueInt64()
-	accessToken := config.AccessToken.ValueString()
-	user := config.User.ValueString()
-	password := config.Password.ValueString()
-	insecure := config.InsecureSkipVerify.ValueBool()
+	host := configStringValueWithEnvFallback(config.Host, envITSIHost)
+	port := configIntValueWithEnvFallback(config.Port, envITSIPort)
+	accessToken := configStringValueWithEnvFallback(config.AccessToken, envITSIAccessToken)
+	user := configStringValueWithEnvFallback(config.User, envITSIUser)
+	password := configStringValueWithEnvFallback(config.Password, envITSIPassword)
+	insecure := configBoolValueWithEnvFallback(config.InsecureSkipVerify, envITSIInsecure)
 	var timeout int64 = defaultTimeout
 
 	if port == 0 {
@@ -228,9 +267,17 @@ func (p *itsiProvider) Configure(ctx context.Context, req provider.ConfigureRequ
 	client.RetryPolicy = retryPolicy
 	client.Concurrency = clientConcurrency
 
+	const configurationErrorMsg = "ITSI provider configuration failed"
+	if client.Host == "" {
+		resp.Diagnostics.AddError(
+			configurationErrorMsg,
+			"missing value for Splunk API host")
+		return
+	}
+
 	if client.BearerToken == "" && (client.User == "" || client.Password == "") {
 		resp.Diagnostics.AddError(
-			"ITSI provider configuration failed",
+			configurationErrorMsg,
 			"missing values for Splunk API access_token or user/password")
 		return
 	}

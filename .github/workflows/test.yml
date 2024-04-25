@@ -91,12 +91,14 @@ jobs:
       - name: TF acceptance tests
         timeout-minutes: 10
         env:
-          TF_ACC: "1"
-
+          ITSI_HOST: "itsi.example.com"
+          ITSI_ACCESS_TOKEN: "TODO"
+          # TF_ACC: "1"
           # Set whatever additional acceptance test env vars here. You can
           # optionally use data from your repository secrets using the
           # following syntax:
           # SOME_VAR: ${{ secrets.SOME_VAR }}
 
         run: |
-          go test -v -cover github.com/tivo/terraform-provider-splunk-itsi/... -tags test_setup
+          # make testacc
+          make test
