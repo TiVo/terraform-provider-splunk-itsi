@@ -35,7 +35,7 @@ scraper:
 test: fmt
 	go test -v -cover -parallel=4 github.com/tivo/terraform-provider-splunk-itsi/... -tags test_setup
 
-testacc:
+testacc: fmt
 	TF_ACC=1 go test -v -cover -timeout 10m ./...
 
 docs: fmt
