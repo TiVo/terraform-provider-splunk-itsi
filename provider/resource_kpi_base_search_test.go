@@ -3,9 +3,13 @@ package provider
 import (
 	"testing"
 
+	"github.com/hashicorp/terraform-plugin-testing/config"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/plancheck"
 	"github.com/tivo/terraform-provider-splunk-itsi/provider/util"
 )
+
+var testAccResourceKPIBaseSearchLifecycle_kpiBSTitle = testAccResourceTitle("test_base_search")
 
 func TestResourceKPIBaseSearchSchema(t *testing.T) {
 	testResourceSchema(t, new(resourceKpiBaseSearch))
@@ -13,6 +17,7 @@ func TestResourceKPIBaseSearchSchema(t *testing.T) {
 
 func TestResourceKPIBaseSearchSchemaPlan(t *testing.T) {
 	resource.Test(t, resource.TestCase{
+		IsUnitTest:               true,
 		ProtoV6ProviderFactories: providerFactories,
 		PreCheck:                 func() { testAccPreCheck(t) },
 		Steps: []resource.TestStep{
@@ -75,6 +80,36 @@ func TestResourceKPIBaseSearchSchemaPlan(t *testing.T) {
 				`),
 				PlanOnly:           true,
 				ExpectNonEmptyPlan: true,
+			},
+		},
+	})
+}
+
+func TestAccResourceKPIBaseSearchLifecycle(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		PreCheck:     func() { testAccPreCheck(t) },
+		CheckDestroy: testAccCheckResourceDestroy(resourceNameKPIBaseSearch, testAccResourceKPIBaseSearchLifecycle_kpiBSTitle),
+		Steps: []resource.TestStep{
+			{
+				ProtoV6ProviderFactories: providerFactories,
+				ConfigDirectory:          config.TestStepDirectory(),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("itsi_kpi_base_search.test", "title", testAccResourceKPIBaseSearchLifecycle_kpiBSTitle),
+					resource.TestCheckResourceAttr("itsi_kpi_base_search.test", "description", "abc"),
+					testAccCheckResourceExists(resourceNameKPIBaseSearch, testAccResourceKPIBaseSearchLifecycle_kpiBSTitle),
+				),
+			},
+			{
+				ProtoV6ProviderFactories: providerFactories,
+				ConfigDirectory:          config.TestStepDirectory(),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("itsi_kpi_base_search.test", "description", "TEST DESCRIPTION update"),
+				),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PostApplyPostRefresh: []plancheck.PlanCheck{
+						plancheck.ExpectEmptyPlan(),
+					},
+				},
 			},
 		},
 	})

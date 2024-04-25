@@ -13,6 +13,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
+	testingresource "github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
 	"github.com/tivo/terraform-provider-splunk-itsi/models"
 	"github.com/tivo/terraform-provider-splunk-itsi/provider/util"
@@ -105,20 +106,24 @@ func TestProviderSchema(t *testing.T) {
 	}
 }
 
-func testAccCheckResourceExists(s *terraform.State, resourcetype resourceName, resourceTitle string) (err error) {
-	ok, err := checkResourceExists(s, resourcetype, resourceTitle)
-	if err == nil && !ok {
-		err = fmt.Errorf("Resource %s %s does not exist", resourcetype, resourceTitle)
+func testAccCheckResourceExists(resourcetype resourceName, resourceTitle string) testingresource.TestCheckFunc {
+	return func(s *terraform.State) (err error) {
+		ok, err := checkResourceExists(s, resourcetype, resourceTitle)
+		if err == nil && !ok {
+			err = fmt.Errorf("Resource %s %s does not exist", resourcetype, resourceTitle)
+		}
+		return
 	}
-	return
 }
 
-func testAccCheckResourceDestroy(s *terraform.State, resourcetype resourceName, resourceTitle string) (err error) {
-	ok, err := checkResourceExists(s, resourcetype, resourceTitle)
-	if err == nil && ok {
-		err = fmt.Errorf("Resource %s %s still exists", resourcetype, resourceTitle)
+func testAccCheckResourceDestroy(resourcetype resourceName, resourceTitle string) testingresource.TestCheckFunc {
+	return func(s *terraform.State) (err error) {
+		ok, err := checkResourceExists(s, resourcetype, resourceTitle)
+		if err == nil && ok {
+			err = fmt.Errorf("Resource %s %s still exists", resourcetype, resourceTitle)
+		}
+		return
 	}
-	return
 }
 
 func checkResourceExists(s *terraform.State, resourcetype resourceName, resourceTitle string) (bool, error) {
@@ -140,4 +145,8 @@ func resourceExists(resourcetype resourceName, resourceTitle string) (bool, erro
 		return false, err
 	}
 	return b != nil, nil
+}
+
+func testAccResourceTitle(title string) string {
+	return "TestAcc_" + title
 }
