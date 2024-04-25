@@ -3,9 +3,14 @@ package provider
 import (
 	"testing"
 
+	"github.com/hashicorp/terraform-plugin-testing/config"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/plancheck"
+	"github.com/hashicorp/terraform-plugin-testing/terraform"
 	"github.com/tivo/terraform-provider-splunk-itsi/provider/util"
 )
+
+var testAccResourceNEAPLifecycle_NEAPTitle = testAccResourceTitle("neap_test")
 
 func TestResourceNEAPSchema(t *testing.T) {
 	testResourceSchema(t, new(resourceNEAP))
@@ -165,4 +170,42 @@ func TestResourceNEAPPlan(t *testing.T) {
 			},
 		},
 	})
+}
+
+func TestAccResourceNEAPLifecycle(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		PreCheck:     func() { testAccPreCheck(t) },
+		CheckDestroy: testAccCheckNEAPDestroy,
+		Steps: []resource.TestStep{
+			{
+				ProtoV6ProviderFactories: providerFactories,
+				ConfigDirectory:          config.TestStepDirectory(),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("itsi_notable_event_aggregation_policy.test", "title", testAccResourceNEAPLifecycle_NEAPTitle),
+					resource.TestCheckResourceAttr("itsi_notable_event_aggregation_policy.test", "description", "abc"),
+					//testAccCheckNEAPExists,
+				),
+			},
+			{
+				ProtoV6ProviderFactories: providerFactories,
+				ConfigDirectory:          config.TestStepDirectory(),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("itsi_notable_event_aggregation_policy.test", "description", "TEST DESCRIPTION update"),
+				),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PostApplyPostRefresh: []plancheck.PlanCheck{
+						plancheck.ExpectEmptyPlan(),
+					},
+				},
+			},
+		},
+	})
+}
+
+// func testAccCheckNEAPExists(s *terraform.State) error {
+// 	return testAccCheckResourceExists(s, resourceNameNEAP, testAccResourceNEAPLifecycle_NEAPTitle)
+// }
+
+func testAccCheckNEAPDestroy(s *terraform.State) error {
+	return testAccCheckResourceDestroy(s, resourceNameNEAP, testAccResourceNEAPLifecycle_NEAPTitle)
 }
