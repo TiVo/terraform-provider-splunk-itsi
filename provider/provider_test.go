@@ -2,6 +2,8 @@ package provider
 
 import (
 	"context"
+	"os"
+	"strconv"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
@@ -9,12 +11,41 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
+	"github.com/tivo/terraform-provider-splunk-itsi/models"
+	"github.com/tivo/terraform-provider-splunk-itsi/provider/util"
 )
 
 var providerFactories = map[string]func() (tfprotov6.ProviderServer, error){
 	"itsi": func() (tfprotov6.ProviderServer, error) {
 		return providerserver.NewProtocol6(New())(), nil
 	},
+}
+
+var clientConfig models.ClientConfig
+
+func init() {
+	clientConfig = itsiClientConfig()
+}
+
+func itsiClientConfig() (client models.ClientConfig) {
+	client.BearerToken = os.Getenv(envITSIAccessToken)
+	client.User = os.Getenv(envITSIUser)
+	client.Password = os.Getenv(envITSIPassword)
+	client.Host = os.Getenv(envITSIHost)
+
+	port, _ := strconv.Atoi(os.Getenv(envITSIPort))
+	if port == 0 {
+		port = defaultPort
+	}
+
+	client.Port = port
+	client.Timeout = defaultTimeout
+
+	insecure := util.Atob(os.Getenv(envITSIInsecure))
+	client.SkipTLS = insecure
+	client.RetryPolicy = retryPolicy
+	client.Concurrency = clientConcurrency
+	return
 }
 
 func testAccPreCheck(t *testing.T) {
