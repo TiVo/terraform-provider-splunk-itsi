@@ -3,9 +3,14 @@ package provider
 import (
 	"testing"
 
+	"github.com/hashicorp/terraform-plugin-testing/config"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/plancheck"
+	"github.com/hashicorp/terraform-plugin-testing/terraform"
 	"github.com/tivo/terraform-provider-splunk-itsi/provider/util"
 )
+
+var testAccResourceKPIThresholdTemplateLifecycle_kpiTTTitle = testAccResourceTitle("stdev_test")
 
 func TestResourceKpiThresholdTemplateSchema(t *testing.T) {
 	testResourceSchema(t, new(resourceKpiThresholdTemplate))
@@ -136,4 +141,42 @@ func TestResourceKpiThresholdTemplatePlan(t *testing.T) {
 			},
 		},
 	})
+}
+
+func TestAccResourceKPIThresholdTemplateLifecycle(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		PreCheck:     func() { testAccPreCheck(t) },
+		CheckDestroy: testAccCheckKPIThresholdTemplateDestroy,
+		Steps: []resource.TestStep{
+			{
+				ProtoV6ProviderFactories: providerFactories,
+				ConfigDirectory:          config.TestStepDirectory(),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("itsi_kpi_threshold_template.test", "title", testAccResourceKPIThresholdTemplateLifecycle_kpiTTTitle),
+					resource.TestCheckResourceAttr("itsi_kpi_threshold_template.test", "description", "stdev"),
+					testAccCheckKPIThresholdTemplateExists,
+				),
+			},
+			{
+				ProtoV6ProviderFactories: providerFactories,
+				ConfigDirectory:          config.TestStepDirectory(),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("itsi_kpi_threshold_template.test", "description", "TEST DESCRIPTION update"),
+				),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PostApplyPostRefresh: []plancheck.PlanCheck{
+						plancheck.ExpectEmptyPlan(),
+					},
+				},
+			},
+		},
+	})
+}
+
+func testAccCheckKPIThresholdTemplateExists(s *terraform.State) error {
+	return testAccCheckResourceExists(s, resourceNameKPIThresholdTemplate, testAccResourceKPIThresholdTemplateLifecycle_kpiTTTitle)
+}
+
+func testAccCheckKPIThresholdTemplateDestroy(s *terraform.State) error {
+	return testAccCheckResourceDestroy(s, resourceNameKPIThresholdTemplate, testAccResourceKPIThresholdTemplateLifecycle_kpiTTTitle)
 }
