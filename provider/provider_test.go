@@ -131,12 +131,13 @@ func checkResourceExists(s *terraform.State, resourcetype resourceName, resource
 	switch resourcetype {
 	case resourceNameCollection:
 		titleAttribute = "name"
+	case resourceNameCollectionData:
+		titleAttribute = "scope"
 	default:
 		titleAttribute = "title"
 	}
 
 	for _, rs := range s.RootModule().Resources {
-
 		if rs.Type == "itsi_"+string(resourcetype) && rs.Primary.Attributes[titleAttribute] == resourceTitle {
 			return resourceExists(resourcetype, resourceTitle)
 		}
@@ -172,6 +173,29 @@ func collectionModelObjectExists(ctx context.Context, resourceType resourceName,
 			return false, fmt.Errorf("failed to check if collection %s exists: %s", resourceTitle, diags)
 		}
 		return ok, nil
+	case resourceNameCollectionData:
+		collectionID, scope, diags := collectionIDModelAndScopeFromString(resourceTitle + ":" + resourceTitle)
+		if diags.HasError() {
+			return false, fmt.Errorf("failed to parse collection ID and scope from title %s: %s", resourceTitle, diags)
+		}
+		collectionAPI := NewCollectionAPI(collectionID, clientConfig)
+
+		ok, diags := collectionAPI.CollectionExists(ctx, false)
+		if diags.HasError() {
+			return false, fmt.Errorf("failed to check if collection %s exists: %s", resourceTitle, diags)
+		}
+		if !ok {
+			return false, nil
+		}
+		obj, diags := collectionAPI.Query(ctx, fmt.Sprintf(`{"_scope":"%s"}`, scope), []string{}, 0)
+		if diags.HasError() {
+			return false, fmt.Errorf("failed to query collection data %s: %s", resourceTitle, diags)
+		}
+		arr, ok := obj.([]interface{})
+		if !ok {
+			return false, fmt.Errorf("failed to query collection data %s: %s", resourceTitle, diags)
+		}
+		return len(arr) > 0, nil
 	default:
 		return false, fmt.Errorf("not implemented")
 	}
