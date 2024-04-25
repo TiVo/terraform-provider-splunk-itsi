@@ -6,7 +6,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/config"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/plancheck"
-	"github.com/hashicorp/terraform-plugin-testing/terraform"
 	"github.com/tivo/terraform-provider-splunk-itsi/provider/util"
 )
 
@@ -146,7 +145,7 @@ func TestResourceKpiThresholdTemplatePlan(t *testing.T) {
 func TestAccResourceKPIThresholdTemplateLifecycle(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		PreCheck:     func() { testAccPreCheck(t) },
-		CheckDestroy: testAccCheckKPIThresholdTemplateDestroy,
+		CheckDestroy: testAccCheckResourceDestroy(resourceNameKPIThresholdTemplate, testAccResourceKPIThresholdTemplateLifecycle_kpiTTTitle),
 		Steps: []resource.TestStep{
 			{
 				ProtoV6ProviderFactories: providerFactories,
@@ -154,7 +153,7 @@ func TestAccResourceKPIThresholdTemplateLifecycle(t *testing.T) {
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("itsi_kpi_threshold_template.test", "title", testAccResourceKPIThresholdTemplateLifecycle_kpiTTTitle),
 					resource.TestCheckResourceAttr("itsi_kpi_threshold_template.test", "description", "stdev"),
-					testAccCheckKPIThresholdTemplateExists,
+					testAccCheckResourceExists(resourceNameKPIThresholdTemplate, testAccResourceKPIThresholdTemplateLifecycle_kpiTTTitle),
 				),
 			},
 			{
@@ -171,12 +170,4 @@ func TestAccResourceKPIThresholdTemplateLifecycle(t *testing.T) {
 			},
 		},
 	})
-}
-
-func testAccCheckKPIThresholdTemplateExists(s *terraform.State) error {
-	return testAccCheckResourceExists(s, resourceNameKPIThresholdTemplate, testAccResourceKPIThresholdTemplateLifecycle_kpiTTTitle)
-}
-
-func testAccCheckKPIThresholdTemplateDestroy(s *terraform.State) error {
-	return testAccCheckResourceDestroy(s, resourceNameKPIThresholdTemplate, testAccResourceKPIThresholdTemplateLifecycle_kpiTTTitle)
 }

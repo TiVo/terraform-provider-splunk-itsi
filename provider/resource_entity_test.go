@@ -6,7 +6,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/config"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/plancheck"
-	"github.com/hashicorp/terraform-plugin-testing/terraform"
 	"github.com/tivo/terraform-provider-splunk-itsi/provider/util"
 )
 
@@ -56,7 +55,7 @@ func TestResourceEntityPlan(t *testing.T) {
 func TestAccResourceEntityLifecycle(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		PreCheck:     func() { testAccPreCheck(t) },
-		CheckDestroy: testAccCheckEntityDestroy,
+		CheckDestroy: testAccCheckResourceDestroy(resourceNameEntity, testAccEntityLifecycle_entityTitle),
 		Steps: []resource.TestStep{
 			{
 				ProtoV6ProviderFactories: providerFactories,
@@ -64,7 +63,7 @@ func TestAccResourceEntityLifecycle(t *testing.T) {
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("itsi_entity.test", "title", testAccEntityLifecycle_entityTitle),
 					resource.TestCheckResourceAttr("itsi_entity.test", "description", "entityTest.example.com"),
-					testAccCheckEntityExists,
+					testAccCheckResourceExists(resourceNameEntity, testAccEntityLifecycle_entityTitle),
 				),
 			},
 			{
@@ -81,12 +80,4 @@ func TestAccResourceEntityLifecycle(t *testing.T) {
 			},
 		},
 	})
-}
-
-func testAccCheckEntityExists(s *terraform.State) error {
-	return testAccCheckResourceExists(s, resourceNameEntity, testAccEntityLifecycle_entityTitle)
-}
-
-func testAccCheckEntityDestroy(s *terraform.State) error {
-	return testAccCheckResourceDestroy(s, resourceNameEntity, testAccEntityLifecycle_entityTitle)
 }

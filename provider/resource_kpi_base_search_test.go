@@ -6,7 +6,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/config"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/plancheck"
-	"github.com/hashicorp/terraform-plugin-testing/terraform"
 	"github.com/tivo/terraform-provider-splunk-itsi/provider/util"
 )
 
@@ -89,7 +88,7 @@ func TestResourceKPIBaseSearchSchemaPlan(t *testing.T) {
 func TestAccResourceKPIBaseSearchLifecycle(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		PreCheck:     func() { testAccPreCheck(t) },
-		CheckDestroy: testAccCheckKPIBaseSearchDestroy,
+		CheckDestroy: testAccCheckResourceDestroy(resourceNameKPIBaseSearch, testAccResourceKPIBaseSearchLifecycle_kpiBSTitle),
 		Steps: []resource.TestStep{
 			{
 				ProtoV6ProviderFactories: providerFactories,
@@ -97,7 +96,7 @@ func TestAccResourceKPIBaseSearchLifecycle(t *testing.T) {
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("itsi_kpi_base_search.test", "title", testAccResourceKPIBaseSearchLifecycle_kpiBSTitle),
 					resource.TestCheckResourceAttr("itsi_kpi_base_search.test", "description", "abc"),
-					testAccCheckKPIBaseSearchExists,
+					testAccCheckResourceExists(resourceNameKPIBaseSearch, testAccResourceKPIBaseSearchLifecycle_kpiBSTitle),
 				),
 			},
 			{
@@ -114,12 +113,4 @@ func TestAccResourceKPIBaseSearchLifecycle(t *testing.T) {
 			},
 		},
 	})
-}
-
-func testAccCheckKPIBaseSearchExists(s *terraform.State) error {
-	return testAccCheckResourceExists(s, resourceNameKPIBaseSearch, testAccResourceKPIBaseSearchLifecycle_kpiBSTitle)
-}
-
-func testAccCheckKPIBaseSearchDestroy(s *terraform.State) error {
-	return testAccCheckResourceDestroy(s, resourceNameKPIBaseSearch, testAccResourceKPIBaseSearchLifecycle_kpiBSTitle)
 }

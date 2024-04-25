@@ -6,7 +6,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/config"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/plancheck"
-	"github.com/hashicorp/terraform-plugin-testing/terraform"
 	"github.com/tivo/terraform-provider-splunk-itsi/provider/util"
 )
 
@@ -175,7 +174,7 @@ func TestResourceNEAPPlan(t *testing.T) {
 func TestAccResourceNEAPLifecycle(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		PreCheck:     func() { testAccPreCheck(t) },
-		CheckDestroy: testAccCheckNEAPDestroy,
+		CheckDestroy: testAccCheckResourceDestroy(resourceNameNEAP, testAccResourceNEAPLifecycle_NEAPTitle),
 		Steps: []resource.TestStep{
 			{
 				ProtoV6ProviderFactories: providerFactories,
@@ -200,12 +199,4 @@ func TestAccResourceNEAPLifecycle(t *testing.T) {
 			},
 		},
 	})
-}
-
-// func testAccCheckNEAPExists(s *terraform.State) error {
-// 	return testAccCheckResourceExists(s, resourceNameNEAP, testAccResourceNEAPLifecycle_NEAPTitle)
-// }
-
-func testAccCheckNEAPDestroy(s *terraform.State) error {
-	return testAccCheckResourceDestroy(s, resourceNameNEAP, testAccResourceNEAPLifecycle_NEAPTitle)
 }

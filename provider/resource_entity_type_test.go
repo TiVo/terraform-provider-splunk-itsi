@@ -6,7 +6,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/config"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/plancheck"
-	"github.com/hashicorp/terraform-plugin-testing/terraform"
 	"github.com/tivo/terraform-provider-splunk-itsi/provider/util"
 )
 
@@ -121,7 +120,7 @@ func TestResourceEntityTypePlan(t *testing.T) {
 func TestAccResourceEntityTypeLifecycle(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		PreCheck:     func() { testAccPreCheck(t) },
-		CheckDestroy: testAccCheckEntityTypeDestroy,
+		CheckDestroy: testAccCheckResourceDestroy(resourceNameEntityType, testAccEntityTypeLifecycle_entityTypeTitle),
 		Steps: []resource.TestStep{
 			{
 				ProtoV6ProviderFactories: providerFactories,
@@ -129,7 +128,7 @@ func TestAccResourceEntityTypeLifecycle(t *testing.T) {
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("itsi_entity_type.test", "title", testAccEntityTypeLifecycle_entityTypeTitle),
 					resource.TestCheckResourceAttr("itsi_entity_type.test", "description", "Kubernetes Pod EXAMPLE"),
-					testAccCheckEntityTypeExists,
+					testAccCheckResourceExists(resourceNameEntityType, testAccEntityTypeLifecycle_entityTypeTitle),
 				),
 			},
 			{
@@ -146,12 +145,4 @@ func TestAccResourceEntityTypeLifecycle(t *testing.T) {
 			},
 		},
 	})
-}
-
-func testAccCheckEntityTypeExists(s *terraform.State) error {
-	return testAccCheckResourceExists(s, resourceNameEntityType, testAccEntityTypeLifecycle_entityTypeTitle)
-}
-
-func testAccCheckEntityTypeDestroy(s *terraform.State) error {
-	return testAccCheckResourceDestroy(s, resourceNameEntityType, testAccEntityTypeLifecycle_entityTypeTitle)
 }
