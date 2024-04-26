@@ -117,6 +117,14 @@ collection_batchsave:
     api_ignore_response_body:        true
     rest_key_field:                  name
     tfid_field:                      name
+
+collection_batchfind:
+    path:                            storage/collections/data
+    api_key_in_url:                  true
+    path_extension:                  batch_find
+    body_format:                     JSON
+    rest_key_field:                  name
+    tfid_field:                      name
 `
 )
 
@@ -350,7 +358,20 @@ func (c *CollectionApi) Create(ctx context.Context) (*CollectionApi, error) {
 func (c *CollectionApi) Read(ctx context.Context) (*CollectionApi, error) {
 	tflog.Trace(ctx, "COLLECTION READ: Read", map[string]interface{}{"c": c})
 
-	statusCode, respBody, err := c.requestWithRetry(ctx, http.MethodGet, c.url(), nil)
+	var method string
+	var body []byte = nil
+	var err error
+	if c.apiConfig.PathExtension == "batch_find" {
+		method = http.MethodPost
+		body, err = c.body()
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		method = http.MethodGet
+	}
+
+	statusCode, respBody, err := c.requestWithRetry(ctx, method, c.url(), body)
 	if err != nil {
 		if handleCode, ok := c.CustomBehaviourCodes[statusCode]; ok && handleCode == util.Ignore {
 			return nil, nil
