@@ -187,12 +187,8 @@ func collectionModelObjectExists(ctx context.Context, resourceType resourceName,
 		if !ok {
 			return false, nil
 		}
-		obj, diags := collectionAPI.Query(ctx, fmt.Sprintf(`{"_scope":"%s"}`, scope), []string{}, 0)
+		arr, diags := collectionAPI.Query(ctx, fmt.Sprintf(`{"_scope":"%s"}`, scope), []string{}, 0)
 		if diags.HasError() {
-			return false, fmt.Errorf("failed to query collection data %s: %s", resourceTitle, diags)
-		}
-		arr, ok := obj.([]interface{})
-		if !ok {
 			return false, fmt.Errorf("failed to query collection data %s: %s", resourceTitle, diags)
 		}
 		return len(arr) > 0, nil

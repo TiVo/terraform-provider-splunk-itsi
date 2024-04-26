@@ -83,36 +83,87 @@ func (api *collectionAPI) CollectionExists(ctx context.Context, require bool) (e
 	return
 }
 
-func (api *collectionAPI) Query(ctx context.Context, query string, fields []string, limit int) (obj interface{}, diags diag.Diagnostics) {
-	collection := api.Model("collection_data")
-	var params, queryParams, fieldsParams string
+func (api *collectionAPI) Query(ctx context.Context, query string, fields []string, limit int) (results []any, diags diag.Diagnostics) {
+	// maxRowsPerQuery is the maximum number of rows that can be returned in a single query.
+	// should be less or equal than `max_rows_per_query` limit specified under the kvstore stanza in limits.conf (50000)
+	const maxRowsPerQuery = 50000
+	var queryLimit = limit
+	if queryLimit == 0 || queryLimit > maxRowsPerQuery {
+		queryLimit = maxRowsPerQuery
+	}
 
-	if strings.TrimSpace(query) != "" {
-		queryParams = "query=" + url.QueryEscape(query)
-	}
-	paramsList := []string{queryParams}
-	if len(fields) > 0 {
-		urlEscapedFields := make([]string, len(fields))
-		for i, field := range fields {
-			urlEscapedFields[i] = url.QueryEscape(field)
-		}
-		fieldsParams = "fields=" + strings.Join(urlEscapedFields, ",")
-		paramsList = append(paramsList, fieldsParams)
-	}
-	if limit > 0 {
-		paramsList = append(paramsList, fmt.Sprintf("limit=%v", limit))
-	}
-	params = strings.Join(paramsList, "&")
-	collection.Params = params
+	results = make([]any, 0, maxRowsPerQuery)
+
+	collection := api.Model("collection_batchfind")
 
 	var err error
-	if collection, err = collection.Read(ctx); err != nil {
-		diags.AddError(fmt.Sprintf("Unable to read %s collection data", api.Key()), err.Error())
-		return
+	fieldMap := make(map[string]int, len(fields))
+
+	if strings.TrimSpace(query) == "" {
+		query = "{}"
 	}
 
-	if obj, err = collection.Unmarshal(collection.Body); err != nil {
-		diags.AddError(fmt.Sprintf("Unable to unmarshal %s collection data", api.Key()), err.Error())
+	for _, f := range fields {
+		parts := strings.Split(strings.TrimSpace(f), ":")
+		switch len(parts) {
+		case 1:
+			fieldMap[parts[0]] = 1
+		case 2:
+			fieldMap[parts[0]], err = strconv.Atoi(parts[1])
+			if err != nil {
+				diags.AddError(fmt.Sprintf("Unable to query %s collection data", api.Key()), fmt.Sprintf("provided include value is not an integer: %s", parts[1]))
+				return
+			}
+		default:
+			diags.AddError(fmt.Sprintf("Unable to parse %s collection data", api.Key()), "expected 'field[:include]' format")
+			return
+		}
+	}
+
+	for offset := 0; offset < limit || limit == 0; offset += queryLimit {
+		body := map[string]any{
+			"query":  json.RawMessage(query),
+			"fields": fieldMap,
+			"skip":   offset,
+			"limit":  queryLimit,
+		}
+
+		bodyStr, err := json.Marshal([]map[string]any{body})
+		if err != nil {
+			diags.AddError("Unable to marshal a collection data query", err.Error())
+			return
+		}
+
+		collection.Body = bodyStr
+		if collection, err = collection.Read(ctx); err != nil {
+			diags.AddError(fmt.Sprintf("Unable to read %s collection data", api.Key()), err.Error())
+			return
+		}
+
+		var obj any
+		if obj, err = collection.Unmarshal(collection.Body); err != nil {
+			diags.AddError(fmt.Sprintf("Unable to unmarshal %s collection data", api.Key()), err.Error())
+			return
+		}
+
+		if objList, ok := obj.([]any); ok {
+			obj = objList[0]
+			if resultBatch, ok := obj.([]any); ok {
+				results = append(results, resultBatch...)
+				if len(resultBatch) < queryLimit {
+					break
+				}
+			} else {
+				diags.AddError(fmt.Sprintf("Unable to read %s collection data", api.Key()), "expected array of array body return type")
+			}
+		} else {
+			diags.AddError(fmt.Sprintf("Unable to read %s collection data", api.Key()), "expected array of array body return type")
+		}
+
+		if diags.HasError() {
+			return
+		}
+
 	}
 
 	return
@@ -432,14 +483,8 @@ func (api *collectionDataAPI) deleteOldRows(ctx context.Context) (diags diag.Dia
 
 func (api *collectionDataAPI) Read(ctx context.Context) (data []collectionEntryModel, diags diag.Diagnostics) {
 	q := fmt.Sprintf(`{"_scope":"%s"}`, api.Scope.ValueString())
-	obj, diags := api.Query(ctx, q, []string{}, 0)
+	arr, diags := api.Query(ctx, q, []string{}, 0)
 	if diags.Append(diags...); diags.HasError() {
-		return
-	}
-
-	arr, ok := obj.([]interface{})
-	if !ok {
-		diags.AddError(fmt.Sprintf("Unable to read %s collection data", api.Key()), "expected array body return type")
 		return
 	}
 

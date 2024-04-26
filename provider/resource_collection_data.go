@@ -470,13 +470,8 @@ func (r *resourceCollectionData) validateScopeUniqueness(ctx context.Context, ap
 	if err != nil {
 		diags.AddError(unexpectedErrorSummary, err.Error())
 	}
-	resultsObj, d := api.Query(ctx, string(query), []string{}, 1)
+	resultsList, d := api.Query(ctx, string(query), []string{}, 1)
 	if diags.Append(d...); diags.HasError() {
-		return
-	}
-	resultsList, ok := resultsObj.([]interface{})
-	if !ok {
-		diags.AddError(unexpectedErrorSummary, "Splunk collection API returned unexpected results.")
 		return
 	}
 	if len(resultsList) > 0 {
@@ -511,13 +506,8 @@ func (r *resourceCollectionData) validateKeyUniqueness(ctx context.Context, api 
 		diags.AddError(unexpectedErrorSummary, err.Error())
 	}
 
-	resultsObj, d := api.Query(ctx, string(query), []string{"_key", "_scope"}, 0)
+	resultsList, d := api.Query(ctx, string(query), []string{"_key", "_scope"}, 0)
 	if diags.Append(d...); diags.HasError() {
-		return
-	}
-	resultsList, ok := resultsObj.([]interface{})
-	if !ok {
-		diags.AddError(unexpectedErrorSummary, "Splunk collection API returned unexpected results.")
 		return
 	}
 
@@ -679,14 +669,8 @@ func (r *resourceCollectionData) ImportState(ctx context.Context, req resource.I
 		return
 	}
 
-	resultsObj, diags := api.Query(ctx, query, []string{"_instance"}, 1)
+	resultsList, diags := api.Query(ctx, query, []string{"_instance"}, 1)
 	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
-		return
-	}
-
-	resultsList, ok := resultsObj.([]interface{})
-	if !ok {
-		diags.AddError(unexpectedErrorSummary, "Splunk collection API returned unexpected results.")
 		return
 	}
 
