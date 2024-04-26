@@ -109,14 +109,8 @@ func (d *dataSourceCollection) Read(ctx context.Context, req datasource.ReadRequ
 		return
 	}
 
-	obj, diags := api.Query(ctx, "", []string{}, 0)
+	arr, diags := api.Query(ctx, "", []string{}, 0)
 	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
-		return
-	}
-
-	arr, ok := obj.([]interface{})
-	if !ok {
-		diags.AddError(fmt.Sprintf("Unable to read %s collection data", api.Key()), "expected array body return type")
 		return
 	}
 
