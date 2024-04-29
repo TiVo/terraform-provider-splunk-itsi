@@ -1,6 +1,6 @@
 /*
     TestAccResourceCollectionDataLifecycle - Step 4
-    Test that we create a collection data resource with a dynamic number of entries
+    Test that we can create a collection data resource with a dynamic number of entries
 */
 
 provider "random" {}
