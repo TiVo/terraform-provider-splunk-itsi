@@ -231,17 +231,8 @@ func (v entrySetValidator) MarkdownDescription(ctx context.Context) string {
 	return entrySetValidatorDescription
 }
 
-func (v entrySetValidator) ValidateSet(ctx context.Context, req validator.SetRequest, resp *validator.SetResponse) {
-	if req.ConfigValue.IsUnknown() || req.ConfigValue.IsNull() {
-		return
-	}
-
-	var entries []collectionEntryModel
-	if diags := req.ConfigValue.ElementsAs(ctx, &entries, false); diags.HasError() {
-		resp.Diagnostics.Append(diags...)
-		return
-	}
-
+// validateResourceKeyUniqueness validates that the all entries in the list have unique keys.
+func (v entrySetValidator) ValidateKeyUniqueness(ctx context.Context, entries []collectionEntryModel) (diags diag.Diagnostics) {
 	ids := util.NewSet[string]()
 	for _, entry := range entries {
 		if entry.ID.IsUnknown() || entry.ID == types.StringNull() {
@@ -254,10 +245,24 @@ func (v entrySetValidator) ValidateSet(ctx context.Context, req validator.SetReq
 				Please ensure that each entry has a unique ID.
 			`, entry.ID.ValueString()))
 
-			resp.Diagnostics.AddError("Duplicate entry ID", errorDetails)
+			diags.AddError("Duplicate entry ID", errorDetails)
 		}
 		ids.Add(entry.ID.ValueString())
 	}
+	return
+}
+
+func (v entrySetValidator) ValidateSet(ctx context.Context, req validator.SetRequest, resp *validator.SetResponse) {
+	if req.ConfigValue.IsUnknown() || req.ConfigValue.IsNull() {
+		return
+	}
+	var entries []collectionEntryModel
+	if diags := req.ConfigValue.ElementsAs(ctx, &entries, false); diags.HasError() {
+		resp.Diagnostics.Append(diags...)
+		return
+	}
+
+	resp.Diagnostics = v.ValidateKeyUniqueness(ctx, entries)
 }
 
 // resource methods
@@ -491,7 +496,17 @@ func (r *resourceCollectionData) validateScopeUniqueness(ctx context.Context, ap
 	return
 }
 
-func (r *resourceCollectionData) validateKeyUniqueness(ctx context.Context, api *collectionDataAPI, scope string, entries []collectionEntryModel) (diags diag.Diagnostics) {
+// validateCollectionKeyUniqueness validates that the collection data managed keys are not present in the collection with a different scope.
+func (r *resourceCollectionData) validateCollectionKeyUniqueness(ctx context.Context, api *collectionDataAPI, scope string, entries []collectionEntryModel) (diags diag.Diagnostics) {
+	if len(entries) == 0 {
+		return
+	}
+
+	// IDs are not necessarily known during plan phase, so we need to validate their uniqueness here during apply as well.
+	if diags = new(entrySetValidator).ValidateKeyUniqueness(ctx, entries); diags.HasError() {
+		return
+	}
+
 	const unexpectedErrorSummary = "Unexpected error while validating key/scope uniqueness"
 	keyList := make([]map[string]string, len(entries))
 	for i, entry := range entries {
@@ -565,7 +580,7 @@ func (r *resourceCollectionData) createOrUpdate(ctx context.Context, config, pla
 			return
 		}
 	}
-	if diags.Append(r.validateKeyUniqueness(ctx, api, plan.Scope.ValueString(), planEntries)...); diags.HasError() {
+	if diags.Append(r.validateCollectionKeyUniqueness(ctx, api, plan.Scope.ValueString(), planEntries)...); diags.HasError() {
 		return
 	}
 
