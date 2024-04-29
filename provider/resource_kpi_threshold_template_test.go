@@ -3,9 +3,13 @@ package provider
 import (
 	"testing"
 
+	"github.com/hashicorp/terraform-plugin-testing/config"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/plancheck"
 	"github.com/tivo/terraform-provider-splunk-itsi/provider/util"
 )
+
+var testAccResourceKPIThresholdTemplateLifecycle_kpiTTTitle = testAccResourceTitle("stdev_test")
 
 func TestResourceKpiThresholdTemplateSchema(t *testing.T) {
 	testResourceSchema(t, new(resourceKpiThresholdTemplate))
@@ -13,6 +17,7 @@ func TestResourceKpiThresholdTemplateSchema(t *testing.T) {
 
 func TestResourceKpiThresholdTemplatePlan(t *testing.T) {
 	resource.Test(t, resource.TestCase{
+		IsUnitTest:               true,
 		ProtoV6ProviderFactories: providerFactories,
 		PreCheck:                 func() { testAccPreCheck(t) },
 		Steps: []resource.TestStep{
@@ -132,6 +137,36 @@ func TestResourceKpiThresholdTemplatePlan(t *testing.T) {
 				`),
 				PlanOnly:           true,
 				ExpectNonEmptyPlan: true,
+			},
+		},
+	})
+}
+
+func TestAccResourceKPIThresholdTemplateLifecycle(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		PreCheck:     func() { testAccPreCheck(t) },
+		CheckDestroy: testAccCheckResourceDestroy(resourceNameKPIThresholdTemplate, testAccResourceKPIThresholdTemplateLifecycle_kpiTTTitle),
+		Steps: []resource.TestStep{
+			{
+				ProtoV6ProviderFactories: providerFactories,
+				ConfigDirectory:          config.TestStepDirectory(),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("itsi_kpi_threshold_template.test", "title", testAccResourceKPIThresholdTemplateLifecycle_kpiTTTitle),
+					resource.TestCheckResourceAttr("itsi_kpi_threshold_template.test", "description", "stdev"),
+					testAccCheckResourceExists(resourceNameKPIThresholdTemplate, testAccResourceKPIThresholdTemplateLifecycle_kpiTTTitle),
+				),
+			},
+			{
+				ProtoV6ProviderFactories: providerFactories,
+				ConfigDirectory:          config.TestStepDirectory(),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("itsi_kpi_threshold_template.test", "description", "TEST DESCRIPTION update"),
+				),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PostApplyPostRefresh: []plancheck.PlanCheck{
+						plancheck.ExpectEmptyPlan(),
+					},
+				},
 			},
 		},
 	})
