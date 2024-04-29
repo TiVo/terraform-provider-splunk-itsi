@@ -2,8 +2,10 @@ package provider
 
 import (
 	"fmt"
+	"strconv"
 	"testing"
 
+	"github.com/hashicorp/terraform-plugin-testing/config"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
 	"github.com/tivo/terraform-provider-splunk-itsi/provider/util"
@@ -59,137 +61,225 @@ func TestResourceServicePlan(t *testing.T) {
 	})
 }
 
-func TestAccServiceResourceEntityFilter(t *testing.T) {
+func TestAccResourceServiceEntityFiltersLifecycle(t *testing.T) {
 	resource.Test(t, resource.TestCase{
-		ProtoV6ProviderFactories: providerFactories,
-		PreCheck:                 func() { testAccPreCheck(t) },
+		PreCheck:     func() { testAccPreCheck(t) },
+		CheckDestroy: testAccCheckResourceDestroy(resourceNameService, "service_create_filter_test"),
 		Steps: []resource.TestStep{
 			{
-				//ExpectNonEmptyPlan: true,
-				Config: util.Dedent(`
-                    provider "itsi" {}
-
-					resource "itsi_service" "service_create_filter_test" {
-						title    = "Test Service Create filter test"
-						description = "Terraform unit test"
-						entity_rules {
-						  rule {
-							  field      = "entityTitle"
-							  field_type = "alias"
-							  rule_type  = "matches"
-							  value      = "android_streamer"
-						  }
-						  rule {
-							  field      = "entityField"
-							  field_type = "info"
-							  rule_type  = "not"
-							  value      = "android_mobile"
-						  }
-						}
-					  }
-                `),
+				ProtoV6ProviderFactories: providerFactories,
+				ConfigDirectory:          config.TestStepDirectory(),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("itsi_service.service_create_filter_test", "entity_rules.0.rule.#", "1"),
+					resource.TestCheckResourceAttr("itsi_service.service_create_filter_test", "entity_rules.0.rule.0.field", "entityTitle"),
+					resource.TestCheckResourceAttr("itsi_service.service_create_filter_test", "entity_rules.0.rule.0.field_type", "alias"),
+					resource.TestCheckResourceAttr("itsi_service.service_create_filter_test", "entity_rules.0.rule.0.rule_type", "matches"),
+					resource.TestCheckResourceAttr("itsi_service.service_create_filter_test", "entity_rules.0.rule.0.value", "android_streamer"),
+				),
+			},
+			// add another rule
+			{
+				ProtoV6ProviderFactories: providerFactories,
+				ConfigDirectory:          config.TestStepDirectory(),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("itsi_service.service_create_filter_test", "entity_rules.0.rule.#", "2"),
+					resource.TestCheckResourceAttr("itsi_service.service_create_filter_test", "entity_rules.0.rule.1.field", "entityTitle"),
+					resource.TestCheckResourceAttr("itsi_service.service_create_filter_test", "entity_rules.0.rule.1.field_type", "alias"),
+					resource.TestCheckResourceAttr("itsi_service.service_create_filter_test", "entity_rules.0.rule.1.rule_type", "matches"),
+					resource.TestCheckResourceAttr("itsi_service.service_create_filter_test", "entity_rules.0.rule.1.value", "android_streamer"),
 					resource.TestCheckResourceAttr("itsi_service.service_create_filter_test", "entity_rules.0.rule.0.field", "entityField"),
 					resource.TestCheckResourceAttr("itsi_service.service_create_filter_test", "entity_rules.0.rule.0.field_type", "info"),
 					resource.TestCheckResourceAttr("itsi_service.service_create_filter_test", "entity_rules.0.rule.0.rule_type", "not"),
 					resource.TestCheckResourceAttr("itsi_service.service_create_filter_test", "entity_rules.0.rule.0.value", "android_mobile"),
-					resource.TestCheckResourceAttr("itsi_service.service_create_filter_test", "entity_rules.0.rule.1.field_type", "alias"),
-					resource.TestCheckResourceAttr("itsi_service.service_create_filter_test", "entity_rules.0.rule.1.rule_type", "matches"),
-					resource.TestCheckResourceAttr("itsi_service.service_create_filter_test", "entity_rules.0.rule.1.value", "android_streamer"),
+				),
+			},
+			// add entity_rule, update rule
+			{
+				ProtoV6ProviderFactories: providerFactories,
+				ConfigDirectory:          config.TestStepDirectory(),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("itsi_service.service_create_filter_test", "entity_rules.1.rule.#", "1"),
+					resource.TestCheckResourceAttr("itsi_service.service_create_filter_test", "entity_rules.1.rule.0.field", "entityTitle"),
+					resource.TestCheckResourceAttr("itsi_service.service_create_filter_test", "entity_rules.1.rule.0.field_type", "title"),
+					resource.TestCheckResourceAttr("itsi_service.service_create_filter_test", "entity_rules.1.rule.0.rule_type", "matches"),
+					resource.TestCheckResourceAttr("itsi_service.service_create_filter_test", "entity_rules.1.rule.0.value", "android_tivoos"),
+					resource.TestCheckResourceAttr("itsi_service.service_create_filter_test", "entity_rules.0.rule.#", "1"),
+					resource.TestCheckResourceAttr("itsi_service.service_create_filter_test", "entity_rules.0.rule.0.field", "entityField"),
+					resource.TestCheckResourceAttr("itsi_service.service_create_filter_test", "entity_rules.0.rule.0.field_type", "info"),
+					resource.TestCheckResourceAttr("itsi_service.service_create_filter_test", "entity_rules.0.rule.0.rule_type", "not"),
+					resource.TestCheckResourceAttr("itsi_service.service_create_filter_test", "entity_rules.0.rule.0.value", "android_mobile"),
+				),
+			},
+			// remove everything
+			{
+				ProtoV6ProviderFactories: providerFactories,
+				ConfigDirectory:          config.TestStepDirectory(),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("itsi_service.service_create_filter_test", "entity_rules.#", "0"),
+					resource.TestCheckNoResourceAttr("itsi_service.service_create_filter_test", "entity_rules.#"),
+				),
+			},
+			// add entity_rules to the existing resource
+			{
+				ProtoV6ProviderFactories: providerFactories,
+				ConfigDirectory:          config.TestStepDirectory(),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("itsi_service.service_create_filter_test", "entity_rules.1.rule.#", "1"),
+					resource.TestCheckResourceAttr("itsi_service.service_create_filter_test", "entity_rules.1.rule.0.field", "entityTitle"),
+					resource.TestCheckResourceAttr("itsi_service.service_create_filter_test", "entity_rules.1.rule.0.field_type", "title"),
+					resource.TestCheckResourceAttr("itsi_service.service_create_filter_test", "entity_rules.1.rule.0.rule_type", "matches"),
+					resource.TestCheckResourceAttr("itsi_service.service_create_filter_test", "entity_rules.1.rule.0.value", "android_tivoos"),
+					resource.TestCheckResourceAttr("itsi_service.service_create_filter_test", "entity_rules.0.rule.#", "1"),
+					resource.TestCheckResourceAttr("itsi_service.service_create_filter_test", "entity_rules.0.rule.0.field", "entityField"),
+					resource.TestCheckResourceAttr("itsi_service.service_create_filter_test", "entity_rules.0.rule.0.field_type", "info"),
+					resource.TestCheckResourceAttr("itsi_service.service_create_filter_test", "entity_rules.0.rule.0.rule_type", "not"),
+					resource.TestCheckResourceAttr("itsi_service.service_create_filter_test", "entity_rules.0.rule.0.value", "android_mobile"),
 				),
 			},
 		},
 	})
 }
 
-func TestAccServiceResourceTagCreate(t *testing.T) {
+func TestAccResourceServiceTagsLifecycle(t *testing.T) {
 	resource.Test(t, resource.TestCase{
-		ProtoV6ProviderFactories: providerFactories,
-		PreCheck:                 func() { testAccPreCheck(t) },
+		PreCheck:     func() { testAccPreCheck(t) },
+		CheckDestroy: testAccCheckResourceDestroy(resourceNameService, "service_create_tag_test"),
 		Steps: []resource.TestStep{
 			{
-				//ExpectNonEmptyPlan: true,
-				Config: util.Dedent(`
-                    provider "itsi" {}
-
-					resource "itsi_service" "service_create_tag_test" {
-						title    = "Test Tag Creation"
-						description = "Terraform unit test"
-						tags = ["tag1", "tag2", "tag3"]
-					}
-                `),
+				ProtoV6ProviderFactories: providerFactories,
+				ConfigDirectory:          config.TestStepDirectory(),
 				Check: resource.ComposeTestCheckFunc(
-					resource.TestCheckResourceAttr("itsi_service.service_create_tag_test", "description", "Terraform unit test"),
 					resource.TestCheckResourceAttr("itsi_service.service_create_tag_test", "tags.0", "tag1"),
 					resource.TestCheckResourceAttr("itsi_service.service_create_tag_test", "tags.1", "tag2"),
 					resource.TestCheckResourceAttr("itsi_service.service_create_tag_test", "tags.2", "tag3"),
 				),
 			},
+			// Tag was removed
 			{
-				Destroy: true,
+				ProtoV6ProviderFactories: providerFactories,
+				ConfigDirectory:          config.TestStepDirectory(),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("itsi_service.service_create_tag_test", "tags.#", "2"),
+					resource.TestCheckResourceAttr("itsi_service.service_create_tag_test", "tags.0", "tag1"),
+					resource.TestCheckResourceAttr("itsi_service.service_create_tag_test", "tags.1", "tag3"),
+				),
+			},
+			// Tag was added
+			{
+				ProtoV6ProviderFactories: providerFactories,
+				ConfigDirectory:          config.TestStepDirectory(),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("itsi_service.service_create_tag_test", "tags.#", "3"),
+					resource.TestCheckResourceAttr("itsi_service.service_create_tag_test", "tags.0", "tag1"),
+					resource.TestCheckResourceAttr("itsi_service.service_create_tag_test", "tags.1", "tag3"),
+					resource.TestCheckResourceAttr("itsi_service.service_create_tag_test", "tags.2", "tag5"),
+				),
+			},
+			// All tags were removed [== null]
+			{
+				ProtoV6ProviderFactories: providerFactories,
+				ConfigDirectory:          config.TestStepDirectory(),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("itsi_service.service_create_tag_test", "tags.#", "0"),
+				),
+			},
+			// Tags were added to the existed resource
+			{
+				ProtoV6ProviderFactories: providerFactories,
+				ConfigDirectory:          config.TestStepDirectory(),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("itsi_service.service_create_tag_test", "tags.#", "2"),
+					resource.TestCheckResourceAttr("itsi_service.service_create_tag_test", "tags.0", "tag6"),
+					resource.TestCheckResourceAttr("itsi_service.service_create_tag_test", "tags.1", "tag7"),
+				),
 			},
 		},
 	})
 }
 
-func TestAccServiceResourceHierarchyCreate(t *testing.T) {
+func TestAccResourceServiceDependsOnLifecycle(t *testing.T) {
 	resource.Test(t, resource.TestCase{
-		ProtoV6ProviderFactories: providerFactories,
-		PreCheck:                 func() { testAccPreCheck(t) },
-
+		PreCheck: func() { testAccPreCheck(t) },
+		CheckDestroy: resource.ComposeTestCheckFunc(
+			testAccCheckResourceDestroy(resourceNameService, "service_create_parent"),
+			testAccCheckResourceDestroy(resourceNameService, "service_create_leaf"),
+			testAccCheckResourceDestroy(resourceNameService, "service_create_leaf_overloaded"),
+		),
 		Steps: []resource.TestStep{
 			{
-				//ExpectNonEmptyPlan: true,
-				Config: util.Dedent(`
-                    provider "itsi" {}
-
-                    resource "itsi_service" "service_create_parent" {
-                        title = "Service Test on Create Parent"
-                        service_depends_on {
-                            kpis = [
-								itsi_service.service_create_leaf.shkpi_id
-							]
-                            service = itsi_service.service_create_leaf.id
-                        }
-                    }
-
-                    resource "itsi_service" "service_create_leaf" {
-                        title = "Service Test on Create Leaf"
-                    }
-                `),
+				ProtoV6ProviderFactories: providerFactories,
+				ConfigDirectory:          config.TestStepDirectory(),
 				Check: resource.ComposeTestCheckFunc(
-					resource.TestCheckResourceAttr("itsi_service.service_create_leaf", "title", "Service Test on Create Leaf"),
-					resource.TestCheckResourceAttr("itsi_service.service_create_parent", "title", "Service Test on Create Parent"),
 					resource.TestCheckResourceAttrSet("itsi_service.service_create_leaf", "shkpi_id"),
-					testCheckServiceShkpiIdMatch,
+					resource.TestCheckResourceAttr("itsi_service.service_create_parent", "service_depends_on.#", "1"),
+					testCheckServiceDependsOnMatch("itsi_service.service_create_leaf"),
 				),
 			},
 			{
-				Destroy: true,
+				ProtoV6ProviderFactories: providerFactories,
+				ConfigDirectory:          config.TestStepDirectory(),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttrSet("itsi_service.service_create_leaf", "shkpi_id"),
+					resource.TestCheckResourceAttrSet("itsi_service.service_create_leaf_overloaded", "shkpi_id"),
+					resource.TestCheckResourceAttr("itsi_service.service_create_parent", "service_depends_on.#", "2"),
+					testCheckServiceDependsOnMatch("itsi_service.service_create_leaf"),
+					testCheckServiceDependsOnMatch("itsi_service.service_create_leaf_overloaded", 8),
+				),
+			},
+			{
+				ProtoV6ProviderFactories: providerFactories,
+				ConfigDirectory:          config.TestStepDirectory(),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttrSet("itsi_service.service_create_leaf", "shkpi_id"),
+					resource.TestCheckResourceAttr("itsi_service.service_create_parent", "service_depends_on.#", "0"),
+				),
+			},
+			{
+				ProtoV6ProviderFactories: providerFactories,
+				ConfigDirectory:          config.TestStepDirectory(),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttrSet("itsi_service.service_create_leaf", "shkpi_id"),
+					resource.TestCheckResourceAttrSet("itsi_service.service_create_leaf_overloaded", "shkpi_id"),
+					resource.TestCheckResourceAttr("itsi_service.service_create_parent", "service_depends_on.#", "2"),
+					testCheckServiceDependsOnMatch("itsi_service.service_create_leaf"),
+					testCheckServiceDependsOnMatch("itsi_service.service_create_leaf_overloaded", 8),
+				),
 			},
 		},
 	})
 }
+func testCheckServiceDependsOnMatch(child_name string, expected_overloaded_urgency ...int) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
+		leafResource, ok := s.RootModule().Resources[child_name]
+		if !ok {
+			return fmt.Errorf("Not found: itsi_service.service_create_leaf")
+		}
+		leafKPIID := leafResource.Primary.Attributes["shkpi_id"]
 
-// testCheckServiceShkpiIdMatch checks if the shkpi_id of leaf is the same as the one in parent's service_depends_on.kpis
-func testCheckServiceShkpiIdMatch(s *terraform.State) error {
-	leafResource, ok := s.RootModule().Resources["itsi_service.service_create_leaf"]
-	if !ok {
-		return fmt.Errorf("Not found: itsi_service.service_create_leaf")
-	}
-	leafKPIID := leafResource.Primary.Attributes["shkpi_id"]
+		parentResource, ok := s.RootModule().Resources["itsi_service.service_create_parent"]
+		if !ok {
+			return fmt.Errorf("Not found: itsi_service.service_create_parent")
+		}
+		kpiLength, err := strconv.Atoi(parentResource.Primary.Attributes["service_depends_on.0.kpis.#"])
+		if err != nil {
+			return fmt.Errorf("Kpi depends on length not found")
+		}
+		for i := 0; i < kpiLength; i++ {
+			parentKPIID := parentResource.Primary.Attributes["service_depends_on.0.kpis."+strconv.Itoa(i)]
+			if leafKPIID == parentKPIID {
+				fmt.Printf("PASSED: Leaf shkpi_id %s, Parent's dependent kpis %s\n", leafKPIID, parentResource.Primary.Attributes["service_depends_on.0.kpis"])
 
-	parentResource, ok := s.RootModule().Resources["itsi_service.service_create_parent"]
-	if !ok {
-		return fmt.Errorf("Not found: itsi_service.service_create_parent")
+				if len(expected_overloaded_urgency) > 0 {
+					if urgency, ok := parentResource.Primary.Attributes["service_depends_on.0.kpis."+strconv.Itoa(i)+
+						".overload_urgencies."+leafKPIID]; !ok || urgency != strconv.Itoa(expected_overloaded_urgency[0]) {
+						return fmt.Errorf("%s mismatch: Missing expected overloaded_urgency %s", leafKPIID,
+							parentResource.Primary.Attributes["service_depends_on.0.kpis."+strconv.Itoa(i)])
+					}
+				}
+			}
+			return nil
+		}
+		return fmt.Errorf("shkpi_id mismatch: Missing shkpi_id %s", leafKPIID)
 	}
-	parentKPIID := parentResource.Primary.Attributes["service_depends_on.0.kpis.0"]
 
-	if leafKPIID != parentKPIID {
-		return fmt.Errorf("shkpi_id mismatch: Leaf shkpi_id %s, Parent's dependent kpis %s", leafKPIID, parentKPIID)
-	} else {
-		fmt.Printf("PASSED: Leaf shkpi_id %s, Parent's dependent kpis %s", leafKPIID, parentKPIID)
-	}
-	return nil
 }
