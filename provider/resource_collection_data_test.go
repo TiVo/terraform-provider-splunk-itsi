@@ -57,11 +57,6 @@ func TestAccResourceCollectionDataLifecycle(t *testing.T) {
 	var scope = testAccResourceTitle("collection_data_test")
 
 	resource.Test(t, resource.TestCase{
-		// ExternalProviders: map[string]resource.ExternalProvider{
-		// 	"random": {
-		// 		Source: "registry.terraform.io/hashicorp/random",
-		// 	},
-		// },
 		PreCheck:     func() { testAccPreCheck(t) },
 		CheckDestroy: testAccCheckResourceDestroy(resourceNameCollectionData, scope),
 		Steps: []resource.TestStep{
