@@ -58,6 +58,7 @@ jobs:
 
   test:
     uses: ./.github/workflows/matrix_test.yaml
+    secrets: inherit # pass all secrets
     needs: build
     concurrency:
       group: ${{ github.workflow }}-${{ github.ref }}
