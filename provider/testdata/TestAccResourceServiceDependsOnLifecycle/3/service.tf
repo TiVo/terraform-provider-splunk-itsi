@@ -1,11 +1,11 @@
 resource "itsi_service" "service_create_parent" {
-  title = "Service Test on Create Parent"
+  title = "TestAcc_Service_Test_on_Create_Parent"
 }
 
 resource "itsi_service" "service_create_leaf" {
-  title = "Service Test on Create Leaf"
+  title = "TestAcc_Service_Test_on_Create_Leaf"
 }
 
 resource "itsi_service" "service_create_leaf_overloaded" {
-  title = "Service Test on Create Leaf Overloaded"
+  title = "TestAcc_Service_Test_on_Create_Leaf_Overloaded"
 }
