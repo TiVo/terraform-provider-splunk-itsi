@@ -7,7 +7,10 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-testing/config"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/knownvalue"
+	"github.com/hashicorp/terraform-plugin-testing/plancheck"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
+	"github.com/hashicorp/terraform-plugin-testing/tfjsonpath"
 	"github.com/tivo/terraform-provider-splunk-itsi/provider/util"
 )
 
@@ -272,14 +275,184 @@ func testCheckServiceDependsOnMatch(child_name string, expected_overloaded_urgen
 				if len(expected_overloaded_urgency) > 0 {
 					if urgency, ok := parentResource.Primary.Attributes["service_depends_on.0.kpis."+strconv.Itoa(i)+
 						".overload_urgencies."+leafKPIID]; !ok || urgency != strconv.Itoa(expected_overloaded_urgency[0]) {
-						return fmt.Errorf("%s mismatch: Missing expected overloaded_urgency %s", leafKPIID,
+						return fmt.Errorf("%s mismatch: Missing expected overloaded_urgency %s\n", leafKPIID,
 							parentResource.Primary.Attributes["service_depends_on.0.kpis."+strconv.Itoa(i)])
 					}
 				}
 			}
 			return nil
 		}
-		return fmt.Errorf("shkpi_id mismatch: Missing shkpi_id %s", leafKPIID)
+		return fmt.Errorf("shkpi_id mismatch: Missing shkpi_id %s\n", leafKPIID)
 	}
 
+}
+
+func TestAccResourceServiceKpisLifecycle(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		PreCheck: func() { testAccPreCheck(t) },
+		CheckDestroy: resource.ComposeTestCheckFunc(
+			testAccCheckResourceDestroy(resourceNameService, "test_kpis"),
+			testAccCheckResourceDestroy(resourceNameKPIBaseSearch, "test_kpis_linked_kpibs_1"),
+			testAccCheckResourceDestroy(resourceNameEntityType, "test_kpis_linked_kpibs_2"),
+			testAccCheckResourceDestroy(resourceNameKPIThresholdTemplate, "test_kpis_static"),
+			testAccCheckResourceDestroy(resourceNameKPIThresholdTemplate, "test_kpis_kpi_threshold_template_1"),
+		),
+		Steps: []resource.TestStep{
+			{
+				ProtoV6ProviderFactories: providerFactories,
+				ConfigDirectory:          config.TestStepDirectory(),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectNonEmptyPlan(),
+						plancheck.ExpectUnknownValue("itsi_service.test_kpis", tfjsonpath.New("kpi").AtSliceIndex(0).AtMapKey("id")),
+						plancheck.ExpectUnknownValue("itsi_service.test_kpis", tfjsonpath.New("kpi").AtSliceIndex(1).AtMapKey("id")),
+						plancheck.ExpectUnknownValue("itsi_service.test_kpis", tfjsonpath.New("kpi").AtSliceIndex(2).AtMapKey("id")),
+					},
+				},
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("itsi_service.test_kpis", "kpi.#", "3"),
+					resource.TestCheckResourceAttr("itsi_service.test_kpis", "kpi.0.title", "KPI 1"),
+					resource.TestCheckResourceAttr("itsi_service.test_kpis", "kpi.0.base_search_metric", "metric 1.1"),
+					resource.TestCheckResourceAttrSet("itsi_service.test_kpis", "kpi.0.base_search_id"),
+					resource.TestCheckResourceAttrSet("itsi_service.test_kpis", "kpi.0.threshold_template_id"),
+
+					resource.TestCheckResourceAttr("itsi_service.test_kpis", "kpi.1.title", "KPI 2"),
+					resource.TestCheckResourceAttr("itsi_service.test_kpis", "kpi.1.base_search_metric", "metric 1.2"),
+					resource.TestCheckResourceAttrSet("itsi_service.test_kpis", "kpi.1.base_search_id"),
+					resource.TestCheckResourceAttrSet("itsi_service.test_kpis", "kpi.1.threshold_template_id"),
+
+					resource.TestCheckResourceAttr("itsi_service.test_kpis", "kpi.2.title", "KPI 3"),
+					resource.TestCheckResourceAttr("itsi_service.test_kpis", "kpi.2.base_search_metric", "metric 2.1"),
+					resource.TestCheckResourceAttrSet("itsi_service.test_kpis", "kpi.2.base_search_id"),
+					resource.TestCheckResourceAttrSet("itsi_service.test_kpis", "kpi.2.threshold_template_id"),
+
+					SaveKpiIds,
+				),
+			},
+			// add kpi
+			{
+				ProtoV6ProviderFactories: providerFactories,
+				ConfigDirectory:          config.TestStepDirectory(),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectNonEmptyPlan(),
+
+						plancheck.ExpectKnownValue("itsi_service.test_kpis", tfjsonpath.New("kpi").AtSliceIndex(0).AtMapKey("id"), knownvalue.NotNull()),
+						plancheck.ExpectKnownValue("itsi_service.test_kpis", tfjsonpath.New("kpi").AtSliceIndex(1).AtMapKey("id"), knownvalue.NotNull()),
+						plancheck.ExpectKnownValue("itsi_service.test_kpis", tfjsonpath.New("kpi").AtSliceIndex(2).AtMapKey("id"), knownvalue.NotNull()),
+
+						plancheck.ExpectUnknownValue("itsi_service.test_kpis", tfjsonpath.New("kpi").AtSliceIndex(3).AtMapKey("id")),
+					},
+				},
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("itsi_service.test_kpis", "kpi.#", "4"),
+					resource.TestCheckResourceAttrWith("itsi_service.test_kpis", "kpi.0.id", verifyKpiId(0)),
+					resource.TestCheckResourceAttr("itsi_service.test_kpis", "kpi.0.title", "KPI 1"),
+					resource.TestCheckResourceAttr("itsi_service.test_kpis", "kpi.0.base_search_metric", "metric 1.1"),
+					resource.TestCheckResourceAttrSet("itsi_service.test_kpis", "kpi.0.base_search_id"),
+					resource.TestCheckResourceAttrSet("itsi_service.test_kpis", "kpi.0.threshold_template_id"),
+
+					resource.TestCheckResourceAttrWith("itsi_service.test_kpis", "kpi.1.id", verifyKpiId(1)),
+					resource.TestCheckResourceAttr("itsi_service.test_kpis", "kpi.1.title", "KPI 2"),
+					resource.TestCheckResourceAttr("itsi_service.test_kpis", "kpi.1.base_search_metric", "metric 1.2"),
+					resource.TestCheckResourceAttrSet("itsi_service.test_kpis", "kpi.1.base_search_id"),
+					resource.TestCheckResourceAttrSet("itsi_service.test_kpis", "kpi.1.threshold_template_id"),
+
+					resource.TestCheckResourceAttrWith("itsi_service.test_kpis", "kpi.2.id", verifyKpiId(2)),
+					resource.TestCheckResourceAttr("itsi_service.test_kpis", "kpi.2.title", "KPI 3"),
+					resource.TestCheckResourceAttr("itsi_service.test_kpis", "kpi.2.base_search_metric", "metric 2.1"),
+					resource.TestCheckResourceAttrSet("itsi_service.test_kpis", "kpi.2.base_search_id"),
+					resource.TestCheckResourceAttrSet("itsi_service.test_kpis", "kpi.2.threshold_template_id"),
+
+					resource.TestCheckResourceAttrSet("itsi_service.test_kpis", "kpi.3.id"),
+					resource.TestCheckResourceAttr("itsi_service.test_kpis", "kpi.3.title", "KPI 4"),
+					resource.TestCheckResourceAttr("itsi_service.test_kpis", "kpi.3.base_search_metric", "metric 2.2"),
+					resource.TestCheckResourceAttrSet("itsi_service.test_kpis", "kpi.3.base_search_id"),
+					resource.TestCheckResourceAttrSet("itsi_service.test_kpis", "kpi.3.threshold_template_id"),
+
+					SaveKpiIds,
+				),
+			}, // change metric of KPI 1 (ID regenerated), unit & description of KPI 2 (ID should stay the same), remove KPI 3
+			{
+				ProtoV6ProviderFactories: providerFactories,
+				ConfigDirectory:          config.TestStepDirectory(),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectNonEmptyPlan(),
+
+						plancheck.ExpectUnknownValue("itsi_service.test_kpis", tfjsonpath.New("kpi").AtSliceIndex(0).AtMapKey("id")),
+						plancheck.ExpectKnownValue("itsi_service.test_kpis", tfjsonpath.New("kpi").AtSliceIndex(1).AtMapKey("id"), knownvalue.NotNull()),
+						plancheck.ExpectKnownValue("itsi_service.test_kpis", tfjsonpath.New("kpi").AtSliceIndex(2).AtMapKey("id"), knownvalue.NotNull()),
+					},
+				},
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("itsi_service.test_kpis", "kpi.#", "3"),
+					resource.TestCheckResourceAttr("itsi_service.test_kpis", "kpi.0.title", "KPI 1"),
+					resource.TestCheckResourceAttr("itsi_service.test_kpis", "kpi.0.base_search_metric", "metric 1.3"),
+					resource.TestCheckResourceAttrSet("itsi_service.test_kpis", "kpi.0.base_search_id"),
+					resource.TestCheckResourceAttrSet("itsi_service.test_kpis", "kpi.0.threshold_template_id"),
+
+					resource.TestCheckResourceAttrWith("itsi_service.test_kpis", "kpi.1.id", verifyKpiId(1)),
+					resource.TestCheckResourceAttr("itsi_service.test_kpis", "kpi.1.title", "KPI 2"),
+					resource.TestCheckResourceAttr("itsi_service.test_kpis", "kpi.1.base_search_metric", "metric 1.2"),
+
+					resource.TestCheckResourceAttr("itsi_service.test_kpis", "kpi.1.description", "test"),
+					resource.TestCheckResourceAttr("itsi_service.test_kpis", "kpi.1.urgency", "3"),
+
+					resource.TestCheckResourceAttrSet("itsi_service.test_kpis", "kpi.1.base_search_id"),
+					resource.TestCheckResourceAttrSet("itsi_service.test_kpis", "kpi.1.threshold_template_id"),
+
+					resource.TestCheckResourceAttrWith("itsi_service.test_kpis", "kpi.2.id", verifyKpiId(2)),
+					resource.TestCheckResourceAttr("itsi_service.test_kpis", "kpi.2.title", "KPI 3"),
+					resource.TestCheckResourceAttr("itsi_service.test_kpis", "kpi.2.base_search_metric", "metric 2.1"),
+					resource.TestCheckResourceAttrSet("itsi_service.test_kpis", "kpi.2.base_search_id"),
+					resource.TestCheckResourceAttrSet("itsi_service.test_kpis", "kpi.2.threshold_template_id"),
+				),
+			}, // remove kpis
+			{
+				ProtoV6ProviderFactories: providerFactories,
+				ConfigDirectory:          config.TestStepDirectory(),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("itsi_service.test_kpis", "kpi.#", "0"),
+				),
+			},
+		},
+	})
+}
+
+func verifyKpiId(index int) resource.CheckResourceAttrWithFunc {
+	return func(value string) error {
+		fmt.Printf("Verifying KPI Ids on index %d\n", index)
+		if len(PREV_KPI_IDS) < index {
+			return fmt.Errorf("Unexpected lenght of the state array: PREV_KPI_IDS")
+		}
+
+		if value != PREV_KPI_IDS[index] {
+			return fmt.Errorf("Failed: expected kpi.id %s, got %s", PREV_KPI_IDS[index], value)
+		}
+
+		return nil
+	}
+}
+
+var PREV_KPI_IDS []string
+
+func SaveKpiIds(s *terraform.State) error {
+	fmt.Printf("Saving current KPI Ids\n")
+	PREV_KPI_IDS = []string{}
+	resource, ok := s.RootModule().Resources["itsi_service.test_kpis"]
+	if !ok {
+		return fmt.Errorf("Not found: itsi_service.test_kpis")
+	}
+	kpiLength, err := strconv.Atoi(resource.Primary.Attributes["kpi.#"])
+	if err != nil {
+		return fmt.Errorf("Kpi depends on length not found")
+	}
+	for i := 0; i < kpiLength; i++ {
+		kpiId := resource.Primary.Attributes["kpi."+strconv.Itoa(i)+".id"]
+		PREV_KPI_IDS = append(PREV_KPI_IDS, kpiId)
+		fmt.Printf("Saving Prev State: Adding id %s\n", kpiId)
+	}
+
+	return nil
 }

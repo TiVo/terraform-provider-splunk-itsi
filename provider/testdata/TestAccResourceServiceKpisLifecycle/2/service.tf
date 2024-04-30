@@ -41,6 +41,14 @@ resource "itsi_service" "test_kpis" {
     description           = null
 
   }
+  kpi {
+    base_search_id        = itsi_kpi_base_search.test_kpis_linked_kpibs_2.id
+    base_search_metric    = "metric 2.2"
+    description           = "test"
+    threshold_template_id = itsi_kpi_threshold_template.test_kpis_kpi_threshold_template_1.id
+    title                 = "KPI 4"
+    urgency               = 8
+  }
 
 }
 
