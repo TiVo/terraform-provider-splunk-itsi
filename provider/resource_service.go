@@ -120,7 +120,7 @@ func (r *resourceService) Schema(ctx context.Context, req resource.SchemaRequest
 	resp.Schema = schema.Schema{
 		Description: "Manages a Service within ITSI.",
 		Blocks: map[string]schema.Block{
-			"kpi": schema.SetNestedBlock{
+			"kpi": schema.ListNestedBlock{
 				Description: "A set of KPI descriptions for this service.",
 				NestedObject: schema.NestedBlockObject{
 					Attributes: map[string]schema.Attribute{
@@ -328,16 +328,31 @@ const (
 )
 
 func (r *resourceService) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
-	if req.State.Raw.IsNull() || req.Plan.Raw.IsNull() {
+	if req.Plan.Raw.IsNull() {
+		return
+	}
+	var plan, config ServiceState
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+
+	if req.State.Raw.IsNull() {
+		// kpis := []KpiState{}
+		// for _, kpi := range plan.KPIs {
+		// 	if kpi.ID.IsNull() {
+		// 		kpi.ID = types.StringUnknown()
+		// 	}
+		// 	kpis = append(kpis, kpi)
+		// }
+		// plan.KPIs = kpis
+
+		// resp.Diagnostics.Append(resp.Plan.Set(ctx, plan)...)
 		return
 	}
 
 	const DEFAULT_URGENCY = 5
 
-	var state, plan, config ServiceState
+	var state ServiceState
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
-	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
-	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
 
 	properties := []struct {
 		prop *types.Bool
@@ -431,7 +446,7 @@ func (r *resourceService) Create(ctx context.Context, req resource.CreateRequest
 	var plan ServiceState
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 
-	base, diags := serviceStateToJson(ctx, r.client, plan)
+	base, diags := serviceStateToJson(ctx, r.client, &plan)
 	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
 		return
 	}
@@ -462,7 +477,7 @@ func (r *resourceService) Update(ctx context.Context, req resource.UpdateRequest
 	var plan ServiceState
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 
-	base, diags := serviceStateToJson(ctx, r.client, plan)
+	base, diags := serviceStateToJson(ctx, r.client, &plan)
 	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
 		return
 	}
@@ -642,7 +657,7 @@ func serviceModelFromBase(ctx context.Context, b *models.Base) (m ServiceState, 
 	return
 }
 
-func serviceStateToJson(ctx context.Context, clientConfig models.ClientConfig, m ServiceState) (config *models.Base, diags diag.Diagnostics) {
+func serviceStateToJson(ctx context.Context, clientConfig models.ClientConfig, m *ServiceState) (config *models.Base, diags diag.Diagnostics) {
 	body := map[string]interface{}{}
 	config = serviceBase(clientConfig, m.ID.ValueString(), m.Title.ValueString())
 
@@ -710,6 +725,7 @@ func serviceStateToJson(ctx context.Context, clientConfig models.ClientConfig, m
 	}
 
 	itsiKpis := []map[string]interface{}{}
+	tfKpis := []KpiState{}
 	for _, kpi := range m.KPIs {
 		if kpi.ID.IsUnknown() {
 			uuid, _ := uuid.GenerateUUID()
@@ -813,9 +829,11 @@ func serviceStateToJson(ctx context.Context, clientConfig models.ClientConfig, m
 		}
 
 		itsiKpis = append(itsiKpis, itsiKpi)
+		tfKpis = append(tfKpis, kpi)
 	}
 
 	body["kpis"] = itsiKpis
+	m.KPIs = tfKpis
 
 	//entity rules
 	itsiEntityRules := []map[string]interface{}{}
