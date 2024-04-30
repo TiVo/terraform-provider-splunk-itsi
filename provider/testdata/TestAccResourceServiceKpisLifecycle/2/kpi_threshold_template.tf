@@ -107,7 +107,7 @@ resource "itsi_kpi_threshold_template" "test_kpis_static" {
   description                           = "kpi_threshold_template_1"
   sec_grp                               = "default_itsi_security_group"
   time_variate_thresholds               = true
-  title                                 = "[Custom]: Static test kpi_threshold_template_1"
+  title                                 = "TestAcc_static_kpi_threshold_template_1"
   time_variate_thresholds_specification {
     policies {
       policy_name = "default_policy"

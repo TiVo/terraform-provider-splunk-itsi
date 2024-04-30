@@ -1,6 +1,6 @@
 // add entity_rule, update rule
 resource "itsi_service" "service_create_filter_test" {
-  title = "Test Service Create filter test"
+  title = "TestAcc_Test_Service_Create_filter_test"
   entity_rules {
     rule {
       field      = "entityTitle"
