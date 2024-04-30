@@ -1,3 +1,8 @@
+/*
+    TestAccResourceCollectionDataLifecycle - Step 1
+    Test the creation of a collection data resource with multiple entries, containing data of different common types.
+*/
+
 locals {
   test_collection = [
     {

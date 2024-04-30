@@ -1,3 +1,8 @@
+/*
+    TestAccResourceCollectionDataLifecycle - Step 2
+    Test the update of a collection data resource
+*/
+
 locals {
   test_collection = [
     {
