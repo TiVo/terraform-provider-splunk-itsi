@@ -563,7 +563,7 @@ func (r *resourceKpiBaseSearch) Update(ctx context.Context, req resource.UpdateR
 		resp.Diagnostics.AddError("Unable to update KPI Base Search", "KPI Base Search not found")
 		return
 	}
-	if err := base.Update(ctx); err != nil {
+	if err := base.UpdateAsync(ctx); err != nil {
 		resp.Diagnostics.AddError("Unable to update KPI Base Search", err.Error())
 		return
 	}
