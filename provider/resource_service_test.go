@@ -420,6 +420,34 @@ func TestAccResourceServiceKpisLifecycle(t *testing.T) {
 	})
 }
 
+func TestAccResourceServiceKpisUnknown(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		PreCheck: func() { testAccPreCheck(t) },
+		CheckDestroy: resource.ComposeTestCheckFunc(
+			testAccCheckResourceDestroy(resourceNameService, "TestAcc_Test_service_kpis"),
+			testAccCheckResourceDestroy(resourceNameKPIBaseSearch, "TestAcc_linked_base_search_1"),
+			testAccCheckResourceDestroy(resourceNameKPIThresholdTemplate, "TestAcc_stdev_test_linked_kpi_threshold_template_1"),
+			testAccCheckResourceDestroy(resourceNameKPIThresholdTemplate, "TestAcc_stdev_test_linked_kpi_threshold_template_2"),
+		),
+		Steps: []resource.TestStep{
+			{
+				ProtoV6ProviderFactories: providerFactories,
+				ConfigDirectory:          config.TestStepDirectory(),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("itsi_service.test_kpis", "title", "TestAcc_Test_service_kpis"),
+				),
+			},
+			{
+				ProtoV6ProviderFactories: providerFactories,
+				ConfigDirectory:          config.TestStepDirectory(),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("itsi_service.test_kpis", "title", "TestAcc_Test_service_kpis"),
+				),
+			},
+		},
+	})
+}
+
 func verifyKpiId(index int) resource.CheckResourceAttrWithFunc {
 	return func(value string) error {
 		fmt.Printf("Verifying KPI Ids on index %d\n", index)
