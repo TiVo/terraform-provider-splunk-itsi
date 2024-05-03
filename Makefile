@@ -42,7 +42,7 @@ testacc: fmt
 	TF_ACC=1 go test -v -cover $(TEST_ARGS) -timeout 30m ./...
 
 sweep: fmt
-	TF_ACC_LOG=trace go test -v $(TEST_ARGS) -timeout 30m github.com/tivo/terraform-provider-splunk-itsi/provider -sweep=default
+	TF_ACC_LOG=trace go test -v $(TEST_ARGS) -timeout 10m github.com/tivo/terraform-provider-splunk-itsi/provider -sweep=default
 
 docs: fmt
 	go generate ./...
