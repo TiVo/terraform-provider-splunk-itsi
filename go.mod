@@ -19,7 +19,7 @@ require (
 	github.com/hashicorp/terraform-plugin-sdk/v2 v2.33.0
 	github.com/hashicorp/terraform-plugin-testing v1.7.0
 	github.com/lestrrat-go/backoff/v2 v2.0.9-0.20211111113235-51026d9f5dca
-	github.com/tmccombs/hcl2json v0.6.2
+	github.com/tmccombs/hcl2json v0.6.3
 	gopkg.in/yaml.v3 v3.0.1
 )
 
