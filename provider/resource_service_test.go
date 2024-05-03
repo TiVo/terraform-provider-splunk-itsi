@@ -64,6 +64,88 @@ func TestResourceServicePlan(t *testing.T) {
 	})
 }
 
+// func TestAccResourceServiceImportKpiWithThresholdCreation(t *testing.T) {
+// 	resource.Test(t, resource.TestCase{
+// 		PreCheck: func() {
+// 			testAccPreCheck(t)
+
+// 			kpiBaseSearch := kpiBaseSearchBase(itsiClientConfig(), "", "TestAcc_test_import_base")
+// 			kpiBaseSearch.Populate([]byte(util.Dedent(`
+// 			{
+// 				"actions": "",
+// 				"alert_lag": "300",
+// 				"alert_period": "5",
+// 				"base_search": "| makeresults count=100",
+// 				"description": "",
+// 				"entity_alias_filtering_fields": "",
+// 				"entity_breakdown_id_fields": "split",
+// 				"entity_id_fields": "entityTitle",
+// 				"is_entity_breakdown": true,
+// 				"is_service_entity_filter": true,
+// 				"metric_qualifier": "",
+// 				"metrics": [
+// 				  {
+// 					"_key": "12345678",
+// 					"aggregate_statop": "sum",
+// 					"entity_statop": "count",
+// 					"fill_gaps": "custom_value",
+// 					"gap_custom_alert_value": 0,
+// 					"gap_severity": "unknown",
+// 					"gap_severity_color": "#CCCCCC",
+// 					"gap_severity_color_light": "#EEEEEE",
+// 					"gap_severity_value": "-1",
+// 					"threshold_field": "status_failopen",
+// 					"title": "FailOpen Count",
+// 					"unit": ""
+// 				  },
+// 				  {
+// 					"_key": "8910111213",
+// 					"aggregate_statop": "sum",
+// 					"entity_statop": "count",
+// 					"fill_gaps": "custom_value",
+// 					"gap_custom_alert_value": 0,
+// 					"gap_severity": "unknown",
+// 					"gap_severity_color": "#CCCCCC",
+// 					"gap_severity_color_light": "#EEEEEE",
+// 					"gap_severity_value": "-1",
+// 					"threshold_field": "status_notAuthorized",
+// 					"title": "Not Authorized Count",
+// 					"unit": ""
+// 				  }
+// 				],
+// 				"objectType": "kpi_base_search",
+// 				"search_alert_earliest": "5",
+// 				"sec_grp": "default_itsi_security_group",
+// 				"source_itsi_da": "itsi",
+// 				"title": "TestAcc_test_import_base",
+// 				"object_type": "kpi_base_search"
+// 			  }
+
+// 			`)))
+// 			kpiBaseSearch, error := kpiBaseSearch.Create(nil)
+// 			if error != nil {
+// 				fmt.Println(error.Error())
+// 				panic(1)
+// 			}
+
+// 			service := serviceBase(itsiClientConfig(), "", "TestAcc_test_import_resource")
+// 			service.Populate([]byte(util.Dedent(`
+// 			`)))
+
+// 			service, error = service.Create(nil)
+// 			if error != nil {
+// 				fmt.Println(error.Error())
+// 				panic(1)
+// 			}
+
+// 		},
+// 		CheckDestroy: testAccCheckResourceDestroy(resourceNameService, "service_create_filter_test"),
+// 		Steps: []resource.TestStep{
+// 			{},
+// 		},
+// 	})
+// }
+
 func TestAccResourceServiceEntityFiltersLifecycle(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		PreCheck:     func() { testAccPreCheck(t) },
@@ -200,6 +282,84 @@ func TestAccResourceServiceTagsLifecycle(t *testing.T) {
 	})
 }
 
+func testCheckServiceDependsOnMatch(child_name string, expected_overloaded_urgency ...int) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
+		leafResource, ok := s.RootModule().Resources[child_name]
+		if !ok {
+			return fmt.Errorf("Not found: itsi_service.service_create_leaf")
+		}
+		leafKPIID := leafResource.Primary.Attributes["shkpi_id"]
+
+		parentResource, ok := s.RootModule().Resources["itsi_service.service_create_parent"]
+		if !ok {
+			return fmt.Errorf("Not found: itsi_service.service_create_parent")
+		}
+		kpiLength, err := strconv.Atoi(parentResource.Primary.Attributes["service_depends_on.0.kpis.#"])
+		if err != nil {
+			return fmt.Errorf("Kpi depends on length not found")
+		}
+		for i := 0; i < kpiLength; i++ {
+			parentKPIID := parentResource.Primary.Attributes["service_depends_on.0.kpis."+strconv.Itoa(i)]
+			if leafKPIID == parentKPIID {
+				fmt.Printf("PASSED: Leaf shkpi_id %s, Parent's dependent kpis %s\n", leafKPIID, parentResource.Primary.Attributes["service_depends_on.0.kpis"])
+
+				// if len(expected_overloaded_urgency) > 0 {
+				// 	if urgency, ok := parentResource.Primary.Attributes["service_depends_on.0.kpis."+strconv.Itoa(i)+
+				// 		".overload_urgencies."+leafKPIID]; !ok || urgency != strconv.Itoa(expected_overloaded_urgency[0]) {
+				// 		return fmt.Errorf("%s mismatch: Missing expected overloaded_urgency %s\n", leafKPIID,
+				// 			parentResource.Primary.Attributes["service_depends_on.0.kpis."+strconv.Itoa(i)])
+				// 	}
+				// }
+			}
+			return nil
+		}
+		return fmt.Errorf("shkpi_id mismatch: Missing shkpi_id %s\n", leafKPIID)
+	}
+
+}
+
+func TestAccResourceServiceKpisHandleUnknownTemplateId(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		PreCheck: func() { testAccPreCheck(t) },
+		CheckDestroy: resource.ComposeTestCheckFunc(
+			testAccCheckResourceDestroy(resourceNameService, "test_kpis_2"),
+			testAccCheckResourceDestroy(resourceNameKPIBaseSearch, "test_kpis_linked_kpibs_3"),
+			testAccCheckResourceDestroy(resourceNameEntityType, "test_kpis_linked_kpibs_4"),
+			testAccCheckResourceDestroy(resourceNameKPIThresholdTemplate, "test_kpis_static_2"),
+			testAccCheckResourceDestroy(resourceNameKPIThresholdTemplate, "test_kpis_kpi_threshold_template_3"),
+		),
+		Steps: []resource.TestStep{
+			{
+				ProtoV6ProviderFactories: providerFactories,
+				ConfigDirectory:          config.TestStepDirectory(),
+			},
+			// add kpi
+			{
+				ProtoV6ProviderFactories: providerFactories,
+				ConfigDirectory:          config.TestStepDirectory(),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectNonEmptyPlan(),
+						plancheck.ExpectKnownValue("itsi_service.test_kpis_2", tfjsonpath.New("kpi").AtSliceIndex(0).AtMapKey("threshold_template_id"), knownvalue.NotNull()),
+						plancheck.ExpectUnknownValue("itsi_service.test_kpis_2", tfjsonpath.New("kpi").AtSliceIndex(1).AtMapKey("threshold_template_id")),
+						plancheck.ExpectKnownValue("itsi_service.test_kpis_2", tfjsonpath.New("kpi").AtSliceIndex(2).AtMapKey("threshold_template_id"), knownvalue.NotNull()),
+					},
+				},
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttrSet("itsi_service.test_kpis_2", "kpi.0.threshold_template_id"),
+					resource.TestCheckResourceAttrSet("itsi_service.test_kpis_2", "kpi.1.threshold_template_id"),
+					resource.TestCheckResourceAttrSet("itsi_service.test_kpis_2", "kpi.2.threshold_template_id"),
+				),
+			}, // change metric of KPI 1 (ID regenerated), unit & description of KPI 2 (ID should stay the same), remove KPI 3
+			{
+				ProtoV6ProviderFactories: providerFactories,
+				ConfigDirectory:          config.TestStepDirectory(),
+				Check:                    resource.ComposeTestCheckFunc(),
+			},
+		},
+	})
+}
+
 func TestAccResourceServiceDependsOnLifecycle(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		PreCheck: func() { testAccPreCheck(t) },
@@ -250,41 +410,6 @@ func TestAccResourceServiceDependsOnLifecycle(t *testing.T) {
 			},
 		},
 	})
-}
-func testCheckServiceDependsOnMatch(child_name string, expected_overloaded_urgency ...int) resource.TestCheckFunc {
-	return func(s *terraform.State) error {
-		leafResource, ok := s.RootModule().Resources[child_name]
-		if !ok {
-			return fmt.Errorf("Not found: itsi_service.service_create_leaf")
-		}
-		leafKPIID := leafResource.Primary.Attributes["shkpi_id"]
-
-		parentResource, ok := s.RootModule().Resources["itsi_service.service_create_parent"]
-		if !ok {
-			return fmt.Errorf("Not found: itsi_service.service_create_parent")
-		}
-		kpiLength, err := strconv.Atoi(parentResource.Primary.Attributes["service_depends_on.0.kpis.#"])
-		if err != nil {
-			return fmt.Errorf("Kpi depends on length not found")
-		}
-		for i := 0; i < kpiLength; i++ {
-			parentKPIID := parentResource.Primary.Attributes["service_depends_on.0.kpis."+strconv.Itoa(i)]
-			if leafKPIID == parentKPIID {
-				fmt.Printf("PASSED: Leaf shkpi_id %s, Parent's dependent kpis %s\n", leafKPIID, parentResource.Primary.Attributes["service_depends_on.0.kpis"])
-
-				// if len(expected_overloaded_urgency) > 0 {
-				// 	if urgency, ok := parentResource.Primary.Attributes["service_depends_on.0.kpis."+strconv.Itoa(i)+
-				// 		".overload_urgencies."+leafKPIID]; !ok || urgency != strconv.Itoa(expected_overloaded_urgency[0]) {
-				// 		return fmt.Errorf("%s mismatch: Missing expected overloaded_urgency %s\n", leafKPIID,
-				// 			parentResource.Primary.Attributes["service_depends_on.0.kpis."+strconv.Itoa(i)])
-				// 	}
-				// }
-			}
-			return nil
-		}
-		return fmt.Errorf("shkpi_id mismatch: Missing shkpi_id %s\n", leafKPIID)
-	}
-
 }
 
 func TestAccResourceServiceKpisLifecycle(t *testing.T) {
