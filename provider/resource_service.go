@@ -12,6 +12,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/mapdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/setdefault"
@@ -266,15 +267,15 @@ func (r *resourceService) Schema(ctx context.Context, req resource.SchemaRequest
 				Description: "User-defined description for the service.",
 			},
 			"enabled": schema.BoolAttribute{
-				Optional: true,
-				Computed: true,
-				//Default:     booldefault.StaticBool(true),
+				Optional:    true,
+				Computed:    true,
+				Default:     booldefault.StaticBool(true),
 				Description: "Boolean value defining whether the service should be enabled.",
 			},
 			"is_healthscore_calculate_by_entity_enabled": schema.BoolAttribute{
-				Optional: true,
-				Computed: true,
-				//Default:     booldefault.StaticBool(true),
+				Optional:    true,
+				Computed:    true,
+				Default:     booldefault.StaticBool(true),
 				Description: "Set the Service Health Score calculation to account for the severity levels of individual entities if at least one KPI is split by entity.",
 			},
 			"security_group": schema.StringAttribute{
@@ -339,7 +340,7 @@ func (r *resourceService) ModifyPlan(ctx context.Context, req resource.ModifyPla
 	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 
-	properties := []struct {
+	/*properties := []struct {
 		conf types.Bool
 		prop *types.Bool
 		def  bool
@@ -352,7 +353,7 @@ func (r *resourceService) ModifyPlan(ctx context.Context, req resource.ModifyPla
 		if p.conf.IsNull() && p.prop.IsUnknown() {
 			*p.prop = types.BoolValue(p.def)
 		}
-	}
+	}*/
 
 	if config.Description.IsNull() && plan.Description.IsUnknown() {
 		plan.Description = types.StringNull()
