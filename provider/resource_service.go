@@ -12,6 +12,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/mapdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/setdefault"
@@ -266,15 +267,15 @@ func (r *resourceService) Schema(ctx context.Context, req resource.SchemaRequest
 				Description: "User-defined description for the service.",
 			},
 			"enabled": schema.BoolAttribute{
-				Optional: true,
-				Computed: true,
-				//Default:     booldefault.StaticBool(true),
+				Optional:    true,
+				Computed:    true,
+				Default:     booldefault.StaticBool(true),
 				Description: "Boolean value defining whether the service should be enabled.",
 			},
 			"is_healthscore_calculate_by_entity_enabled": schema.BoolAttribute{
-				Optional: true,
-				Computed: true,
-				//Default:     booldefault.StaticBool(true),
+				Optional:    true,
+				Computed:    true,
+				Default:     booldefault.StaticBool(true),
 				Description: "Set the Service Health Score calculation to account for the severity levels of individual entities if at least one KPI is split by entity.",
 			},
 			"security_group": schema.StringAttribute{
@@ -318,57 +319,43 @@ func getKpiHashKey(kpiData KpiState, hash_key *string) (diags diag.Diagnostics) 
 }
 
 type KpiMapFields struct {
-	ID      types.String
-	Urgency types.Int64
+	ID                  types.String
+	Description         types.String
+	ThresholdTemplateID types.String
+	Urgency             types.Int64
 }
 
 const (
 	SERVICE_ENABLED_DEFAULT                  = true
 	SERVICE_IS_HEALTHSCORE_BY_ENTITY_ENABLED = true
+	DEFAULT_URGENCY                          = 5
 )
 
 func (r *resourceService) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
-	if req.Plan.Raw.IsNull() {
+	if req.Plan.Raw.IsNull() || req.State.Raw.IsNull() {
 		return
 	}
-	var plan, config ServiceState
+	var state, plan, config ServiceState
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
-
-	if req.State.Raw.IsNull() {
-		// kpis := []KpiState{}
-		// for _, kpi := range plan.KPIs {
-		// 	if kpi.ID.IsNull() {
-		// 		kpi.ID = types.StringUnknown()
-		// 	}
-		// 	kpis = append(kpis, kpi)
-		// }
-		// plan.KPIs = kpis
-
-		// resp.Diagnostics.Append(resp.Plan.Set(ctx, plan)...)
-		return
-	}
-
-	const DEFAULT_URGENCY = 5
-
-	var state ServiceState
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 
-	properties := []struct {
+	/*properties := []struct {
+		conf types.Bool
 		prop *types.Bool
 		def  bool
 	}{
-		{&plan.Enabled, SERVICE_ENABLED_DEFAULT},
-		{&plan.IsHealthscoreCalculateByEntityEnabled, SERVICE_IS_HEALTHSCORE_BY_ENTITY_ENABLED},
+		{config.Enabled, &plan.Enabled, SERVICE_ENABLED_DEFAULT},
+		{config.Enabled, &plan.IsHealthscoreCalculateByEntityEnabled, SERVICE_IS_HEALTHSCORE_BY_ENTITY_ENABLED},
 	}
 
 	for _, p := range properties {
-		if p.prop.IsUnknown() {
+		if p.conf.IsNull() && p.prop.IsUnknown() {
 			*p.prop = types.BoolValue(p.def)
 		}
-	}
+	}*/
 
-	if plan.Description.IsUnknown() {
+	if config.Description.IsNull() && plan.Description.IsUnknown() {
 		plan.Description = types.StringNull()
 	}
 
@@ -381,17 +368,22 @@ func (r *resourceService) ModifyPlan(ctx context.Context, req resource.ModifyPla
 		resp.Diagnostics.Append(getKpiHashKey(kpi, &internalIdentifier)...)
 
 		kpiOldKeys[internalIdentifier] = &KpiMapFields{
-			ID:      kpi.ID,
-			Urgency: types.Int64Value(DEFAULT_URGENCY),
+			ID: kpi.ID,
 		}
 	}
 	// redefine urgency in case they specified in config
 	for _, kpi := range config.KPIs {
 		internalIdentifier := ""
 		resp.Diagnostics.Append(getKpiHashKey(kpi, &internalIdentifier)...)
-		if k, ok := kpiOldKeys[internalIdentifier]; ok && !kpi.Urgency.IsNull() {
+		if k, ok := kpiOldKeys[internalIdentifier]; ok {
 			k.Urgency = kpi.Urgency
+			if kpi.Urgency.IsNull() {
+				k.Urgency = types.Int64Value(DEFAULT_URGENCY)
+			}
+			k.Description = kpi.Description
+			k.ThresholdTemplateID = kpi.ThresholdTemplateID
 		}
+
 	}
 
 	tfKpis := []KpiState{}
@@ -402,17 +394,14 @@ func (r *resourceService) ModifyPlan(ctx context.Context, req resource.ModifyPla
 		if existingKpi, ok := kpiOldKeys[internalIdentifier]; ok {
 			kpi.ID = existingKpi.ID
 			kpi.Urgency = existingKpi.Urgency
-		}
-
-		properties := []*types.String{
-			&kpi.Description, &kpi.ThresholdTemplateID,
-		}
-
-		for _, p := range properties {
-			if p.IsUnknown() {
-				*p = types.StringNull()
+			if kpi.Description.IsUnknown() {
+				kpi.Description = existingKpi.Description
+			}
+			if kpi.ThresholdTemplateID.IsUnknown() {
+				kpi.ThresholdTemplateID = existingKpi.ThresholdTemplateID
 			}
 		}
+
 		tfKpis = append(tfKpis, kpi)
 	}
 	plan.KPIs = tfKpis
@@ -730,6 +719,12 @@ func serviceStateToJson(ctx context.Context, clientConfig models.ClientConfig, m
 		if kpi.ID.IsUnknown() {
 			uuid, _ := uuid.GenerateUUID()
 			kpi.ID = types.StringValue(uuid)
+		}
+		if kpi.Description.IsUnknown() {
+			kpi.Description = types.StringNull()
+		}
+		if kpi.ThresholdTemplateID.IsUnknown() {
+			kpi.ThresholdTemplateID = types.StringNull()
 		}
 
 		restKey := kpi.BaseSearchID.ValueString()
