@@ -394,9 +394,6 @@ func (r *resourceService) ModifyPlan(ctx context.Context, req resource.ModifyPla
 		if existingKpi, ok := kpiOldKeys[internalIdentifier]; ok {
 			kpi.ID = existingKpi.ID
 			kpi.Urgency = existingKpi.Urgency
-			if kpi.Urgency.IsUnknown() {
-				kpi.Urgency = existingKpi.Urgency
-			}
 			if kpi.Description.IsUnknown() {
 				kpi.Description = existingKpi.Description
 			}
