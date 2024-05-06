@@ -61,92 +61,6 @@ func itsiClientConfig() (client models.ClientConfig) {
 	return
 }
 
-// Sweepers
-
-func initSweepers() {
-	testingresource.AddTestSweepers("kpi_base_search", &testingresource.Sweeper{
-		Name: "kpi_base_search",
-		F:    sweepITSIResource(resourceNameKPIBaseSearch),
-	})
-	testingresource.AddTestSweepers("kpi_threshold_template", &testingresource.Sweeper{
-		Name: "kpi_threshold_template",
-		F:    sweepITSIResource(resourceNameKPIThresholdTemplate),
-	})
-	testingresource.AddTestSweepers("entity", &testingresource.Sweeper{
-		Name: "entity",
-		F:    sweepITSIResource(resourceNameEntity),
-	})
-	testingresource.AddTestSweepers("entity_type", &testingresource.Sweeper{
-		Name: "entity_type",
-		F:    sweepITSIResource(resourceNameEntityType),
-	})
-	testingresource.AddTestSweepers("service", &testingresource.Sweeper{
-		Name: "service",
-		F:    sweepITSIResource(resourceNameService),
-	})
-	testingresource.AddTestSweepers("notable_event_aggregation_policy", &testingresource.Sweeper{
-		Name: "notable_event_aggregation_policy",
-		F:    sweepITSIResource(resourceNameNEAP),
-	})
-}
-
-func sweepITSIResource(t resourceName) testingresource.SweeperFunc {
-	return func(_ string) error {
-		ctx := context.Background()
-		return sweepObjectType(ctx, string(t))
-	}
-}
-
-func sweeperLog(objecttype string, msg string, args ...any) {
-	log.Printf("[SWEEPER (%s)] %s", objecttype, fmt.Sprintf(msg, args...))
-}
-
-func sweepObjectType(ctx context.Context, objecttype string) (err error) {
-	log.Printf("Sweeping %s resources", objecttype)
-	base := models.NewBase(clientConfig, "", "", objecttype)
-
-	deleted := 0
-	var fields []string
-
-	if objecttype != string(resourceNameNEAP) {
-		fields = []string{base.RestKeyField, base.TFIDField, "title"}
-	}
-
-	for limit, offset := base.GetPageSize(), 0; offset >= 0; offset += limit {
-		items, err := base.Dump(ctx, &models.Parameters{Offset: offset, Count: limit, Fields: fields, Filter: ""})
-		if err != nil {
-			return err
-		}
-
-		for _, item := range items {
-
-			obj, err := item.RawJson.ToInterfaceMap()
-			if err != nil {
-				return err
-			}
-
-			if title, ok := obj["title"].(string); ok {
-				if strings.HasPrefix(title, "TestAcc_") {
-					log.Printf("Deleting %s %s (%s) ", objecttype, title, item.RESTKey)
-					deleted++
-					err = item.Delete(ctx)
-					if err != nil {
-						log.Printf("Failed to delete %s %s (%s): %s \n", objecttype, title, item.RESTKey, err)
-						return err
-					}
-				}
-			}
-
-		}
-
-		if len(items) < limit {
-			break
-		}
-	}
-	sweeperLog(objecttype, "Deleted %d resources", deleted)
-	return
-}
-
 // Helper functions
 
 func testAccPreCheck(t *testing.T) {
@@ -305,4 +219,107 @@ func baseModelObjectExists(ctx context.Context, resourcetype resourceName, resou
 
 func testAccResourceTitle(title string) string {
 	return "TestAcc_" + title
+}
+
+/*
+
+     ||
+     ||
+     ||
+     ||
+     ||
+     ||
+     ||     Here you go, sweep
+     ||     that up..............
+    /||\
+   /||||\
+   ======         __|__
+   ||||||        / ~@~ \
+   ||||||       |-------|
+   ||||||       |_______|
+
+*/
+
+func initSweepers() {
+	testingresource.AddTestSweepers("kpi_base_search", &testingresource.Sweeper{
+		Name: "kpi_base_search",
+		F:    sweepITSIResource(resourceNameKPIBaseSearch),
+	})
+	testingresource.AddTestSweepers("kpi_threshold_template", &testingresource.Sweeper{
+		Name: "kpi_threshold_template",
+		F:    sweepITSIResource(resourceNameKPIThresholdTemplate),
+	})
+	testingresource.AddTestSweepers("entity", &testingresource.Sweeper{
+		Name: "entity",
+		F:    sweepITSIResource(resourceNameEntity),
+	})
+	testingresource.AddTestSweepers("entity_type", &testingresource.Sweeper{
+		Name: "entity_type",
+		F:    sweepITSIResource(resourceNameEntityType),
+	})
+	testingresource.AddTestSweepers("service", &testingresource.Sweeper{
+		Name: "service",
+		F:    sweepITSIResource(resourceNameService),
+	})
+	testingresource.AddTestSweepers("notable_event_aggregation_policy", &testingresource.Sweeper{
+		Name: "notable_event_aggregation_policy",
+		F:    sweepITSIResource(resourceNameNEAP),
+	})
+}
+
+func sweepITSIResource(t resourceName) testingresource.SweeperFunc {
+	return func(_ string) error {
+		ctx := context.Background()
+		return sweepObjectType(ctx, string(t))
+	}
+}
+
+func sweeperLog(objecttype string, msg string, args ...any) {
+	log.Printf("[SWEEPER (%s)] %s", objecttype, fmt.Sprintf(msg, args...))
+}
+
+func sweepObjectType(ctx context.Context, objecttype string) (err error) {
+	log.Printf("Sweeping %s resources", objecttype)
+	base := models.NewBase(clientConfig, "", "", objecttype)
+
+	deleted := 0
+	var fields []string
+
+	if objecttype != string(resourceNameNEAP) {
+		fields = []string{base.RestKeyField, base.TFIDField, "title"}
+	}
+
+	for limit, offset := base.GetPageSize(), 0; offset >= 0; offset += limit {
+		items, err := base.Dump(ctx, &models.Parameters{Offset: offset, Count: limit, Fields: fields, Filter: ""})
+		if err != nil {
+			return err
+		}
+
+		for _, item := range items {
+
+			obj, err := item.RawJson.ToInterfaceMap()
+			if err != nil {
+				return err
+			}
+
+			if title, ok := obj["title"].(string); ok {
+				if strings.HasPrefix(title, "TestAcc_") {
+					log.Printf("Deleting %s %s (%s) ", objecttype, title, item.RESTKey)
+					deleted++
+					err = item.Delete(ctx)
+					if err != nil {
+						log.Printf("Failed to delete %s %s (%s): %s \n", objecttype, title, item.RESTKey, err)
+						return err
+					}
+				}
+			}
+
+		}
+
+		if len(items) < limit {
+			break
+		}
+	}
+	sweeperLog(objecttype, "Deleted %d resources", deleted)
+	return
 }
