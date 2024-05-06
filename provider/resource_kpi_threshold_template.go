@@ -241,7 +241,9 @@ func (r *resourceKpiThresholdTemplate) ModifyPlan(ctx context.Context, req resou
 		if tsm.MetricField.IsUnknown() {
 			tsm.MetricField = types.StringNull()
 		}
-		tsm.BaseSeverityLabel = types.StringValue(BASE_SEVERITY_LABEL_DEFAULT)
+		if tsm.BaseSeverityLabel.IsUnknown() {
+			tsm.BaseSeverityLabel = types.StringValue(BASE_SEVERITY_LABEL_DEFAULT)
+		}
 	}
 	if plan.TimeVariateThresholdsSpecification != nil {
 		policies := []PolicyModel{}
