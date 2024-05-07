@@ -42,7 +42,7 @@ resource "itsi_kpi_threshold_template" "test" {
       }
 
       entity_thresholds {
-        base_severity_label = "normal"
+        base_severity_label = "critical"
         gauge_max           = 100
         gauge_min           = 0
         is_max_static       = false

@@ -12,7 +12,7 @@ func TestDataSourceCollectionDataSchema(t *testing.T) {
 }
 
 func TestAccDataCollectionData(t *testing.T) {
-	resource.UnitTest(t, resource.TestCase{
+	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: providerFactories,
 		Steps: []resource.TestStep{
 			{
