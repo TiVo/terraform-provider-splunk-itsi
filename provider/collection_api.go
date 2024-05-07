@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -207,6 +208,55 @@ func (api *collectionAPI) Wait(ctx context.Context, condition CollectionConditio
 	return
 }
 
+func (api *collectionAPI) Delete(ctx context.Context) (diags diag.Diagnostics) {
+	model := api.Model("collection_config")
+
+	exists, d := api.CollectionExists(ctx, true)
+	if diags.Append(d...); !exists || diags.HasError() {
+		return
+	}
+
+	if _, err := model.Delete(ctx); err != nil {
+		diags.AddError("Failed to delete collection config", err.Error())
+		return
+	}
+
+	diags.Append(api.Wait(ctx, CollectionDoesNotExist)...)
+	return
+}
+
+func (api *collectionAPI) GetCollections(ctx context.Context) (collections []collectionIDModel, diags diag.Diagnostics) {
+	const limit = 50
+
+	r := regexp.MustCompile(`<id>\S*servicesNS\/(?P<owner>.+)\/(?P<app>.+)\/storage\/collections\/config\/(?P<name>.+)<\/id>`)
+
+	model := api.Model("collection_config_keyless_with_body")
+
+	var err error
+	var c *models.CollectionApi
+
+	for offset := 0; ; offset += limit {
+		model.Params = fmt.Sprintf("count=%d&offset=%d", limit, offset)
+
+		if c, err = model.Read(ctx); err != nil {
+			diags.AddError("Failed to get the list of collections", err.Error())
+			return
+		}
+
+		res := r.FindAllStringSubmatch(string(c.Body), -1)
+		for i := range res {
+			owner, app, name := res[i][1], res[i][2], res[i][3]
+			collections = append(collections, collectionIDModel{types.StringValue(name), types.StringValue(app), types.StringValue(owner)})
+		}
+
+		if len(res) < limit {
+			break
+		}
+	}
+
+	return
+}
+
 //  collectionConfigAPI client
 
 type collectionConfigAPI struct {
@@ -377,26 +427,6 @@ func (api *collectionConfigAPI) Update(ctx context.Context) (diags diag.Diagnost
 	if _, err := model.Update(ctx); err != nil {
 		diags.AddError("Failed to update collection config", err.Error())
 	}
-	return
-}
-
-func (api *collectionConfigAPI) Delete(ctx context.Context) (diags diag.Diagnostics) {
-	model, d := api.Model(ctx, "collection_config")
-	if diags.Append(d...); diags.HasError() {
-		return
-	}
-
-	exists, d := api.CollectionExists(ctx, true)
-	if diags.Append(d...); !exists || diags.HasError() {
-		return
-	}
-
-	if _, err := model.Delete(ctx); err != nil {
-		diags.AddError("Failed to delete collection config", err.Error())
-		return
-	}
-
-	diags.Append(api.Wait(ctx, CollectionDoesNotExist)...)
 	return
 }
 

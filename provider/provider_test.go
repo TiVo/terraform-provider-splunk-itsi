@@ -21,6 +21,10 @@ import (
 	"github.com/tivo/terraform-provider-splunk-itsi/provider/util"
 )
 
+const (
+	accTestPrefix = "TestAcc_"
+)
+
 var providerFactories = map[string]func() (tfprotov6.ProviderServer, error){
 	"itsi": func() (tfprotov6.ProviderServer, error) {
 		return providerserver.NewProtocol6(New())(), nil
@@ -218,7 +222,7 @@ func baseModelObjectExists(ctx context.Context, resourcetype resourceName, resou
 }
 
 func testAccResourceTitle(title string) string {
-	return "TestAcc_" + title
+	return accTestPrefix + title
 }
 
 /*
@@ -264,6 +268,10 @@ func initSweepers() {
 	testingresource.AddTestSweepers("notable_event_aggregation_policy", &testingresource.Sweeper{
 		Name: "notable_event_aggregation_policy",
 		F:    sweepITSIResource(resourceNameNEAP),
+	})
+	testingresource.AddTestSweepers("collection", &testingresource.Sweeper{
+		Name: "collection",
+		F:    sweepCollections,
 	})
 }
 
@@ -320,6 +328,35 @@ func sweepObjectType(ctx context.Context, objecttype string) (err error) {
 			break
 		}
 	}
-	sweeperLog(objecttype, "Deleted %d resources", deleted)
+	sweeperLog(objecttype, "Deleted %d objects", deleted)
 	return
+}
+
+func sweepCollections(_ string) error {
+	log.Println("Sweeping collections")
+	ctx := context.Background()
+	deleted := 0
+	api := NewCollectionAPI(collectionGlobal, clientConfig)
+
+	collections, diags := api.GetCollections(ctx)
+	if diags.HasError() {
+		return fmt.Errorf("failed to get collections: %#v", diags)
+	}
+
+	for _, collection := range collections {
+		if strings.HasPrefix(collection.Name.ValueString(), accTestPrefix) {
+			log.Printf("Deleting collection %s\n", collection.Key())
+
+			api := NewCollectionAPI(collection, clientConfig)
+
+			diags := api.Delete(ctx)
+			if diags.HasError() {
+				return fmt.Errorf("failed to delete collection %s: %#v", collection.Key(), diags)
+			}
+			deleted++
+		}
+
+	}
+	sweeperLog(string(resourceNameCollection), "Deleted %d objects", deleted)
+	return nil
 }
