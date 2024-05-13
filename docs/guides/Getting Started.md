@@ -21,7 +21,7 @@ terraform {
     itsi = {
       source  = "tivo/splunk-itsi"
       ## required version
-      version = "0.8.4"
+      version = "~>2.0"
     }
   }
 }
@@ -103,7 +103,7 @@ To output search results add:
 
 ```terraform
 output "splunk_search_data" {
-  value = data.itsi_splunk_search.guide_itsi_entity_search.results
+  value = jsondecode(data.itsi_splunk_search.guide_itsi_entity_search.results)
 }
 ```
 As `join_fields = ["host"]` was used - `server_roles` info field was joined with all hosts the second search obtained info about:
@@ -144,7 +144,7 @@ resource "itsi_entity_type" "guide_itsi_host" {
 }
 
 resource "itsi_entity" "guide_itsi_entities" {
-  for_each = { for entity in data.itsi_splunk_search.guide_itsi_entity_search.results:  entity["host"] => entity }
+  for_each = { for entity in jsondecode(data.itsi_splunk_search.guide_itsi_entity_search.results):  entity["host"] => entity }
 
   title           = each.key
   aliases = {
@@ -663,7 +663,7 @@ terraform {
   required_providers {
     itsi = {
       source  = "tivo/splunk-itsi"
-      version = "0.8.4"
+      version = "~>2.0"
     }
     splunk = {
       source  = "splunk/splunk"
@@ -743,15 +743,24 @@ locals {
 }
 ```
 
-A collection can be updated with the list of records using the [itsi_splunk_collection_entries](https://registry.terraform.io/providers/TiVo/splunk-itsi/latest/docs/resources/splunk_collection_entries) resource or with a single record using the [itsi_splunk_collection_entry](https://registry.terraform.io/providers/TiVo/splunk-itsi/latest/docs/resources/splunk_collection_entry) resource:
+A collection can be updated with the list of records using the [itsi_collection_data](https://registry.terraform.io/providers/TiVo/splunk-itsi/latest/docs/resources/collection_data) resource:
 
 ```terraform
-resource "itsi_splunk_collection_entry" "service_attr" {
-  for_each = local.test_metadata
-  collection_name = itsi_splunk_collection.guide_test_metadata.name
-  key  = each.key
-  data = each.value
+
+resource "itsi_collection_data" "service_attr" {
+  collection {
+    name = itsi_splunk_collection.guide_test_metadata.name
+  }
+
+   dynamic "entry" {
+     for_each = local.test_metadata
+     content {
+       id   = entry.key
+       data = jsonencode(entry.value)
+     }
+   }
 }
+
 ```
 
 After a Terraform apply command, the lookup table's data can be verified with a simple SPL search:

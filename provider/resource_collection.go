@@ -36,6 +36,10 @@ type collectionIDModel struct {
 	Owner types.String `tfsdk:"owner"`
 }
 
+var (
+	collectionGlobal = collectionIDModel{types.StringValue("N/A"), types.StringValue("-"), types.StringValue("-")}
+)
+
 func (c *collectionIDModel) Key() string {
 	return fmt.Sprintf("%s/%s/%s", c.Owner.ValueString(), c.App.ValueString(), c.Name.ValueString())
 }

@@ -52,6 +52,14 @@ collection_config_keyless:
     rest_key_field:                  name
     tfid_field:                      name
 
+collection_config_keyless_with_body:
+    path:                            storage/collections/config
+    api_key_in_url:                  false
+    body_format:                     XML
+    api_ignore_response_body:        false
+    rest_key_field:                  name
+    tfid_field:                      name
+
 collection_config:
     path:                            storage/collections/config
     api_key_in_url:                  true
