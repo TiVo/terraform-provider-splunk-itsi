@@ -306,13 +306,12 @@ func (r *resourceService) Schema(ctx context.Context, req resource.SchemaRequest
 	}
 }
 
-func getKpiHashKey(kpiData KpiState, hash_key *string) (diags diag.Diagnostics) {
+func getKpiHashKey(kpiData KpiState, hash_key *string) {
 	baseSearchId := kpiData.BaseSearchID.ValueString()
 	baseSearchMetricId := kpiData.BaseSearchMetric.ValueString()
 
 	if baseSearchId == "" || baseSearchMetricId == "" {
-		diags.AddError("Failed to create key",
-			fmt.Sprintf("no base search data specified, smt went wrong: %s", kpiData))
+		// Failed to identify key, do not modify this plan
 		return
 	}
 
@@ -369,7 +368,11 @@ func (r *resourceService) ModifyPlan(ctx context.Context, req resource.ModifyPla
 		// kpiid is important to save for historical raw data. Historical raw data makes sense,
 		// until base search & metris is same
 		internalIdentifier := ""
-		resp.Diagnostics.Append(getKpiHashKey(kpi, &internalIdentifier)...)
+		getKpiHashKey(kpi, &internalIdentifier)
+		if internalIdentifier == "" {
+			resp.Diagnostics.AddError("KPI state missed required fields",
+				fmt.Sprintf("no base search data specified, smt went wrong: %s", kpi))
+		}
 
 		kpiOldKeys[internalIdentifier] = &KpiMapFields{
 			ID: kpi.ID,
@@ -378,8 +381,8 @@ func (r *resourceService) ModifyPlan(ctx context.Context, req resource.ModifyPla
 	// redefine urgency in case they specified in config
 	for _, kpi := range config.KPIs {
 		internalIdentifier := ""
-		resp.Diagnostics.Append(getKpiHashKey(kpi, &internalIdentifier)...)
-		if k, ok := kpiOldKeys[internalIdentifier]; ok {
+		getKpiHashKey(kpi, &internalIdentifier)
+		if k, ok := kpiOldKeys[internalIdentifier]; internalIdentifier != "" && ok {
 			k.Urgency = kpi.Urgency
 			if kpi.Urgency.IsNull() {
 				k.Urgency = types.Int64Value(DEFAULT_URGENCY)
@@ -393,9 +396,10 @@ func (r *resourceService) ModifyPlan(ctx context.Context, req resource.ModifyPla
 	tfKpis := []KpiState{}
 	for _, kpi := range plan.KPIs {
 		internalIdentifier := ""
-		resp.Diagnostics.Append(getKpiHashKey(kpi, &internalIdentifier)...)
+		getKpiHashKey(kpi, &internalIdentifier)
 
-		if existingKpi, ok := kpiOldKeys[internalIdentifier]; ok {
+		// map kpis in case kpi hash was successfull on get
+		if existingKpi, ok := kpiOldKeys[internalIdentifier]; internalIdentifier != "" && ok {
 			kpi.ID = existingKpi.ID
 			kpi.Urgency = existingKpi.Urgency
 			if kpi.Description.IsUnknown() {
