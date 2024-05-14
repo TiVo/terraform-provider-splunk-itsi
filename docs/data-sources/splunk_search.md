@@ -42,6 +42,7 @@ data "itsi_splunk_search" "test_search" {
 - `join_fields` (Set of String) A set of strings, represents field names results will be FULL joined by.
 - `search` (Block Set) Search to be executed (see [below for nested schema](#nestedblock--search))
 - `search_concurrency` (Number) Number of searches that could be run in parallel per data source.
+- `timeouts` (Block, Optional) (see [below for nested schema](#nestedblock--timeouts))
 
 ### Read-Only
 
@@ -62,4 +63,12 @@ Optional:
 - `latest_time` (String) Specify a time string. Sets the latest (exclusive), respectively, time bounds for the search.
 - `splunk_app` (String) The Splunk app in which the search query should be performed.
 - `splunk_user` (String) The Splunk user in the context of which the search query should be performed
-- `timeout` (Number) HTTP timeout in seconds. 0 means no timeout.
+- `timeout` (Number, Deprecated) HTTP timeout in seconds. 0 means no timeout.
+
+
+<a id="nestedblock--timeouts"></a>
+### Nested Schema for `timeouts`
+
+Optional:
+
+- `read` (String) A string that can be [parsed as a duration](https://pkg.go.dev/time#ParseDuration) consisting of numbers and unit suffixes, such as "30s" or "2h45m". Valid time units are "s" (seconds), "m" (minutes), "h" (hours).
