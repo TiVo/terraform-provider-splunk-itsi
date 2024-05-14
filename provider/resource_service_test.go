@@ -278,6 +278,48 @@ func TestAccResourceServiceKpisHandleUnknownTemplateId(t *testing.T) {
 	})
 }
 
+func TestAccResourceServiceHandleUnknownKpiBaseSearchId(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		PreCheck: func() { testAccPreCheck(t) },
+		CheckDestroy: resource.ComposeTestCheckFunc(
+			testAccCheckResourceDestroy(resourceNameService, "test_kpis_2"),
+			testAccCheckResourceDestroy(resourceNameKPIBaseSearch, "test_kpis_linked_kpibs_4"),
+			testAccCheckResourceDestroy(resourceNameEntityType, "test_kpis_linked_kpibs_5"),
+			testAccCheckResourceDestroy(resourceNameKPIThresholdTemplate, "test_kpis_static_2"),
+			testAccCheckResourceDestroy(resourceNameKPIThresholdTemplate, "test_kpis_kpi_threshold_template_3"),
+		),
+		Steps: []resource.TestStep{
+			{
+				ProtoV6ProviderFactories: providerFactories,
+				ConfigDirectory:          config.TestStepDirectory(),
+			},
+			// add kpi linked to new kpi bs
+			{
+				ProtoV6ProviderFactories: providerFactories,
+				ConfigDirectory:          config.TestStepDirectory(),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectNonEmptyPlan(),
+						plancheck.ExpectKnownValue("itsi_service.test_kpis_2", tfjsonpath.New("kpi").AtSliceIndex(0).AtMapKey("base_search_id"), knownvalue.NotNull()),
+						plancheck.ExpectKnownValue("itsi_service.test_kpis_2", tfjsonpath.New("kpi").AtSliceIndex(1).AtMapKey("base_search_id"), knownvalue.NotNull()),
+						plancheck.ExpectUnknownValue("itsi_service.test_kpis_2", tfjsonpath.New("kpi").AtSliceIndex(2).AtMapKey("base_search_id")),
+					},
+				},
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttrSet("itsi_service.test_kpis_2", "kpi.0.base_search_id"),
+					resource.TestCheckResourceAttrSet("itsi_service.test_kpis_2", "kpi.1.base_search_id"),
+					resource.TestCheckResourceAttrSet("itsi_service.test_kpis_2", "kpi.2.base_search_id"),
+				),
+			}, // remove kpis
+			{
+				ProtoV6ProviderFactories: providerFactories,
+				ConfigDirectory:          config.TestStepDirectory(),
+				Check:                    resource.ComposeTestCheckFunc(),
+			},
+		},
+	})
+}
+
 func TestAccResourceServiceDependsOnLifecycle(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		PreCheck: func() { testAccPreCheck(t) },
