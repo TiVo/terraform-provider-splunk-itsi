@@ -6,6 +6,7 @@ import (
 	"maps"
 	"strings"
 
+	"github.com/hashicorp/terraform-plugin-framework-timeouts/resource/timeouts"
 	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/mapvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/objectvalidator"
@@ -110,6 +111,8 @@ type collectionConfigModel struct {
 	Owner         types.String `tfsdk:"owner"`
 	FieldTypes    types.Map    `tfsdk:"field_types"`
 	Accelerations types.List   `tfsdk:"accelerations"`
+
+	Timeouts timeouts.Value `tfsdk:"timeouts"`
 }
 
 func (c *collectionConfigModel) CollectionIDModel() collectionIDModel {
@@ -207,7 +210,7 @@ func collectionIDSchema() schema.SingleNestedBlock {
 	}
 }
 
-func (r *resourceCollection) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+func (r *resourceCollection) Schema(ctx context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	attrs := collectionIDSchema().Attributes
 	maps.Copy(attrs, map[string]schema.Attribute{
 		"field_types": schema.MapAttribute{
@@ -239,7 +242,10 @@ func (r *resourceCollection) Schema(_ context.Context, _ resource.SchemaRequest,
 
 	resp.Schema = schema.Schema{
 		MarkdownDescription: resourceCollectionMarkdownDescription,
-		Attributes:          attrs,
+		Blocks: map[string]schema.Block{
+			"timeouts": timeouts.BlockAll(ctx),
+		},
+		Attributes: attrs,
 	}
 }
 
@@ -248,6 +254,14 @@ func (r *resourceCollection) Read(ctx context.Context, req resource.ReadRequest,
 	var state collectionConfigModel
 
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+
+	readTimeout, diags := state.Timeouts.Read(ctx, tftimeout.Read)
+	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, readTimeout)
+	defer cancel()
 
 	api := NewCollectionConfigAPI(state, r.client)
 	if resp.Diagnostics.Append(api.Read(ctx)...); resp.Diagnostics.HasError() {
@@ -268,6 +282,13 @@ func (r *resourceCollection) Create(ctx context.Context, req resource.CreateRequ
 
 	tflog.Trace(ctx, "collection_resource Create - Parsed req config", map[string]interface{}{"config": config, "plan": plan})
 
+	createTimeout, diags := plan.Timeouts.Create(ctx, tftimeout.Create)
+	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
+		return
+	}
+	ctx, cancel := context.WithTimeout(ctx, createTimeout)
+	defer cancel()
+
 	plan = plan.Normalize()
 
 	api := NewCollectionConfigAPI(plan, r.client)
@@ -286,6 +307,13 @@ func (r *resourceCollection) Update(ctx context.Context, req resource.UpdateRequ
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	tflog.Trace(ctx, "collection_resource Update - Parsed req config", map[string]interface{}{"config": config, "plan": plan})
 
+	updateTimeout, diags := plan.Timeouts.Create(ctx, tftimeout.Update)
+	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
+		return
+	}
+	ctx, cancel := context.WithTimeout(ctx, updateTimeout)
+	defer cancel()
+
 	plan = plan.Normalize()
 
 	api := NewCollectionConfigAPI(plan, r.client)
@@ -301,12 +329,22 @@ func (r *resourceCollection) Delete(ctx context.Context, req resource.DeleteRequ
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	tflog.Trace(ctx, "collection_resource Delete - Parsed req state", map[string]interface{}{"state": state})
 
+	deleteTimeout, diags := state.Timeouts.Create(ctx, tftimeout.Delete)
+	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
+		return
+	}
+	ctx, cancel := context.WithTimeout(ctx, deleteTimeout)
+	defer cancel()
+
 	api := NewCollectionConfigAPI(state, r.client)
 	resp.Diagnostics.Append(api.Delete(ctx)...)
 	tflog.Trace(ctx, "Finished deleting collecton resource")
 }
 
 func (r *resourceCollection) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	ctx, cancel := context.WithTimeout(ctx, tftimeout.Read)
+	defer cancel()
+
 	collectionID, diags := collectionIDModelFromString(req.ID)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/hashicorp/go-uuid"
+	"github.com/hashicorp/terraform-plugin-framework-timeouts/resource/timeouts"
 	"github.com/hashicorp/terraform-plugin-framework-validators/helpers/validatordiag"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -91,6 +92,8 @@ type KpiBaseSearchState struct {
 	SourceItsiDa               types.String `tfsdk:"source_itsi_da" json:"source_itsi_da"`
 
 	Metrics []Metric `tfsdk:"metrics"`
+
+	Timeouts timeouts.Value `tfsdk:"timeouts"`
 }
 
 type Metric struct {
@@ -337,6 +340,8 @@ func (r *resourceKpiBaseSearch) Metadata(ctx context.Context, req resource.Metad
 func (r *resourceKpiBaseSearch) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Blocks: map[string]schema.Block{
+			"timeouts": timeouts.BlockAll(ctx),
+
 			"metrics": schema.SetNestedBlock{
 				NestedObject: schema.NestedBlockObject{
 					Attributes: map[string]schema.Attribute{
@@ -501,6 +506,13 @@ func (r *resourceKpiBaseSearch) Create(ctx context.Context, req resource.CreateR
 
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 
+	createTimeout, diags := plan.Timeouts.Create(ctx, tftimeout.Create)
+	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
+		return
+	}
+	ctx, cancel := context.WithTimeout(ctx, createTimeout)
+	defer cancel()
+
 	base, diags := newAPIBuilder(r.client, new(kpiBaseSearchBuildWorkflow)).build(ctx, plan)
 	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
 		return
@@ -526,6 +538,14 @@ func (r *resourceKpiBaseSearch) Read(ctx context.Context, req resource.ReadReque
 	var state KpiBaseSearchState
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 
+	readTimeout, diags := state.Timeouts.Read(ctx, tftimeout.Read)
+	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, readTimeout)
+	defer cancel()
+
 	base := kpiBaseSearchBase(r.client, state.ID.ValueString(), state.Title.ValueString())
 	b, err := base.Find(ctx)
 	if err != nil {
@@ -537,7 +557,7 @@ func (r *resourceKpiBaseSearch) Read(ctx context.Context, req resource.ReadReque
 		return
 	}
 
-	state, diags := newAPIParser(b, new(kpiBaseSearchParseWorkflow)).parse(ctx, b)
+	state, diags = newAPIParser(b, new(kpiBaseSearchParseWorkflow)).parse(ctx, b)
 	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
 		return
 	}
@@ -553,6 +573,13 @@ func (r *resourceKpiBaseSearch) Update(ctx context.Context, req resource.UpdateR
 	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
 		return
 	}
+
+	updateTimeout, diags := plan.Timeouts.Create(ctx, tftimeout.Update)
+	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
+		return
+	}
+	ctx, cancel := context.WithTimeout(ctx, updateTimeout)
+	defer cancel()
 
 	existing, err := base.Find(ctx)
 	if err != nil {
@@ -570,6 +597,7 @@ func (r *resourceKpiBaseSearch) Update(ctx context.Context, req resource.UpdateR
 
 	// populate computed fields
 	plan, diags = newAPIParser(base, new(kpiBaseSearchParseWorkflow)).parse(ctx, base)
+	resp.Diagnostics.Append(diags...)
 	if err != nil {
 		resp.Diagnostics.AddError("Unable to parse computed fields from Kpi Base Search", err.Error())
 		return
@@ -581,6 +609,14 @@ func (r *resourceKpiBaseSearch) Update(ctx context.Context, req resource.UpdateR
 func (r *resourceKpiBaseSearch) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	var state KpiBaseSearchState
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+
+	deleteTimeout, diags := state.Timeouts.Create(ctx, tftimeout.Delete)
+	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
+		return
+	}
+	ctx, cancel := context.WithTimeout(ctx, deleteTimeout)
+	defer cancel()
+
 	base := kpiBaseSearchBase(r.client, state.ID.ValueString(), state.Title.ValueString())
 	b, err := base.Find(ctx)
 	if err != nil {
@@ -597,6 +633,9 @@ func (r *resourceKpiBaseSearch) Delete(ctx context.Context, req resource.DeleteR
 }
 
 func (r *resourceKpiBaseSearch) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	ctx, cancel := context.WithTimeout(ctx, tftimeout.Read)
+	defer cancel()
+
 	b := kpiBaseSearchBase(r.client, "", req.ID)
 	b, err := b.Find(ctx)
 	if err != nil {
