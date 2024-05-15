@@ -7,6 +7,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework-timeouts/resource/timeouts"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
@@ -424,7 +425,8 @@ func (r *resourceKpiThresholdTemplate) Read(ctx context.Context, req resource.Re
 		return
 	}
 
-	readTimeout, diags := state.Timeouts.Read(ctx, tftimeout.Read)
+	timeouts := state.Timeouts
+	readTimeout, diags := timeouts.Read(ctx, tftimeout.Read)
 	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
 		return
 	}
@@ -446,6 +448,7 @@ func (r *resourceKpiThresholdTemplate) Read(ctx context.Context, req resource.Re
 	}
 
 	// Set refreshed state
+	state.Timeouts = timeouts
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
@@ -670,6 +673,13 @@ func (r *resourceKpiThresholdTemplate) ImportState(ctx context.Context, req reso
 	if resp.Diagnostics.Append(populateKpiThresholdTemplateModel(ctx, b, &state)...); resp.Diagnostics.HasError() {
 		return
 	}
+
+	var timeouts timeouts.Value
+	resp.Diagnostics.Append(resp.State.GetAttribute(ctx, path.Root("timeouts"), &timeouts)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	state.Timeouts = timeouts
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }

@@ -11,6 +11,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
@@ -421,7 +422,8 @@ func (r *resourceService) Read(ctx context.Context, req resource.ReadRequest, re
 	var state ServiceState
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 
-	readTimeout, diags := state.Timeouts.Read(ctx, tftimeout.Read)
+	timeouts := state.Timeouts
+	readTimeout, diags := timeouts.Read(ctx, tftimeout.Read)
 	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
 		return
 	}
@@ -444,6 +446,7 @@ func (r *resourceService) Read(ctx context.Context, req resource.ReadRequest, re
 	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
 		return
 	}
+	state.Timeouts = timeouts
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
@@ -451,7 +454,8 @@ func (r *resourceService) Create(ctx context.Context, req resource.CreateRequest
 	var plan ServiceState
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 
-	createTimeout, diags := plan.Timeouts.Create(ctx, tftimeout.Create)
+	timeouts := plan.Timeouts
+	createTimeout, diags := timeouts.Create(ctx, tftimeout.Create)
 	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
 		return
 	}
@@ -477,11 +481,12 @@ func (r *resourceService) Create(ctx context.Context, req resource.CreateRequest
 		return
 	}
 
-	plan, diags = serviceModelFromBase(ctx, base)
+	state, diags := serviceModelFromBase(ctx, base)
 	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
 		return
 	}
-	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
+	state.Timeouts = timeouts
+	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 
 }
 
@@ -562,6 +567,13 @@ func (r *resourceService) ImportState(ctx context.Context, req resource.ImportSt
 	if resp.Diagnostics.Append(diags...); diags.HasError() {
 		return
 	}
+
+	var timeouts timeouts.Value
+	resp.Diagnostics.Append(resp.State.GetAttribute(ctx, path.Root("timeouts"), &timeouts)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	state.Timeouts = timeouts
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }

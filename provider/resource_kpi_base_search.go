@@ -11,6 +11,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework-validators/helpers/validatordiag"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
@@ -252,6 +253,7 @@ func (r *resourceKpiBaseSearch) ModifyPlan(ctx context.Context, req resource.Mod
 
 type kpiBaseSearchBuildWorkflow struct{}
 
+//lint:ignore U1000 used by apibuilder
 func (w *kpiBaseSearchBuildWorkflow) buildSteps() []apibuildWorkflowStepFunc[KpiBaseSearchState] {
 	return []apibuildWorkflowStepFunc[KpiBaseSearchState]{
 		w.basics,
@@ -296,6 +298,7 @@ type kpiBaseSearchParseWorkflow struct{}
 
 var _ apiparseWorkflow[KpiBaseSearchState] = &kpiBaseSearchParseWorkflow{}
 
+//lint:ignore U1000 used by apiparser
 func (w *kpiBaseSearchParseWorkflow) parseSteps() []apiparseWorkflowStepFunc[KpiBaseSearchState] {
 	return []apiparseWorkflowStepFunc[KpiBaseSearchState]{
 		w.basics,
@@ -341,7 +344,6 @@ func (r *resourceKpiBaseSearch) Schema(ctx context.Context, req resource.SchemaR
 	resp.Schema = schema.Schema{
 		Blocks: map[string]schema.Block{
 			"timeouts": timeouts.BlockAll(ctx),
-
 			"metrics": schema.SetNestedBlock{
 				NestedObject: schema.NestedBlockObject{
 					Attributes: map[string]schema.Attribute{
@@ -506,7 +508,8 @@ func (r *resourceKpiBaseSearch) Create(ctx context.Context, req resource.CreateR
 
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 
-	createTimeout, diags := plan.Timeouts.Create(ctx, tftimeout.Create)
+	timeouts := plan.Timeouts
+	createTimeout, diags := timeouts.Create(ctx, tftimeout.Create)
 	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
 		return
 	}
@@ -525,20 +528,20 @@ func (r *resourceKpiBaseSearch) Create(ctx context.Context, req resource.CreateR
 	}
 
 	// populate computed fields
-	plan, diags = newAPIParser(base, new(kpiBaseSearchParseWorkflow)).parse(ctx, base)
-	if err != nil {
-		resp.Diagnostics.AddError("Unable to parse computed fields from Kpi Base Search", err.Error())
+	state, diags := newAPIParser(base, new(kpiBaseSearchParseWorkflow)).parse(ctx, base)
+	if resp.Diagnostics.Append(diags...); diags.HasError() {
 		return
 	}
-
-	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
+	state.Timeouts = timeouts
+	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
 func (r *resourceKpiBaseSearch) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	var state KpiBaseSearchState
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 
-	readTimeout, diags := state.Timeouts.Read(ctx, tftimeout.Read)
+	timeouts := state.Timeouts
+	readTimeout, diags := timeouts.Read(ctx, tftimeout.Read)
 	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
 		return
 	}
@@ -561,6 +564,8 @@ func (r *resourceKpiBaseSearch) Read(ctx context.Context, req resource.ReadReque
 	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
 		return
 	}
+
+	state.Timeouts = timeouts
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
@@ -574,7 +579,8 @@ func (r *resourceKpiBaseSearch) Update(ctx context.Context, req resource.UpdateR
 		return
 	}
 
-	updateTimeout, diags := plan.Timeouts.Create(ctx, tftimeout.Update)
+	timeouts := plan.Timeouts
+	updateTimeout, diags := timeouts.Create(ctx, tftimeout.Update)
 	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
 		return
 	}
@@ -596,14 +602,13 @@ func (r *resourceKpiBaseSearch) Update(ctx context.Context, req resource.UpdateR
 	}
 
 	// populate computed fields
-	plan, diags = newAPIParser(base, new(kpiBaseSearchParseWorkflow)).parse(ctx, base)
-	resp.Diagnostics.Append(diags...)
-	if err != nil {
+	state, diags := newAPIParser(base, new(kpiBaseSearchParseWorkflow)).parse(ctx, base)
+	if resp.Diagnostics.Append(diags...); diags.HasError() {
 		resp.Diagnostics.AddError("Unable to parse computed fields from Kpi Base Search", err.Error())
 		return
 	}
-
-	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
+	state.Timeouts = timeouts
+	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
 func (r *resourceKpiBaseSearch) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
@@ -651,6 +656,13 @@ func (r *resourceKpiBaseSearch) ImportState(ctx context.Context, req resource.Im
 	if resp.Diagnostics.Append(diags...); diags.HasError() {
 		return
 	}
+
+	var timeouts timeouts.Value
+	resp.Diagnostics.Append(resp.State.GetAttribute(ctx, path.Root("timeouts"), &timeouts)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	state.Timeouts = timeouts
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }

@@ -1349,7 +1349,8 @@ func (r *resourceNEAP) Read(ctx context.Context, req resource.ReadRequest, resp 
 	var state neapModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 
-	readTimeout, diags := state.Timeouts.Read(ctx, tftimeout.Read)
+	timeouts := state.Timeouts
+	readTimeout, diags := timeouts.Read(ctx, tftimeout.Read)
 	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
 		return
 	}
@@ -1372,6 +1373,7 @@ func (r *resourceNEAP) Read(ctx context.Context, req resource.ReadRequest, resp 
 	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
 		return
 	}
+	state.Timeouts = timeouts
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
@@ -1382,7 +1384,8 @@ func (r *resourceNEAP) Create(ctx context.Context, req resource.CreateRequest, r
 		return
 	}
 
-	createTimeout, diags := plan.Timeouts.Create(ctx, tftimeout.Create)
+	timeouts := plan.Timeouts
+	createTimeout, diags := timeouts.Create(ctx, tftimeout.Create)
 	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
 		return
 	}
@@ -1404,7 +1407,7 @@ func (r *resourceNEAP) Create(ctx context.Context, req resource.CreateRequest, r
 	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
 		return
 	}
-
+	state.Timeouts = timeouts
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
@@ -1415,6 +1418,7 @@ func (r *resourceNEAP) Update(ctx context.Context, req resource.UpdateRequest, r
 		return
 	}
 
+	timeouts := plan.Timeouts
 	updateTimeout, diags := plan.Timeouts.Create(ctx, tftimeout.Update)
 	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
 		return
@@ -1443,7 +1447,7 @@ func (r *resourceNEAP) Update(ctx context.Context, req resource.UpdateRequest, r
 	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
 		return
 	}
-
+	state.Timeouts = timeouts
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
@@ -1492,6 +1496,13 @@ func (r *resourceNEAP) ImportState(ctx context.Context, req resource.ImportState
 	if resp.Diagnostics.Append(diags...); diags.HasError() {
 		return
 	}
+
+	var timeouts timeouts.Value
+	resp.Diagnostics.Append(resp.State.GetAttribute(ctx, path.Root("timeouts"), &timeouts)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	state.Timeouts = timeouts
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }

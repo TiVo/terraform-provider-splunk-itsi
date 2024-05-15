@@ -254,8 +254,8 @@ func (r *resourceCollection) Read(ctx context.Context, req resource.ReadRequest,
 	var state collectionConfigModel
 
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
-
-	readTimeout, diags := state.Timeouts.Read(ctx, tftimeout.Read)
+	timeouts := state.Timeouts
+	readTimeout, diags := timeouts.Read(ctx, tftimeout.Read)
 	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
 		return
 	}
@@ -268,6 +268,7 @@ func (r *resourceCollection) Read(ctx context.Context, req resource.ReadRequest,
 		return
 	}
 	state = api.config.Normalize()
+	state.Timeouts = timeouts
 	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 
 	tflog.Trace(ctx, "Finished reading collecton data resource")
@@ -362,7 +363,15 @@ func (r *resourceCollection) ImportState(ctx context.Context, req resource.Impor
 		return
 	}
 
-	resp.Diagnostics.Append(resp.State.Set(ctx, api.config)...)
+	var timeouts timeouts.Value
+	resp.Diagnostics.Append(resp.State.GetAttribute(ctx, path.Root("timeouts"), &timeouts)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	state = api.config
+	state.Timeouts = timeouts
+	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 }
 
 // PLAN MODIFIERS
