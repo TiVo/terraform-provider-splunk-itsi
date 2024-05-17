@@ -27,6 +27,13 @@ const (
 	cacheSize         = 1000
 )
 
+var tftimeout = struct {
+	Read   time.Duration
+	Create time.Duration
+	Update time.Duration
+	Delete time.Duration
+}{20 * time.Minute, 20 * time.Minute, 20 * time.Minute, 20 * time.Minute}
+
 // provider configuration
 
 const (

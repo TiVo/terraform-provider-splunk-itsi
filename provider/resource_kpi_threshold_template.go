@@ -4,8 +4,10 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/hashicorp/terraform-plugin-framework-timeouts/resource/timeouts"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
@@ -42,6 +44,8 @@ type modelKpiThresholdTemplate struct {
 	TimeVariateThresholdsSpecification *TimeVariateThresholdsSpecificationModel `tfsdk:"time_variate_thresholds_specification"`
 	AdaptiveThresholdsIsEnabled        types.Bool                               `tfsdk:"adaptive_thresholds_is_enabled" json:"adaptive_thresholds_is_enabled"`
 	SecGrp                             types.String                             `tfsdk:"sec_grp" json:"sec_grp"`
+
+	Timeouts timeouts.Value `tfsdk:"timeouts"`
 }
 
 type TimeVariateThresholdsSpecificationModel struct {
@@ -270,11 +274,12 @@ func (r *resourceKpiThresholdTemplate) Configure(ctx context.Context, req resour
 	configureResourceClient(ctx, resourceNameKPIThresholdTemplate, req, &r.client, resp)
 }
 
-func (r *resourceKpiThresholdTemplate) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+func (r *resourceKpiThresholdTemplate) Schema(ctx context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	threshold_settings_blocks, threshold_settings_attributes := getKpiThresholdSettingsBlocksAttrs()
 
 	resp.Schema = schema.Schema{
 		Blocks: map[string]schema.Block{
+			"timeouts": timeouts.BlockAll(ctx),
 			"time_variate_thresholds_specification": schema.SingleNestedBlock{
 				Blocks: map[string]schema.Block{
 
@@ -381,6 +386,13 @@ func (r *resourceKpiThresholdTemplate) Create(ctx context.Context, req resource.
 		return
 	}
 
+	createTimeout, diags := plan.Timeouts.Create(ctx, tftimeout.Create)
+	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
+		return
+	}
+	ctx, cancel := context.WithTimeout(ctx, createTimeout)
+	defer cancel()
+
 	template, diags := kpiThresholdTemplate(ctx, plan, r.client)
 	if diags.HasError() {
 		resp.Diagnostics.Append(diags...)
@@ -413,6 +425,15 @@ func (r *resourceKpiThresholdTemplate) Read(ctx context.Context, req resource.Re
 		return
 	}
 
+	timeouts := state.Timeouts
+	readTimeout, diags := timeouts.Read(ctx, tftimeout.Read)
+	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, readTimeout)
+	defer cancel()
+
 	base := kpiThresholdTemplateBase(r.client, state.ID.ValueString(), state.Title.ValueString())
 	b, err := base.Find(ctx)
 	if err != nil || b == nil {
@@ -427,6 +448,7 @@ func (r *resourceKpiThresholdTemplate) Read(ctx context.Context, req resource.Re
 	}
 
 	// Set refreshed state
+	state.Timeouts = timeouts
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
@@ -441,6 +463,13 @@ func (r *resourceKpiThresholdTemplate) Update(ctx context.Context, req resource.
 	if resp.Diagnostics.HasError() {
 		return
 	}
+
+	updateTimeout, diags := plan.Timeouts.Create(ctx, tftimeout.Update)
+	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
+		return
+	}
+	ctx, cancel := context.WithTimeout(ctx, updateTimeout)
+	defer cancel()
 
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
@@ -496,6 +525,14 @@ func (r *resourceKpiThresholdTemplate) Delete(ctx context.Context, req resource.
 	if resp.Diagnostics.HasError() {
 		return
 	}
+
+	deleteTimeout, diags := state.Timeouts.Create(ctx, tftimeout.Delete)
+	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
+		return
+	}
+	ctx, cancel := context.WithTimeout(ctx, deleteTimeout)
+	defer cancel()
+
 	base := kpiThresholdTemplateBase(r.client, state.ID.ValueString(), state.Title.ValueString())
 	existing, err := base.Find(ctx)
 	if err != nil {
@@ -618,6 +655,9 @@ func populateKpiThresholdTemplateModel(_ context.Context, b *models.Base, tfMode
 }
 
 func (r *resourceKpiThresholdTemplate) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	ctx, cancel := context.WithTimeout(ctx, tftimeout.Read)
+	defer cancel()
+
 	b := kpiThresholdTemplateBase(r.client, "", req.ID)
 	b, err := b.Find(ctx)
 	if err != nil {
@@ -633,6 +673,13 @@ func (r *resourceKpiThresholdTemplate) ImportState(ctx context.Context, req reso
 	if resp.Diagnostics.Append(populateKpiThresholdTemplateModel(ctx, b, &state)...); resp.Diagnostics.HasError() {
 		return
 	}
+
+	var timeouts timeouts.Value
+	resp.Diagnostics.Append(resp.State.GetAttribute(ctx, path.Root("timeouts"), &timeouts)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	state.Timeouts = timeouts
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }

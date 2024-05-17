@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/hashicorp/terraform-plugin-framework-timeouts/datasource/timeouts"
 	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
@@ -27,8 +28,9 @@ type dataSourceCollectionModel struct {
 	Owner         types.String `tfsdk:"owner"`
 	FieldTypes    types.Map    `tfsdk:"field_types"`
 	Accelerations types.List   `tfsdk:"accelerations"`
+	Fields        types.Set    `tfsdk:"fields"`
 
-	Fields types.Set `tfsdk:"fields"`
+	Timeouts timeouts.Value `tfsdk:"timeouts"`
 }
 
 func (d *dataSourceCollectionModel) collectionConfigModel() *collectionConfigModel {
@@ -57,7 +59,7 @@ func (d *dataSourceCollection) Metadata(_ context.Context, req datasource.Metada
 	configureDataSourceMetadata(req, resp, datasourceNameCollection)
 }
 
-func (d *dataSourceCollection) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
+func (d *dataSourceCollection) Schema(ctx context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		MarkdownDescription: "Retrieves the details of a collection.",
 		Attributes: map[string]schema.Attribute{
@@ -95,6 +97,9 @@ func (d *dataSourceCollection) Schema(_ context.Context, _ datasource.SchemaRequ
 				Computed:            true,
 			},
 		},
+		Blocks: map[string]schema.Block{
+			"timeouts": timeouts.Block(ctx),
+		},
 	}
 }
 
@@ -103,6 +108,14 @@ func (d *dataSourceCollection) Read(ctx context.Context, req datasource.ReadRequ
 	var config dataSourceCollectionModel
 
 	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	readTimeout, diags := config.Timeouts.Read(ctx, tftimeout.Read)
+	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, readTimeout)
+	defer cancel()
+
 	api := NewCollectionConfigAPI(config.collectionConfigModel().Normalize(), d.client)
 
 	if resp.Diagnostics.Append(api.Read(ctx)...); resp.Diagnostics.HasError() {

@@ -7,9 +7,11 @@ import (
 	"fmt"
 
 	"github.com/hashicorp/go-uuid"
+	"github.com/hashicorp/terraform-plugin-framework-timeouts/resource/timeouts"
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
@@ -56,6 +58,8 @@ type ServiceState struct {
 	KPIs                                  []KpiState              `tfsdk:"kpi"`
 	EntityRules                           []EntityRuleState       `tfsdk:"entity_rules"`
 	ServiceDependsOn                      []ServiceDependsOnState `tfsdk:"service_depends_on"`
+
+	Timeouts timeouts.Value `tfsdk:"timeouts"`
 }
 
 type KpiState struct {
@@ -121,6 +125,7 @@ func (r *resourceService) Schema(ctx context.Context, req resource.SchemaRequest
 	resp.Schema = schema.Schema{
 		Description: "Manages a Service within ITSI.",
 		Blocks: map[string]schema.Block{
+			"timeouts": timeouts.BlockAll(ctx),
 			"kpi": schema.ListNestedBlock{
 				Description: "A set of KPI descriptions for this service.",
 				NestedObject: schema.NestedBlockObject{
@@ -417,6 +422,15 @@ func (r *resourceService) Read(ctx context.Context, req resource.ReadRequest, re
 	var state ServiceState
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 
+	timeouts := state.Timeouts
+	readTimeout, diags := timeouts.Read(ctx, tftimeout.Read)
+	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, readTimeout)
+	defer cancel()
+
 	base := serviceBase(r.client, state.ID.ValueString(), state.Title.ValueString())
 	b, err := base.Read(ctx)
 	if err != nil {
@@ -428,16 +442,25 @@ func (r *resourceService) Read(ctx context.Context, req resource.ReadRequest, re
 		return
 	}
 
-	state, diags := serviceModelFromBase(ctx, b)
+	state, diags = serviceModelFromBase(ctx, b)
 	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
 		return
 	}
+	state.Timeouts = timeouts
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
 func (r *resourceService) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var plan ServiceState
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+
+	timeouts := plan.Timeouts
+	createTimeout, diags := timeouts.Create(ctx, tftimeout.Create)
+	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
+		return
+	}
+	ctx, cancel := context.WithTimeout(ctx, createTimeout)
+	defer cancel()
 
 	base, diags := serviceStateToJson(ctx, r.client, &plan)
 	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
@@ -458,17 +481,25 @@ func (r *resourceService) Create(ctx context.Context, req resource.CreateRequest
 		return
 	}
 
-	plan, diags = serviceModelFromBase(ctx, base)
+	state, diags := serviceModelFromBase(ctx, base)
 	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
 		return
 	}
-	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
+	state.Timeouts = timeouts
+	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 
 }
 
 func (r *resourceService) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	var plan ServiceState
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+
+	updateTimeout, diags := plan.Timeouts.Create(ctx, tftimeout.Update)
+	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
+		return
+	}
+	ctx, cancel := context.WithTimeout(ctx, updateTimeout)
+	defer cancel()
 
 	base, diags := serviceStateToJson(ctx, r.client, &plan)
 	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
@@ -494,6 +525,14 @@ func (r *resourceService) Update(ctx context.Context, req resource.UpdateRequest
 func (r *resourceService) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	var state ServiceState
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+
+	deleteTimeout, diags := state.Timeouts.Create(ctx, tftimeout.Delete)
+	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
+		return
+	}
+	ctx, cancel := context.WithTimeout(ctx, deleteTimeout)
+	defer cancel()
+
 	base := serviceBase(r.client, state.ID.ValueString(), state.Title.ValueString())
 	b, err := base.Find(ctx)
 	if err != nil {
@@ -510,6 +549,9 @@ func (r *resourceService) Delete(ctx context.Context, req resource.DeleteRequest
 }
 
 func (r *resourceService) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	ctx, cancel := context.WithTimeout(ctx, tftimeout.Read)
+	defer cancel()
+
 	b := serviceBase(r.client, "", req.ID)
 	b, err := b.Find(ctx)
 	if err != nil {
@@ -525,6 +567,13 @@ func (r *resourceService) ImportState(ctx context.Context, req resource.ImportSt
 	if resp.Diagnostics.Append(diags...); diags.HasError() {
 		return
 	}
+
+	var timeouts timeouts.Value
+	resp.Diagnostics.Append(resp.State.GetAttribute(ctx, path.Root("timeouts"), &timeouts)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	state.Timeouts = timeouts
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }

@@ -105,6 +105,7 @@ that map to one of an entity fields. The parameters are passed to the resource w
 - `data_drilldown` (Block Set) An array of data drilldown objects.
 Each data drilldown defines filters for raw data associated with entities that belong to the entity type. (see [below for nested schema](#nestedblock--data_drilldown))
 - `description` (String) A description of the entity type.
+- `timeouts` (Block, Optional) (see [below for nested schema](#nestedblock--timeouts))
 - `vital_metric` (Block Set) An set of vital metric objects. Vital metrics are statistical calculations based on
 SPL searches that represent the overall health of entities of that type. (see [below for nested schema](#nestedblock--vital_metric))
 
@@ -155,6 +156,17 @@ Required:
 - `data_field` (String) Data field.
 - `entity_field` (String) Entity field.
 
+
+
+<a id="nestedblock--timeouts"></a>
+### Nested Schema for `timeouts`
+
+Optional:
+
+- `create` (String) A string that can be [parsed as a duration](https://pkg.go.dev/time#ParseDuration) consisting of numbers and unit suffixes, such as "30s" or "2h45m". Valid time units are "s" (seconds), "m" (minutes), "h" (hours).
+- `delete` (String) A string that can be [parsed as a duration](https://pkg.go.dev/time#ParseDuration) consisting of numbers and unit suffixes, such as "30s" or "2h45m". Valid time units are "s" (seconds), "m" (minutes), "h" (hours). Setting a timeout for a Delete operation is only applicable if changes are saved into state before the destroy operation occurs.
+- `read` (String) A string that can be [parsed as a duration](https://pkg.go.dev/time#ParseDuration) consisting of numbers and unit suffixes, such as "30s" or "2h45m". Valid time units are "s" (seconds), "m" (minutes), "h" (hours). Read operations occur during any refresh or planning operation when refresh is enabled.
+- `update` (String) A string that can be [parsed as a duration](https://pkg.go.dev/time#ParseDuration) consisting of numbers and unit suffixes, such as "30s" or "2h45m". Valid time units are "s" (seconds), "m" (minutes), "h" (hours).
 
 
 <a id="nestedblock--vital_metric"></a>

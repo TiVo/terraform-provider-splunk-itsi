@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/hashicorp/terraform-plugin-framework-timeouts/datasource/timeouts"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -23,6 +24,8 @@ type dataSourceKpiBaseSearch struct {
 type dataSourceKpiBaseSearchState struct {
 	ID    types.String `tfsdk:"id" json:"_key"`
 	Title types.String `tfsdk:"title" json:"title"`
+
+	Timeouts timeouts.Value `tfsdk:"timeouts"`
 }
 
 func NewKpiBaseSearchDataSource() datasource.DataSource {
@@ -41,6 +44,9 @@ func (d *dataSourceKpiBaseSearch) Configure(ctx context.Context, req datasource.
 func (d *dataSourceKpiBaseSearch) Schema(ctx context.Context, req datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		MarkdownDescription: "Use this data source to get the ID of an available KPI Base Search.",
+		Blocks: map[string]schema.Block{
+			"timeouts": timeouts.Block(ctx),
+		},
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				MarkdownDescription: "The ID of this resource.",
@@ -60,6 +66,14 @@ func (d *dataSourceKpiBaseSearch) Read(ctx context.Context, req datasource.ReadR
 	var config dataSourceKpiBaseSearchState
 
 	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+
+	readTimeout, diags := config.Timeouts.Read(ctx, tftimeout.Read)
+	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, readTimeout)
+	defer cancel()
 
 	title := config.Title.ValueString()
 	base := kpiBaseSearchBase(d.client, config.ID.ValueString(), title)
