@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/hashicorp/go-uuid"
+	"github.com/hashicorp/terraform-plugin-framework-timeouts/resource/timeouts"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 
@@ -155,6 +156,8 @@ type neapModel struct {
 	FilterCriteria   *neapCriteriaModel `tfsdk:"filter_criteria"`
 
 	Rules []neapRuleModel `tfsdk:"rule"`
+
+	Timeouts timeouts.Value `tfsdk:"timeouts"`
 }
 
 func (n neapModel) objectype() string {
@@ -962,13 +965,14 @@ func (r *resourceNEAP) ruleSchema() schema.ListNestedBlock {
 	}
 }
 
-func (r *resourceNEAP) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+func (r *resourceNEAP) Schema(ctx context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		MarkdownDescription: "Manages a Notable Event Aggregation Policy object within ITSI.",
 		Blocks: map[string]schema.Block{
 			"breaking_criteria": r.criteriaSchema(neapCriteriaTypeBreaking),
 			"filter_criteria":   r.criteriaSchema(neapCriteriaTypeFilter),
 			"rule":              r.ruleSchema(),
+			"timeouts":          timeouts.BlockAll(ctx),
 		},
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
@@ -1345,6 +1349,15 @@ func (r *resourceNEAP) Read(ctx context.Context, req resource.ReadRequest, resp 
 	var state neapModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 
+	timeouts := state.Timeouts
+	readTimeout, diags := timeouts.Read(ctx, tftimeout.Read)
+	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, readTimeout)
+	defer cancel()
+
 	base := notableEventAggregationPolicyBase(r.client, state.ID.ValueString(), state.Title.ValueString())
 	b, err := base.Find(ctx)
 	if err != nil {
@@ -1356,10 +1369,11 @@ func (r *resourceNEAP) Read(ctx context.Context, req resource.ReadRequest, resp 
 		return
 	}
 
-	state, diags := newAPIParser(b, new(neapParseWorkflow)).parse(ctx, b)
+	state, diags = newAPIParser(b, new(neapParseWorkflow)).parse(ctx, b)
 	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
 		return
 	}
+	state.Timeouts = timeouts
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
@@ -1369,6 +1383,14 @@ func (r *resourceNEAP) Create(ctx context.Context, req resource.CreateRequest, r
 	if resp.Diagnostics.HasError() {
 		return
 	}
+
+	timeouts := plan.Timeouts
+	createTimeout, diags := timeouts.Create(ctx, tftimeout.Create)
+	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
+		return
+	}
+	ctx, cancel := context.WithTimeout(ctx, createTimeout)
+	defer cancel()
 
 	base, diags := newAPIBuilder(r.client, new(neapBuildWorkflow)).build(ctx, plan)
 	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
@@ -1385,7 +1407,7 @@ func (r *resourceNEAP) Create(ctx context.Context, req resource.CreateRequest, r
 	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
 		return
 	}
-
+	state.Timeouts = timeouts
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
@@ -1395,6 +1417,14 @@ func (r *resourceNEAP) Update(ctx context.Context, req resource.UpdateRequest, r
 	if resp.Diagnostics.HasError() {
 		return
 	}
+
+	timeouts := plan.Timeouts
+	updateTimeout, diags := plan.Timeouts.Create(ctx, tftimeout.Update)
+	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
+		return
+	}
+	ctx, cancel := context.WithTimeout(ctx, updateTimeout)
+	defer cancel()
 
 	base, diags := newAPIBuilder(r.client, new(neapBuildWorkflow)).build(ctx, plan)
 	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
@@ -1417,13 +1447,21 @@ func (r *resourceNEAP) Update(ctx context.Context, req resource.UpdateRequest, r
 	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
 		return
 	}
-
+	state.Timeouts = timeouts
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
 func (r *resourceNEAP) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	var state neapModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+
+	deleteTimeout, diags := state.Timeouts.Create(ctx, tftimeout.Delete)
+	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
+		return
+	}
+	ctx, cancel := context.WithTimeout(ctx, deleteTimeout)
+	defer cancel()
+
 	base := notableEventAggregationPolicyBase(r.client, state.ID.ValueString(), state.Title.ValueString())
 	b, err := base.Find(ctx)
 	if err != nil {
@@ -1440,6 +1478,9 @@ func (r *resourceNEAP) Delete(ctx context.Context, req resource.DeleteRequest, r
 }
 
 func (r *resourceNEAP) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	ctx, cancel := context.WithTimeout(ctx, tftimeout.Read)
+	defer cancel()
+
 	b := notableEventAggregationPolicyBase(r.client, "", req.ID)
 	b, err := b.Find(ctx)
 	if err != nil {
@@ -1455,6 +1496,13 @@ func (r *resourceNEAP) ImportState(ctx context.Context, req resource.ImportState
 	if resp.Diagnostics.Append(diags...); diags.HasError() {
 		return
 	}
+
+	var timeouts timeouts.Value
+	resp.Diagnostics.Append(resp.State.GetAttribute(ctx, path.Root("timeouts"), &timeouts)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	state.Timeouts = timeouts
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }

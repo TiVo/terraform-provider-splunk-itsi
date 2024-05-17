@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"sync"
 
+	"github.com/hashicorp/terraform-plugin-framework-timeouts/datasource/timeouts"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
@@ -71,6 +72,8 @@ type dataSourceSplunkSearchModel struct {
 	JoinFields        types.Set    `tfsdk:"join_fields"`
 	SearchConcurrency types.Int64  `tfsdk:"search_concurrency"`
 	Results           types.String `tfsdk:"results"`
+
+	Timeouts timeouts.Value `tfsdk:"timeouts"`
 }
 
 func NewDataSourceSplunkSearch() datasource.DataSource {
@@ -85,10 +88,11 @@ func (d *dataSourceSplunkSearch) Metadata(_ context.Context, req datasource.Meta
 	configureDataSourceMetadata(req, resp, datasourceNameSplunkSearch)
 }
 
-func (d *dataSourceSplunkSearch) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
+func (d *dataSourceSplunkSearch) Schema(ctx context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		MarkdownDescription: "Use this data source to retrieve the results of a Splunk search.",
 		Blocks: map[string]schema.Block{
+			"timeouts": timeouts.Block(ctx),
 			"search": schema.SetNestedBlock{
 				MarkdownDescription: "Search to be executed",
 				NestedObject: schema.NestedBlockObject{
@@ -125,6 +129,7 @@ func (d *dataSourceSplunkSearch) Schema(_ context.Context, _ datasource.SchemaRe
 						"timeout": schema.Int64Attribute{
 							MarkdownDescription: "HTTP timeout in seconds. 0 means no timeout.",
 							Optional:            true,
+							DeprecationMessage:  "This attribute is deprecated and will be removed in a future release. Use the `timeouts` block instead.",
 						},
 					},
 				},
@@ -161,9 +166,13 @@ func (d *dataSourceSplunkSearch) Read(ctx context.Context, req datasource.ReadRe
 	resp.Diagnostics.Append(req.Config.Get(ctx, &state)...)
 	tflog.Debug(ctx, "Finished reading splunk_search datasource", map[string]interface{}{"state": state})
 
-	if resp.Diagnostics.HasError() {
+	readTimeout, diags := state.Timeouts.Read(ctx, tftimeout.Read)
+	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
 		return
 	}
+
+	ctx, cancel := context.WithTimeout(ctx, readTimeout)
+	defer cancel()
 
 	if state.SearchConcurrency.IsNull() {
 		state.SearchConcurrency = types.Int64Value(searchDefaultConcurrency)
@@ -196,6 +205,8 @@ func (d *dataSourceSplunkSearch) Read(ctx context.Context, req datasource.ReadRe
 			search.Timeout = types.Int64Value(searchDefaultTimeout)
 		}
 
+		timeoutSeconds := int(min(search.Timeout.ValueInt64(), int64(readTimeout.Seconds())))
+
 		searches = append(searches, SplunkSearch{
 			Query:               search.Query.ValueString(),
 			AllowNoResults:      search.AllowNoResults.ValueBool(),
@@ -204,7 +215,7 @@ func (d *dataSourceSplunkSearch) Read(ctx context.Context, req datasource.ReadRe
 			LatestTime:          search.LatestTime.ValueString(),
 			App:                 search.SplunkApp.ValueString(),
 			User:                search.SplunkUser.ValueString(),
-			Timeout:             int(search.Timeout.ValueInt64()),
+			Timeout:             timeoutSeconds,
 		})
 	}
 
