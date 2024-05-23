@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/hashicorp/terraform-plugin-framework-timeouts/datasource/timeouts"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -29,6 +30,8 @@ type dataSourceKpiThresholdTemplate struct {
 type dataSourceKpiThresholdTemplateModel struct {
 	Title types.String `tfsdk:"title"`
 	ID    types.String `tfsdk:"id"`
+
+	Timeouts timeouts.Value `tfsdk:"timeouts"`
 }
 
 func (d *dataSourceKpiThresholdTemplate) Configure(ctx context.Context, req datasource.ConfigureRequest, resp *datasource.ConfigureResponse) {
@@ -41,9 +44,12 @@ func (d *dataSourceKpiThresholdTemplate) Metadata(_ context.Context, req datasou
 }
 
 // Schema defines the schema for the data source.
-func (d *dataSourceKpiThresholdTemplate) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
+func (d *dataSourceKpiThresholdTemplate) Schema(ctx context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Description: "Use this data source to get the ID of an available KPI threshold template.",
+		Blocks: map[string]schema.Block{
+			"timeouts": timeouts.Block(ctx),
+		},
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Description: "Identifier for this KPI Threshold template",
@@ -63,6 +69,14 @@ func (d *dataSourceKpiThresholdTemplate) Read(ctx context.Context, req datasourc
 	var config dataSourceKpiThresholdTemplateModel
 
 	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+
+	readTimeout, diags := config.Timeouts.Read(ctx, tftimeout.Read)
+	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, readTimeout)
+	defer cancel()
 
 	title := config.Title.ValueString()
 	base := kpiThresholdTemplateBase(d.client, config.ID.ValueString(), title)

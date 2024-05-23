@@ -9,8 +9,10 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/hashicorp/terraform-plugin-framework-timeouts/resource/timeouts"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
@@ -102,6 +104,8 @@ type collectionDataModel struct {
 	Scope      types.String      `tfsdk:"scope"`
 	Generation types.Int64       `tfsdk:"generation"`
 	Entries    types.Set         `tfsdk:"entry"`
+
+	Timeouts timeouts.Value `tfsdk:"timeouts"`
 }
 
 // Normalize func allows for supressing the diff when a fields value changes from
@@ -275,7 +279,7 @@ func (r *resourceCollectionData) Metadata(_ context.Context, req resource.Metada
 	configureResourceMetadata(req, resp, resourceNameCollectionData)
 }
 
-func (r *resourceCollectionData) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+func (r *resourceCollectionData) Schema(ctx context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		MarkdownDescription: "Collection data resource",
 		Blocks: map[string]schema.Block{
@@ -300,6 +304,7 @@ func (r *resourceCollectionData) Schema(_ context.Context, _ resource.SchemaRequ
 					new(entrySetValidator),
 				},
 			},
+			"timeouts": timeouts.BlockAll(ctx),
 		},
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
@@ -438,6 +443,15 @@ func (r *resourceCollectionData) Read(ctx context.Context, req resource.ReadRequ
 	var state collectionDataModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 
+	timeouts := state.Timeouts
+	readTimeout, diags := timeouts.Read(ctx, tftimeout.Read)
+	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, readTimeout)
+	defer cancel()
+
 	api := NewCollectionDataAPI(state, r.client)
 	exists, diags := api.CollectionExists(ctx, true)
 	resp.Diagnostics.Append(diags...)
@@ -462,8 +476,8 @@ func (r *resourceCollectionData) Read(ctx context.Context, req resource.ReadRequ
 		return
 	}
 
-	diags = resp.State.Set(ctx, state)
-	resp.Diagnostics.Append(diags...)
+	state.Timeouts = timeouts
+	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 
 	tflog.Trace(ctx, "Finished reading collecton data resource")
 }
@@ -613,6 +627,13 @@ func (r *resourceCollectionData) Create(ctx context.Context, req resource.Create
 
 	tflog.Trace(ctx, "collection_data Create - Parsed req config", map[string]interface{}{"config": config, "plan": plan})
 
+	createTimeout, diags := plan.Timeouts.Create(ctx, tftimeout.Create)
+	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
+		return
+	}
+	ctx, cancel := context.WithTimeout(ctx, createTimeout)
+	defer cancel()
+
 	plan.ID = types.StringValue(uuid.New().String())
 	plan.Generation = types.Int64Value(0)
 
@@ -634,6 +655,13 @@ func (r *resourceCollectionData) Update(ctx context.Context, req resource.Update
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	tflog.Trace(ctx, "collection_data Update - Parsed req config", map[string]interface{}{"config": config, "plan": plan, "state": state})
 
+	updateTimeout, diags := plan.Timeouts.Create(ctx, tftimeout.Update)
+	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
+		return
+	}
+	ctx, cancel := context.WithTimeout(ctx, updateTimeout)
+	defer cancel()
+
 	newState, diags := r.createOrUpdate(ctx, config, plan, true)
 	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
 		return
@@ -650,6 +678,13 @@ func (r *resourceCollectionData) Delete(ctx context.Context, req resource.Delete
 
 	tflog.Trace(ctx, "collection_data Delete - Parsed req config", map[string]interface{}{"state": state})
 
+	deleteTimeout, diags := state.Timeouts.Create(ctx, tftimeout.Delete)
+	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
+		return
+	}
+	ctx, cancel := context.WithTimeout(ctx, deleteTimeout)
+	defer cancel()
+
 	api := NewCollectionDataAPI(state, r.client)
 	exists, diags := api.CollectionExists(ctx, false)
 	resp.Diagnostics.Append(diags...)
@@ -662,6 +697,9 @@ func (r *resourceCollectionData) Delete(ctx context.Context, req resource.Delete
 }
 
 func (r *resourceCollectionData) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	ctx, cancel := context.WithTimeout(ctx, tftimeout.Read)
+	defer cancel()
+
 	const unexpectedErrorSummary = "Unexpected error while importing collection data"
 
 	collectionID, scope, diags := collectionIDModelAndScopeFromString(req.ID)
@@ -707,5 +745,12 @@ func (r *resourceCollectionData) ImportState(ctx context.Context, req resource.I
 	}
 
 	state.ID = types.StringValue(id)
+
+	var timeouts timeouts.Value
+	resp.Diagnostics.Append(resp.State.GetAttribute(ctx, path.Root("timeouts"), &timeouts)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	state.Timeouts = timeouts
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }

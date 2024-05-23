@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/hashicorp/terraform-plugin-framework-timeouts/resource/timeouts"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/mapdefault"
@@ -41,6 +43,8 @@ type entityModel struct {
 	Info    types.Map `tfsdk:"info"`
 
 	EntityTypeIDs types.Set `tfsdk:"entity_type_ids"`
+
+	Timeouts timeouts.Value `tfsdk:"timeouts"`
 }
 
 func (m entityModel) objectype() string {
@@ -72,9 +76,12 @@ func (r *resourceEntity) Metadata(_ context.Context, req resource.MetadataReques
 	configureResourceMetadata(req, resp, resourceNameEntity)
 }
 
-func (r *resourceEntity) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+func (r *resourceEntity) Schema(ctx context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		MarkdownDescription: "Manages an Entity object within ITSI.",
+		Blocks: map[string]schema.Block{
+			"timeouts": timeouts.BlockAll(ctx),
+		},
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				MarkdownDescription: "ID of the entity.",
@@ -265,6 +272,15 @@ func (r *resourceEntity) Read(ctx context.Context, req resource.ReadRequest, res
 	var state entityModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 
+	timeouts := state.Timeouts
+	readTimeout, diags := timeouts.Read(ctx, tftimeout.Read)
+	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, readTimeout)
+	defer cancel()
+
 	base := entityBase(r.client, state.ID.ValueString(), state.Title.ValueString())
 	b, err := base.Find(ctx)
 	if err != nil {
@@ -276,10 +292,12 @@ func (r *resourceEntity) Read(ctx context.Context, req resource.ReadRequest, res
 		return
 	}
 
-	state, diags := newAPIParser(b, new(entityParseWorkflow)).parse(ctx, b)
+	state, diags = newAPIParser(b, new(entityParseWorkflow)).parse(ctx, b)
 	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
 		return
 	}
+
+	state.Timeouts = timeouts
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
@@ -293,6 +311,13 @@ func (r *resourceEntity) Create(ctx context.Context, req resource.CreateRequest,
 	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
 		return
 	}
+
+	createTimeout, diags := plan.Timeouts.Create(ctx, tftimeout.Create)
+	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
+		return
+	}
+	ctx, cancel := context.WithTimeout(ctx, createTimeout)
+	defer cancel()
 
 	base, err := base.Create(ctx)
 	if err != nil {
@@ -316,6 +341,13 @@ func (r *resourceEntity) Update(ctx context.Context, req resource.UpdateRequest,
 		return
 	}
 
+	updateTimeout, diags := plan.Timeouts.Create(ctx, tftimeout.Update)
+	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
+		return
+	}
+	ctx, cancel := context.WithTimeout(ctx, updateTimeout)
+	defer cancel()
+
 	existing, err := base.Find(ctx)
 	if err != nil {
 		resp.Diagnostics.AddError("Unable to update entity", err.Error())
@@ -336,6 +368,14 @@ func (r *resourceEntity) Update(ctx context.Context, req resource.UpdateRequest,
 func (r *resourceEntity) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	var state entityModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+
+	deleteTimeout, diags := state.Timeouts.Create(ctx, tftimeout.Delete)
+	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
+		return
+	}
+	ctx, cancel := context.WithTimeout(ctx, deleteTimeout)
+	defer cancel()
+
 	base := entityBase(r.client, state.ID.ValueString(), state.Title.ValueString())
 	b, err := base.Find(ctx)
 	if err != nil {
@@ -352,6 +392,9 @@ func (r *resourceEntity) Delete(ctx context.Context, req resource.DeleteRequest,
 }
 
 func (r *resourceEntity) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	ctx, cancel := context.WithTimeout(ctx, tftimeout.Read)
+	defer cancel()
+
 	b := entityBase(r.client, "", req.ID)
 	b, err := b.Find(ctx)
 	if err != nil {
@@ -367,6 +410,13 @@ func (r *resourceEntity) ImportState(ctx context.Context, req resource.ImportSta
 	if resp.Diagnostics.Append(diags...); diags.HasError() {
 		return
 	}
+
+	var timeouts timeouts.Value
+	resp.Diagnostics.Append(resp.State.GetAttribute(ctx, path.Root("timeouts"), &timeouts)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	state.Timeouts = timeouts
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }

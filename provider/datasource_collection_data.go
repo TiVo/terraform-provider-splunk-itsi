@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 
+	"github.com/hashicorp/terraform-plugin-framework-timeouts/datasource/timeouts"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -25,6 +26,8 @@ type dataSourceCollectionDataModel struct {
 	Query      types.String      `tfsdk:"query"`
 	Fields     types.Set         `tfsdk:"fields"`
 	Data       types.String      `tfsdk:"data"`
+
+	Timeouts timeouts.Value `tfsdk:"timeouts"`
 }
 
 func NewDataSourceCollectionData() datasource.DataSource {
@@ -39,11 +42,12 @@ func (d *dataSourceCollectionData) Metadata(_ context.Context, req datasource.Me
 	configureDataSourceMetadata(req, resp, datasourceNameCollectionData)
 }
 
-func (d *dataSourceCollectionData) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
+func (d *dataSourceCollectionData) Schema(ctx context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		MarkdownDescription: "Collection data",
 		Blocks: map[string]schema.Block{
 			"collection": collectionIDSchema(),
+			"timeouts":   timeouts.Block(ctx),
 		},
 		Attributes: map[string]schema.Attribute{
 			"query": schema.StringAttribute{
@@ -67,6 +71,15 @@ func (d *dataSourceCollectionData) Read(ctx context.Context, req datasource.Read
 	tflog.Debug(ctx, "Preparing to read entity collection_data datasource")
 	var state dataSourceCollectionDataModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &state)...)
+
+	readTimeout, diags := state.Timeouts.Read(ctx, tftimeout.Read)
+	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, readTimeout)
+	defer cancel()
+
 	if state.Collection.App.IsNull() {
 		state.Collection.App = types.StringValue(collectionDefaultApp)
 	}
