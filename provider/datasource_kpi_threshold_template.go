@@ -70,7 +70,8 @@ func (d *dataSourceKpiThresholdTemplate) Read(ctx context.Context, req datasourc
 
 	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
 
-	readTimeout, diags := config.Timeouts.Read(ctx, tftimeout.Read)
+	timeouts := config.Timeouts
+	readTimeout, diags := timeouts.Read(ctx, tftimeout.Read)
 	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
 		return
 	}
@@ -94,8 +95,9 @@ func (d *dataSourceKpiThresholdTemplate) Read(ctx context.Context, req datasourc
 	}
 
 	state := dataSourceEntityTypeModel{
-		ID:    types.StringValue(b.RESTKey),
-		Title: types.StringValue(title),
+		ID:       types.StringValue(b.RESTKey),
+		Title:    types.StringValue(title),
+		Timeouts: timeouts,
 	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)

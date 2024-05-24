@@ -311,7 +311,7 @@ func sweepObjectType(ctx context.Context, objecttype string) (err error) {
 			}
 
 			if title, ok := obj["title"].(string); ok {
-				if strings.HasPrefix(title, "TestAcc_") {
+				if strings.HasPrefix(title, accTestPrefix) {
 					log.Printf("Deleting %s %s (%s) ", objecttype, title, item.RESTKey)
 					deleted++
 					err = item.Delete(ctx)
