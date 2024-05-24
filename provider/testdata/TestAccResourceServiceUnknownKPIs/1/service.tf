@@ -13,10 +13,6 @@ locals {
 resource "random_integer" "n" {
   min = 1
   max = 5
-
-  keepers = {
-    timestamp = timestamp()
-  }
 }
 
 
