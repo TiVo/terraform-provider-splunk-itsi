@@ -83,16 +83,16 @@ func (d *dataSourceKpiBaseSearch) Read(ctx context.Context, req datasource.ReadR
 		resp.Diagnostics.AddError("Unable to read KPI BS object", err.Error())
 		return
 	}
-	json, err := b.RawJson.ToInterfaceMap()
-	if err != nil {
-		resp.Diagnostics.AddError("Unable to read KPI JSON object", err.Error())
-		return
-	}
 	if b == nil {
 		resp.Diagnostics.AddAttributeError(
 			path.Root("title"),
 			"KPI BS not found",
 			fmt.Sprintf("KPI BS %q not found", title))
+		return
+	}
+	json, err := b.RawJson.ToInterfaceMap()
+	if err != nil {
+		resp.Diagnostics.AddError("Unable to read KPI JSON object", err.Error())
 		return
 	}
 

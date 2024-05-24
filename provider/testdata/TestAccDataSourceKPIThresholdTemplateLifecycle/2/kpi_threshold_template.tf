@@ -102,5 +102,5 @@ resource "itsi_kpi_threshold_template" "test" {
 }
 
 data "itsi_kpi_threshold_template" "test" {
-  title = "TestAcc_stdev_test"
+  title = "TestAcc_stdev_test2"
 }

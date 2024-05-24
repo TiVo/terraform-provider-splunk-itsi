@@ -45,5 +45,5 @@ resource "itsi_kpi_base_search" "test" {
 }
 
 data "itsi_kpi_base_search" "test" {
-  title = "TestAcc_test_base_search"
+  title = "TestAcc_test_base_search2"
 }
