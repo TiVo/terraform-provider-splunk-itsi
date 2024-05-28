@@ -67,7 +67,8 @@ func (d *dataSourceKpiBaseSearch) Read(ctx context.Context, req datasource.ReadR
 
 	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
 
-	readTimeout, diags := config.Timeouts.Read(ctx, tftimeout.Read)
+	timeouts := config.Timeouts
+	readTimeout, diags := timeouts.Read(ctx, tftimeout.Read)
 	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
 		return
 	}
@@ -82,11 +83,6 @@ func (d *dataSourceKpiBaseSearch) Read(ctx context.Context, req datasource.ReadR
 		resp.Diagnostics.AddError("Unable to read KPI BS object", err.Error())
 		return
 	}
-	json, err := b.RawJson.ToInterfaceMap()
-	if err != nil {
-		resp.Diagnostics.AddError("Unable to read KPI JSON object", err.Error())
-		return
-	}
 	if b == nil {
 		resp.Diagnostics.AddAttributeError(
 			path.Root("title"),
@@ -94,8 +90,13 @@ func (d *dataSourceKpiBaseSearch) Read(ctx context.Context, req datasource.ReadR
 			fmt.Sprintf("KPI BS %q not found", title))
 		return
 	}
+	json, err := b.RawJson.ToInterfaceMap()
+	if err != nil {
+		resp.Diagnostics.AddError("Unable to read KPI JSON object", err.Error())
+		return
+	}
 
-	state := &dataSourceKpiBaseSearchState{}
+	state := &dataSourceKpiBaseSearchState{Timeouts: timeouts}
 
 	resp.Diagnostics.Append(marshalBasicTypesByTag("json", json, state)...)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
