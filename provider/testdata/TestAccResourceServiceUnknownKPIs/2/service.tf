@@ -1,7 +1,7 @@
 
 locals {
 
-  kpis = [for i in range(1, random_integer.n.result) : {
+  kpis = [for i in range(1, random_integer.n2.result) : {
     base_search_metric = "metric${i}"
     title              = "Metric ${i}"
     urgency            = i
@@ -10,13 +10,10 @@ locals {
 }
 
 
-resource "random_integer" "n" {
+resource "random_integer" "n2" {
   min = 1
   max = 5
 
-  keepers = {
-    timestamp = timestamp()
-  }
 }
 
 

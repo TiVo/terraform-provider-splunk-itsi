@@ -21,6 +21,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
+	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/tivo/terraform-provider-splunk-itsi/models"
@@ -335,29 +336,23 @@ const (
 	DEFAULT_URGENCY                          = 5
 )
 
-func (r *resourceService) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
-	if req.Plan.Raw.IsNull() || req.State.Raw.IsNull() {
-		return
-	}
+type tfRequest struct {
+	Config tfsdk.Config
+	State  tfsdk.State
+	Plan   tfsdk.Plan
+}
+
+type tfResponse struct {
+	// Plan is the planned new state for the resource.
+	Plan        *tfsdk.Plan
+	Diagnostics *diag.Diagnostics
+}
+
+func (r *resourceService) remapAttributes(ctx context.Context, req tfRequest, resp *tfResponse) {
 	var state, plan, config ServiceState
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
-
-	/*properties := []struct {
-		conf types.Bool
-		prop *types.Bool
-		def  bool
-	}{
-		{config.Enabled, &plan.Enabled, SERVICE_ENABLED_DEFAULT},
-		{config.Enabled, &plan.IsHealthscoreCalculateByEntityEnabled, SERVICE_IS_HEALTHSCORE_BY_ENTITY_ENABLED},
-	}
-
-	for _, p := range properties {
-		if p.conf.IsNull() && p.prop.IsUnknown() {
-			*p.prop = types.BoolValue(p.def)
-		}
-	}*/
 
 	if config.Description.IsNull() && plan.Description.IsUnknown() {
 		plan.Description = types.StringNull()
@@ -415,6 +410,28 @@ func (r *resourceService) ModifyPlan(ctx context.Context, req resource.ModifyPla
 	}
 	plan.KPIs = tfKpis
 	resp.Diagnostics.Append(resp.Plan.Set(ctx, plan)...)
+}
+
+func (r *resourceService) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	if req.Plan.Raw.IsNull() || req.State.Raw.IsNull() {
+		return
+	}
+	if !req.Config.Raw.IsFullyKnown() {
+		return
+	}
+
+	tfReq := tfRequest{
+		Config: req.Config,
+		Plan:   req.Plan,
+		State:  req.State,
+	}
+	tfResp := &tfResponse{
+		Diagnostics: &resp.Diagnostics,
+		Plan:        &resp.Plan,
+	}
+
+	r.remapAttributes(ctx, tfReq, tfResp)
+
 	tflog.Trace(ctx, "Finished modifying plan for service resource")
 }
 
@@ -493,6 +510,18 @@ func (r *resourceService) Create(ctx context.Context, req resource.CreateRequest
 func (r *resourceService) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	var plan ServiceState
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+
+	tfReq := tfRequest{
+		Config: req.Config,
+		Plan:   req.Plan,
+		State:  req.State,
+	}
+	tfResp := &tfResponse{
+		Diagnostics: &resp.Diagnostics,
+		Plan:        &req.Plan,
+	}
+
+	r.remapAttributes(ctx, tfReq, tfResp)
 
 	updateTimeout, diags := plan.Timeouts.Create(ctx, tftimeout.Update)
 	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
