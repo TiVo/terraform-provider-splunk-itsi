@@ -548,7 +548,21 @@ func (r *resourceService) Update(ctx context.Context, req resource.UpdateRequest
 		return
 	}
 
-	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
+	plan.ID = types.StringValue(base.RESTKey)
+
+	base, err = base.Read(ctx)
+	if err != nil {
+		resp.Diagnostics.AddError("Unable to update Service", err.Error())
+		return
+	}
+
+	state, diags := serviceModelFromBase(ctx, base)
+	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
+		return
+	}
+	state.Timeouts = plan.Timeouts
+	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
+
 }
 
 func (r *resourceService) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
