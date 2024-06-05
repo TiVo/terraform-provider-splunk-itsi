@@ -13,10 +13,10 @@ endif
 default: build
 
 build: fmt scraper
-	goreleaser build --skip-validate --single-target --clean
+	goreleaser build --single-target --snapshot --clean
 
 build_all: fmt scraper
-	goreleaser build --skip-validate --clean
+	goreleaser build --snapshot --clean
 
 release:
 	goreleaser release --clean
