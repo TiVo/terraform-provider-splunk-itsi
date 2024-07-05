@@ -81,7 +81,7 @@ type KpiThresholdLevelModel struct {
 
 func getKpiThresholdSettingsBlocksAttrs() (map[string]schema.Block, map[string]schema.Attribute) {
 	return map[string]schema.Block{
-			"threshold_levels": schema.SetNestedBlock{
+			"threshold_levels": schema.ListNestedBlock{
 				NestedObject: schema.NestedBlockObject{
 					Attributes: map[string]schema.Attribute{
 						"severity_label": schema.StringAttribute{
@@ -287,7 +287,7 @@ func (r *resourceKpiThresholdTemplate) Schema(ctx context.Context, _ resource.Sc
 						Description: "Map object of policies keyed by policy_name. ",
 						NestedObject: schema.NestedBlockObject{
 							Blocks: map[string]schema.Block{
-								"time_blocks": schema.SetNestedBlock{
+								"time_blocks": schema.ListNestedBlock{
 									//Optional: true,
 									NestedObject: schema.NestedBlockObject{
 										Attributes: map[string]schema.Attribute{

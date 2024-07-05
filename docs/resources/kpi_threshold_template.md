@@ -271,7 +271,7 @@ Optional:
 
 - `aggregate_thresholds` (Block, Optional) User-defined thresholding levels for "Aggregate" threshold type. For more information, see KPI Threshold Setting. (see [below for nested schema](#nestedblock--time_variate_thresholds_specification--policies--aggregate_thresholds))
 - `entity_thresholds` (Block, Optional) User-defined thresholding levels for "Per Entity" threshold type. For more information, see KPI Threshold Setting. (see [below for nested schema](#nestedblock--time_variate_thresholds_specification--policies--entity_thresholds))
-- `time_blocks` (Block Set) (see [below for nested schema](#nestedblock--time_variate_thresholds_specification--policies--time_blocks))
+- `time_blocks` (Block List) (see [below for nested schema](#nestedblock--time_variate_thresholds_specification--policies--time_blocks))
 
 <a id="nestedblock--time_variate_thresholds_specification--policies--aggregate_thresholds"></a>
 ### Nested Schema for `time_variate_thresholds_specification.policies.aggregate_thresholds`
@@ -289,7 +289,7 @@ Optional:
 - `metric_field` (String) Thresholding field from the search.
 - `render_boundary_max` (Number) Upper bound value to use to render the graph for the thresholds.
 - `render_boundary_min` (Number) Lower bound value to use to render the graph for the thresholds.
-- `threshold_levels` (Block Set) (see [below for nested schema](#nestedblock--time_variate_thresholds_specification--policies--aggregate_thresholds--threshold_levels))
+- `threshold_levels` (Block List) (see [below for nested schema](#nestedblock--time_variate_thresholds_specification--policies--aggregate_thresholds--threshold_levels))
 
 <a id="nestedblock--time_variate_thresholds_specification--policies--aggregate_thresholds--threshold_levels"></a>
 ### Nested Schema for `time_variate_thresholds_specification.policies.aggregate_thresholds.threshold_levels`
@@ -319,7 +319,7 @@ Optional:
 - `metric_field` (String) Thresholding field from the search.
 - `render_boundary_max` (Number) Upper bound value to use to render the graph for the thresholds.
 - `render_boundary_min` (Number) Lower bound value to use to render the graph for the thresholds.
-- `threshold_levels` (Block Set) (see [below for nested schema](#nestedblock--time_variate_thresholds_specification--policies--entity_thresholds--threshold_levels))
+- `threshold_levels` (Block List) (see [below for nested schema](#nestedblock--time_variate_thresholds_specification--policies--entity_thresholds--threshold_levels))
 
 <a id="nestedblock--time_variate_thresholds_specification--policies--entity_thresholds--threshold_levels"></a>
 ### Nested Schema for `time_variate_thresholds_specification.policies.entity_thresholds.threshold_levels`
