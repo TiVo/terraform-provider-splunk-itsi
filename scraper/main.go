@@ -32,7 +32,7 @@ terraform {
 	required_providers {
 		itsi = {
 			source  = "TiVo/splunk-itsi"
-			version = "~> 1.0"
+			version = "~> 2.0"
 		}
 	}
 	required_version = "~> 1.7.0"
@@ -47,6 +47,7 @@ provider "itsi" {
 	{{end}}
 	host     = "{{.Host}}"
 	port     = {{.Port}}
+	insecure = {{.SkipTLS}}
 }`
 	importSchemaTemplate = `
 import {
@@ -196,7 +197,7 @@ func runTerraformCommand(folder string, args ...string) (errors []error) {
 	cmd.Stdout = os.Stdout
 	cmd.Dir = folder
 	err := cmd.Run()
-	errors = append(errors, fmt.Errorf(string(b.Bytes())))
+	errors = append(errors, fmt.Errorf(b.String()))
 	if err != nil {
 		errors = append(errors, err)
 	}
