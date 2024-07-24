@@ -63,12 +63,13 @@ func init() {
 }
 
 type restConfig struct {
-	RestInterface string `yaml:"rest_interface"`
-	ObjectType    string `yaml:"object_type"`
-	RestKeyField  string `yaml:"rest_key_field"`
-	TFIDField     string `yaml:"tfid_field"`
-	MaxPageSize   int    `yaml:"max_page_size"`
-	GenerateKey   bool   `yaml:"generate_key"`
+	RestInterface          string `yaml:"rest_interface"`
+	ObjectType             string `yaml:"object_type"`
+	RestKeyField           string `yaml:"rest_key_field"`
+	TFIDField              string `yaml:"tfid_field"`
+	MaxPageSize            int    `yaml:"max_page_size"`
+	GenerateKey            bool   `yaml:"generate_key"`
+	UnimplementedFiltering bool   `yaml:"unimplemented_filtering"`
 }
 
 type Base struct {
@@ -289,6 +290,10 @@ func (b *Base) GetPageSize() int {
 	return maxPageSize
 }
 
+func (b *Base) IsFilterSupported() bool {
+	return !b.restConfig.UnimplementedFiltering
+}
+
 func (b *Base) PopulateRawJSON(ctx context.Context, body map[string]interface{}) error {
 	if b.GenerateKey && b.RESTKey == "" {
 		key, err := GenerateResourceKey()
@@ -479,7 +484,6 @@ func (b *Base) Find(ctx context.Context) (result *Base, err error) {
 			}
 		}
 		item.base, err = b_.Read(ctx)
-		return
 	})
 
 	if err == nil {
@@ -496,14 +500,27 @@ func (b *Base) Find(ctx context.Context) (result *Base, err error) {
 	return
 }
 
-func (b *Base) Dump(ctx context.Context, offset, count int) ([]*Base, error) {
+type Parameters struct {
+	Offset int
+	Count  int
+	Fields []string
+	Filter string
+}
+
+func (b *Base) Dump(ctx context.Context, query_params *Parameters) ([]*Base, error) {
 
 	params := url.Values{}
 	params.Add("sort_key", b.restConfig.RestKeyField)
 	params.Add("sort_dir", "asc")
-	if count > 0 && offset >= 0 {
-		params.Add("count", strconv.Itoa(count))
-		params.Add("offset", strconv.Itoa(offset))
+	if query_params.Count > 0 && query_params.Offset >= 0 {
+		params.Add("count", strconv.Itoa(query_params.Count))
+		params.Add("offset", strconv.Itoa(query_params.Offset))
+	}
+	if query_params.Fields != nil && len(query_params.Fields) > 0 {
+		params.Add("fields", strings.Join(query_params.Fields, ","))
+	}
+	if query_params.Filter != "" {
+		params.Add("filter", query_params.Filter)
 	}
 
 	log.Printf("Requesting %s with params %s\n", b.restConfig.ObjectType, params.Encode())
@@ -610,7 +627,6 @@ func (b *Base) lookupRESTKey(ctx context.Context) error {
 		}
 		Cache.restKey.Update(b.RestInterface, b.ObjectType, b.TFID, b.RESTKey)
 		b.RESTKey = b_.RESTKey
-		return nil
 	}
 
 	return nil

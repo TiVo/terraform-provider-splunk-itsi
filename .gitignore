@@ -2,6 +2,7 @@ bin/
 out/
 dump/
 dist/
+scraper/__*
 .DS_Store
 pkg
 tmp
@@ -14,3 +15,6 @@ crash.log
 *.swp
 *~
 .vscode
+__*
+.env
+.envrc

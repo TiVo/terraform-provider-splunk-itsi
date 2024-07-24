@@ -20,6 +20,7 @@ Collection data
 - `collection` (Block, Optional) Block identifying the collection (see [below for nested schema](#nestedblock--collection))
 - `fields` (Set of String) List of fields to include (1) or exclude (0). A fields value cannot contain both include and exclude specifications except for exclusion of the _key field. If not specified, all fields will be returned
 - `query` (String) Query to filter the data requested
+- `timeouts` (Block, Optional) (see [below for nested schema](#nestedblock--timeouts))
 
 ### Read-Only
 
@@ -34,5 +35,13 @@ Required:
 
 Optional:
 
-- `app` (String) App of the collection
-- `owner` (String) Owner of the collection
+- `app` (String) App of the collection. Defaults to 'itsi'.
+- `owner` (String) Owner of the collection. Defaults to 'nobody'.
+
+
+<a id="nestedblock--timeouts"></a>
+### Nested Schema for `timeouts`
+
+Optional:
+
+- `read` (String) A string that can be [parsed as a duration](https://pkg.go.dev/time#ParseDuration) consisting of numbers and unit suffixes, such as "30s" or "2h45m". Valid time units are "s" (seconds), "m" (minutes), "h" (hours).

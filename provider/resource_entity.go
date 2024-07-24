@@ -1,292 +1,422 @@
 package provider
 
 import (
-	"bytes"
 	"context"
-	"errors"
 	"fmt"
-	"log"
 	"strings"
 
-	"github.com/hashicorp/terraform-plugin-log/tflog"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+	"github.com/hashicorp/terraform-plugin-framework-timeouts/resource/timeouts"
+	"github.com/hashicorp/terraform-plugin-framework/attr"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/path"
+	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/mapdefault"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/setdefault"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/tivo/terraform-provider-splunk-itsi/models"
+	"github.com/tivo/terraform-provider-splunk-itsi/provider/util"
 )
 
-func entityTFFormat(b *models.Base) (string, error) {
-	res := ResourceEntity()
-	resData := res.Data(nil)
-	d := populateEntityResourceData(context.Background(), b, resData)
-	if len(d) > 0 {
-		err := d[0].Validate()
-		if err != nil {
-			return "", err
-		}
-		return "", errors.New(d[0].Summary)
-	}
-	resourcetpl, err := NewResourceTemplate(resData, res.Schema, "title", "itsi_entity")
-	if err != nil {
-		return "", err
-	}
+const (
+	itsiResourceTypeEntity = "entity"
+)
 
-	templateResource, err := newTemplate(resourcetpl)
-	if err != nil {
-		log.Fatal(err)
-	}
-	var tpl bytes.Buffer
-	err = templateResource.Execute(&tpl, resourcetpl)
-	if err != nil {
-		return "", err
-	}
+// Ensure the implementation satisfies the expected interfaces.
+var (
+	_ resource.Resource = &resourceEntity{}
+	_ tfmodel           = &entityModel{}
+)
 
-	return cleanerRegex.ReplaceAllString(tpl.String(), ""), nil
+// =================== [ Entity ] ===================
+
+type entityModel struct {
+	ID types.String `tfsdk:"id"`
+
+	Title       types.String `tfsdk:"title"`
+	Description types.String `tfsdk:"description"`
+
+	Aliases types.Map `tfsdk:"aliases"`
+	Info    types.Map `tfsdk:"info"`
+
+	EntityTypeIDs types.Set `tfsdk:"entity_type_ids"`
+
+	Timeouts timeouts.Value `tfsdk:"timeouts"`
+}
+
+func (m entityModel) objectype() string {
+	return itsiResourceTypeEntity
+}
+
+func (m entityModel) title() string {
+	return m.Title.ValueString()
 }
 
 func entityBase(clientConfig models.ClientConfig, key string, title string) *models.Base {
-	base := models.NewBase(clientConfig, key, title, "entity")
+	base := models.NewBase(clientConfig, key, title, itsiResourceTypeEntity)
 	return base
 }
 
-func ResourceEntity() *schema.Resource {
-	return &schema.Resource{
-		Description:   "Manages an Entity object within ITSI.",
-		CreateContext: entityCreate,
-		ReadContext:   entityRead,
-		UpdateContext: entityUpdate,
-		DeleteContext: entityDelete,
-		Importer: &schema.ResourceImporter{
-			StateContext: entityImport,
+type resourceEntity struct {
+	client models.ClientConfig
+}
+
+func NewResourceEntity() resource.Resource {
+	return &resourceEntity{}
+}
+
+func (r *resourceEntity) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
+	configureResourceClient(ctx, resourceNameEntity, req, &r.client, resp)
+}
+
+func (r *resourceEntity) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
+	configureResourceMetadata(req, resp, resourceNameEntity)
+}
+
+func (r *resourceEntity) Schema(ctx context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+	resp.Schema = schema.Schema{
+		MarkdownDescription: "Manages an Entity object within ITSI.",
+		Blocks: map[string]schema.Block{
+			"timeouts": timeouts.BlockAll(ctx),
 		},
-		Schema: map[string]*schema.Schema{
-			"title": {
-				Type:        schema.TypeString,
-				Required:    true,
-				Description: "Name of the entity. Can be any unique value.",
-			},
-			"description": {
-				Type:        schema.TypeString,
-				Optional:    true,
-				Default:     "",
-				Description: "User defined description of the entity.",
-			},
-			"aliases": {
-				Type:        schema.TypeMap,
-				Required:    true,
-				Description: "Map of Field/Value pairs that identify the entity",
-			},
-			"info": {
-				Type:        schema.TypeMap,
-				Optional:    true,
-				Description: "Map of Field/Value pairs that provide information/description for the entity",
-			},
-			"entity_type_ids": {
-				Type:     schema.TypeSet,
-				Optional: true,
-				Elem: &schema.Schema{
-					Type: schema.TypeString,
+		Attributes: map[string]schema.Attribute{
+			"id": schema.StringAttribute{
+				MarkdownDescription: "ID of the entity.",
+				Computed:            true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
 				},
-				Description: "Array of _key values for each entity type associated with the entity.",
+			},
+			"title": schema.StringAttribute{
+				MarkdownDescription: "Name of the entity. Can be any unique value.",
+				Required:            true,
+			},
+			"description": schema.StringAttribute{
+				MarkdownDescription: "User defined description of the entity.",
+				Optional:            true,
+				Computed:            true,
+				Default:             stringdefault.StaticString(""),
+			},
+			"aliases": schema.MapAttribute{
+				MarkdownDescription: "Map of Field/Value pairs that identify the entity.",
+				ElementType:         types.StringType,
+				Optional:            true,
+				Computed:            true,
+				Default:             mapdefault.StaticValue(types.MapValueMust(types.StringType, map[string]attr.Value{})),
+			},
+			"info": schema.MapAttribute{
+				MarkdownDescription: "Map of Field/Value pairs that provide information/description for the entity.",
+				ElementType:         types.StringType,
+				Optional:            true,
+				Computed:            true,
+				Default:             mapdefault.StaticValue(types.MapValueMust(types.StringType, map[string]attr.Value{})),
+			},
+			"entity_type_ids": schema.SetAttribute{
+				MarkdownDescription: "A set of _key values for each entity type associated with the entity.",
+				ElementType:         types.StringType,
+				Optional:            true,
+				Computed:            true,
+				Default:             setdefault.StaticValue(types.SetValueMust(types.StringType, []attr.Value{})),
 			},
 		},
 	}
 }
 
-func entity(ctx context.Context, d *schema.ResourceData, clientConfig models.ClientConfig) (config *models.Base, err error) {
-	body := map[string]interface{}{}
+// =================== [ Entity API / Builder] ===================
 
-	body["object_type"] = "entity"
-	body["sec_grp"] = "default_itsi_security_group"
-	body["title"] = d.Get("title").(string)
-	body["description"] = d.Get("description").(string)
+type entityBuildWorkflow struct{}
 
-	idFields, infoFields := []string{}, []string{}
-	idValues, infoValues := []string{}, []string{}
+var _ apibuildWorkflow[entityModel] = &entityBuildWorkflow{}
 
-	idFieldsSet, infoFieldsSet := map[string]bool{}, map[string]bool{}
-	idValuesSet, infoValuesSet := map[string]bool{d.Get("title").(string): true}, map[string]bool{}
-	aliases := d.Get("aliases").(map[string]interface{})
-	info := d.Get("info").(map[string]interface{})
+//lint:ignore U1000 used by apibuilder
+func (w *entityBuildWorkflow) buildSteps() []apibuildWorkflowStepFunc[entityModel] {
+	return []apibuildWorkflowStepFunc[entityModel]{
+		w.basics,
+		w.entityTypes,
+		w.fields,
+	}
+}
 
+func (w *entityBuildWorkflow) basics(ctx context.Context, obj entityModel) (map[string]any, diag.Diagnostics) {
+	return map[string]any{
+		"object_type": itsiResourceTypeEntity,
+		"sec_grp":     itsiDefaultSecurityGroup,
+		"title":       obj.Title.ValueString(),
+		"description": obj.Description.ValueString(),
+	}, nil
+}
+
+func (w *entityBuildWorkflow) entityTypes(ctx context.Context, obj entityModel) (res map[string]any, diags diag.Diagnostics) {
+	var entityTypeIDs []string
+	diags.Append(obj.EntityTypeIDs.ElementsAs(ctx, &entityTypeIDs, false)...)
+	res = map[string]any{"entity_type_ids": entityTypeIDs}
+	return
+}
+
+func (w *entityBuildWorkflow) fields(ctx context.Context, obj entityModel) (res map[string]any, diags diag.Diagnostics) {
+	idFields, infoFields := util.NewSet[string](), util.NewSet[string]()
+	idValues, infoValues := util.NewSetFromSlice([]string{obj.Title.ValueString()}), util.NewSet[string]()
+	var aliases, info map[string]string
+	diags.Append(obj.Aliases.ElementsAs(ctx, &aliases, false)...)
+	diags.Append(obj.Info.ElementsAs(ctx, &info, false)...)
+
+	res = map[string]any{}
 	for k, v := range aliases {
-		body[k] = strings.Split(v.(string), ",")
-		idFieldsSet[k] = true
-		for _, value := range body[k].([]string) {
-			idValuesSet[value] = true
+		res[k] = strings.Split(v, ",")
+		idFields.Add(k)
+		for _, value := range res[k].([]string) {
+			idValues.Add(value)
 		}
-	}
-
-	for k := range idFieldsSet {
-		idFields = append(idFields, k)
-	}
-
-	for k := range idValuesSet {
-		idValues = append(idValues, k)
 	}
 
 	for k, v := range info {
-		body[k] = strings.Split(v.(string), ",")
-		infoFieldsSet[k] = true
-		for _, value := range body[k].([]string) {
-			infoValuesSet[value] = true
+		res[k] = strings.Split(v, ",")
+		infoFields.Add(k)
+		for _, value := range res[k].([]string) {
+			infoValues.Add(value)
 		}
 	}
 
-	for k := range infoFieldsSet {
-		infoFields = append(infoFields, k)
-	}
+	res["identifier"] = map[string][]string{"fields": idFields.ToSlice(), "values": idValues.ToSlice()}
+	res["informational"] = map[string][]string{"fields": infoFields.ToSlice(), "values": infoValues.ToSlice()}
 
-	for k := range idValuesSet {
-		infoValues = append(infoValues, k)
-	}
-
-	body["identifier"] = map[string][]string{"fields": idFields, "values": idValues}
-	body["informational"] = map[string][]string{"fields": infoFields, "values": infoValues}
-	body["entity_type_ids"] = d.Get("entity_type_ids").(*schema.Set).List()
-
-	base := entityBase(clientConfig, d.Id(), d.Get("title").(string))
-	err = base.PopulateRawJSON(ctx, body)
-
-	return base, err
+	return
 }
 
-func entityCreate(ctx context.Context, d *schema.ResourceData, m interface{}) (diags diag.Diagnostics) {
-	template, err := entity(ctx, d, m.(models.ClientConfig))
-	tflog.Info(ctx, "ENTITY: create", map[string]interface{}{"TFID": template.TFID, "err": err})
-	if err != nil {
-		return diag.FromErr(err)
+// =================== [ Entity API / Parser ] ===================
+
+type entityParseWorkflow struct{}
+
+var _ apiparseWorkflow[entityModel] = &entityParseWorkflow{}
+
+//lint:ignore U1000 used by apiparser
+func (w *entityParseWorkflow) parseSteps() []apiparseWorkflowStepFunc[entityModel] {
+	return []apiparseWorkflowStepFunc[entityModel]{
+		w.basics,
+		w.entityTypes,
+		w.fields,
 	}
-	b, err := template.Create(ctx)
-	if err != nil {
-		return diag.FromErr(err)
-	}
-	b.Read(ctx)
-	return populateEntityResourceData(ctx, b, d)
 }
 
-func entityRead(ctx context.Context, d *schema.ResourceData, m interface{}) (diags diag.Diagnostics) {
-	base := entityBase(m.(models.ClientConfig), d.Id(), d.Get("title").(string))
-	tflog.Info(ctx, "ENTITY: read", map[string]interface{}{"TFID": base.TFID})
-	b, err := base.Find(ctx)
+func (w *entityParseWorkflow) basics(ctx context.Context, fields map[string]any, res *entityModel) (diags diag.Diagnostics) {
+	stringMap, err := unpackMap[string](mapSubset(fields, []string{"title", "description"}))
 	if err != nil {
-		return diag.FromErr(err)
+		diags.AddError("Unable to populate entity type model", err.Error())
+		return
 	}
-	if b == nil || b.RawJson == nil {
-		d.SetId("")
-		return nil
-	}
-	return populateEntityResourceData(ctx, b, d)
+	res.Title = types.StringValue(stringMap["title"])
+	res.Description = types.StringValue(stringMap["description"])
+	return
 }
 
-func populateEntityResourceData(ctx context.Context, b *models.Base, d *schema.ResourceData) (diags diag.Diagnostics) {
-	interfaceMap, err := b.RawJson.ToInterfaceMap()
-	if err != nil {
-		return diag.FromErr(err)
-	}
-
-	for _, f := range []string{"title", "description"} {
-		err = d.Set(f, interfaceMap[f])
+func (w *entityParseWorkflow) entityTypes(ctx context.Context, fields map[string]any, res *entityModel) (diags diag.Diagnostics) {
+	if v, ok := fields["entity_type_ids"]; ok && v != nil {
+		entityTypeIds, err := unpackSlice[string](v.([]interface{}))
 		if err != nil {
-			return diag.FromErr(err)
+			diags.AddError("Unable to populate entity model", err.Error())
+			return
 		}
+		res.EntityTypeIDs, diags = types.SetValueFrom(ctx, types.StringType, entityTypeIds)
+	} else {
+		emptySet := []string{}
+		res.EntityTypeIDs, diags = types.SetValueFrom(ctx, types.StringType, emptySet)
+	}
+	return
+}
+
+func (w *entityParseWorkflow) fields(ctx context.Context, fields map[string]any, res *entityModel) (diags diag.Diagnostics) {
+	var d diag.Diagnostics
+	fieldsMap, err := unpackMap[map[string]interface{}](mapSubset[string](fields, []string{"identifier", "informational"}))
+	if err != nil {
+		diags.AddError("Unable to populate entity model", err.Error())
+		return
 	}
 
-	if v, ok := interfaceMap["entity_type_ids"]; ok && v != nil {
-		entityTypeIds := v.([]interface{})
-		if len(entityTypeIds) > 0 {
-			err = d.Set("entity_type_ids", entityTypeIds)
-			if err != nil {
-				return diag.FromErr(err)
-			}
-		}
-	}
-
-	for tfField, itsiField := range map[string]string{"aliases": "identifier", "info": "informational"} {
+	for tfField, itsiField := range map[*types.Map]string{&res.Aliases: "identifier", &res.Info: "informational"} {
 		tfMap := map[string]string{}
-		itsiObject, ok := interfaceMap[itsiField].(map[string]interface{})
-		if !ok {
-			tflog.Warn(ctx, "ENTITY: populate",
-				map[string]interface{}{"TFID": b.TFID, "b": b, "map": interfaceMap, "field": itsiField})
-			return diag.Errorf("entity resource (%v): type assertion failed for '%v' field", b.RESTKey, itsiField)
-		}
 
+		itsiObject := fieldsMap[itsiField]
 		for _, k := range itsiObject["fields"].([]interface{}) {
-			itsiValues, ok := interfaceMap[k.(string)].([]interface{})
+			itsiValues, ok := fields[k.(string)].([]interface{})
 			if !ok {
-
-				return diag.Errorf("entity resource (%v): type assertion failed for '%v/fields' field", b.RESTKey, itsiField)
+				diags.AddError("Unable to populate entity model", fmt.Sprintf("entity resource (%v): type assertion failed for '%v/fields' field", res.ID.ValueString(), itsiField))
+				return
 			}
-
 			if len(itsiValues) == 0 {
-				return diag.Errorf("entity resource (%v): missing value for '%v/fields/%v' field", b.RESTKey, itsiField, k.(string))
-
+				diags.AddError("Unable to populate entity model", fmt.Sprintf("entity resource (%v): missing value for '%v/fields/%v' field", res.ID.ValueString(), itsiField, k.(string)))
+				return
 			}
-			values := []string{}
-			for _, value := range itsiValues {
-				values = append(values, value.(string))
+			values, err := unpackSlice[string](itsiValues)
+			if err != nil {
+				diags.AddError("Unable to populate entity model", err.Error())
+				return
 			}
 			tfMap[k.(string)] = strings.Join(values, ",")
 		}
 
-		if err = d.Set(tfField, tfMap); err != nil {
-			return diag.FromErr(err)
+		*tfField, d = types.MapValueFrom(ctx, types.StringType, tfMap)
+		if diags.Append(d...); diags.HasError() {
+			return
 		}
 	}
 
-	d.SetId(b.RESTKey)
-	return nil
+	return
 }
 
-func entityUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) (diags diag.Diagnostics) {
-	clientConfig := m.(models.ClientConfig)
-	base := entityBase(clientConfig, d.Id(), d.Get("title").(string))
-	tflog.Info(ctx, "ENTITY: update", map[string]interface{}{"TFID": base.TFID})
+// =================== [ Entity Resource CRUD ] ===================
+
+func (r *resourceEntity) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	var state entityModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+
+	timeouts := state.Timeouts
+	readTimeout, diags := timeouts.Read(ctx, tftimeout.Read)
+	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, readTimeout)
+	defer cancel()
+
+	base := entityBase(r.client, state.ID.ValueString(), state.Title.ValueString())
+	b, err := base.Find(ctx)
+	if err != nil {
+		resp.Diagnostics.AddError("Unable to read entity", err.Error())
+		return
+	}
+	if b == nil || b.RawJson == nil {
+		resp.Diagnostics.Append(resp.State.Set(ctx, &entityModel{})...)
+		return
+	}
+
+	state, diags = newAPIParser(b, new(entityParseWorkflow)).parse(ctx, b)
+	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
+		return
+	}
+
+	state.Timeouts = timeouts
+	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
+}
+
+func (r *resourceEntity) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	var plan entityModel
+	if resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...); resp.Diagnostics.HasError() {
+		return
+	}
+
+	base, diags := newAPIBuilder(r.client, new(entityBuildWorkflow)).build(ctx, plan)
+	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
+		return
+	}
+
+	createTimeout, diags := plan.Timeouts.Create(ctx, tftimeout.Create)
+	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
+		return
+	}
+	ctx, cancel := context.WithTimeout(ctx, createTimeout)
+	defer cancel()
+
+	base, err := base.Create(ctx)
+	if err != nil {
+		resp.Diagnostics.AddError("Unable to create entity", err.Error())
+		return
+	}
+
+	plan.ID = types.StringValue(base.RESTKey)
+	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
+
+}
+
+func (r *resourceEntity) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	var plan entityModel
+	if resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...); resp.Diagnostics.HasError() {
+		return
+	}
+
+	base, diags := newAPIBuilder(r.client, new(entityBuildWorkflow)).build(ctx, plan)
+	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
+		return
+	}
+
+	updateTimeout, diags := plan.Timeouts.Create(ctx, tftimeout.Update)
+	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
+		return
+	}
+	ctx, cancel := context.WithTimeout(ctx, updateTimeout)
+	defer cancel()
+
 	existing, err := base.Find(ctx)
 	if err != nil {
-		return diag.FromErr(err)
+		resp.Diagnostics.AddError("Unable to update entity", err.Error())
+		return
 	}
 	if existing == nil {
-		return entityCreate(ctx, d, m)
+		resp.Diagnostics.AddError("Unable to update entity", "entity not found")
+		return
+	}
+	if err := base.Update(ctx); err != nil {
+		resp.Diagnostics.AddError("Unable to update entity", err.Error())
+		return
 	}
 
-	template, err := entity(ctx, d, clientConfig)
-	if err != nil {
-		return diag.FromErr(err)
-	}
-	return diag.FromErr(template.Update(ctx))
+	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
-func entityDelete(ctx context.Context, d *schema.ResourceData, m interface{}) (diags diag.Diagnostics) {
-	base := entityBase(m.(models.ClientConfig), d.Id(), d.Get("title").(string))
-	tflog.Info(ctx, "ENTITY: delete", map[string]interface{}{"TFID": base.TFID})
-	existing, err := base.Find(ctx)
-	if err != nil {
-		return diag.FromErr(err)
-	}
-	if existing == nil {
-		return diag.Errorf("Unable to find entity model")
-	}
-	return diag.FromErr(existing.Delete(ctx))
-}
+func (r *resourceEntity) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+	var state entityModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 
-func entityImport(ctx context.Context, d *schema.ResourceData, m interface{}) ([]*schema.ResourceData, error) {
-	b := entityBase(m.(models.ClientConfig), "", d.Id())
-	b, err := b.Find(ctx)
+	deleteTimeout, diags := state.Timeouts.Create(ctx, tftimeout.Delete)
+	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
+		return
+	}
+	ctx, cancel := context.WithTimeout(ctx, deleteTimeout)
+	defer cancel()
+
+	base := entityBase(r.client, state.ID.ValueString(), state.Title.ValueString())
+	b, err := base.Find(ctx)
 	if err != nil {
-		return nil, err
+		resp.Diagnostics.AddError("Unable to delete entity", err.Error())
+		return
 	}
 	if b == nil {
-		return nil, err
+		return
 	}
-	diags := populateEntityResourceData(ctx, b, d)
-	for _, d := range diags {
-		if d.Severity == diag.Error {
-			return nil, fmt.Errorf(d.Summary)
-		}
+	if err := b.Delete(ctx); err != nil {
+		resp.Diagnostics.AddError("Unable to delete entity", err.Error())
+		return
+	}
+}
+
+func (r *resourceEntity) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	ctx, cancel := context.WithTimeout(ctx, tftimeout.Read)
+	defer cancel()
+
+	b := entityBase(r.client, "", req.ID)
+	b, err := b.Find(ctx)
+	if err != nil {
+		resp.Diagnostics.AddError("Unable to find entity model", err.Error())
+		return
+	}
+	if b == nil {
+		resp.Diagnostics.AddError("Entity not found", fmt.Sprintf("Entity '%s' not found", req.ID))
+		return
 	}
 
-	if d.Id() == "" {
-		return nil, nil
+	state, diags := newAPIParser(b, new(entityParseWorkflow)).parse(ctx, b)
+	if resp.Diagnostics.Append(diags...); diags.HasError() {
+		return
 	}
-	return []*schema.ResourceData{d}, nil
+
+	var timeouts timeouts.Value
+	resp.Diagnostics.Append(resp.State.GetAttribute(ctx, path.Root("timeouts"), &timeouts)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	state.Timeouts = timeouts
+
+	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }

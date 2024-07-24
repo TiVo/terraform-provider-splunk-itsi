@@ -3,12 +3,19 @@
 page_title: "itsi_splunk_collection Resource - itsi"
 subcategory: ""
 description: |-
-  Manages a KV store collection resource in Splunk.
+  Manages a KV store collection in Splunk.
+  ~> Due to Splunk API limitations removing an item from field_types or accelerations requires collection recreation, leading to data loss.
+  Adding or modifying these configurations, however is supported and will not affect existing data.
+  The terraform provider will issue a warning at plan time if a collection is set to be replaced due to these modifications. Practitioners should exercise caution when modifying these fields.
 ---
 
 # itsi_splunk_collection (Resource)
 
-Manages a KV store collection resource in Splunk.
+Manages a KV store collection in Splunk.
+
+~> Due to Splunk API limitations removing an item from `field_types` or `accelerations` requires collection recreation, leading to data loss.
+Adding or modifying these configurations, however is supported and will not affect existing data.
+The terraform provider will issue a warning at plan time if a collection is set to be replaced due to these modifications. Practitioners should exercise caution when modifying these fields.
 
 ## Example Usage
 
@@ -32,21 +39,33 @@ resource "itsi_splunk_collection" "test_collection" {
 
 ### Optional
 
-- `accelerations` (List of String) Field acceleration information (see Splunk docs for accelerated_fields in collections.conf)
-- `app` (String) App the collection belongs to Defaults to `itsi`.
-- `field_types` (Map of String) Field type information
-- `owner` (String) Owner of the collection Defaults to `nobody`.
+- `accelerations` (List of String)
+- `app` (String) App of the collection. Defaults to 'itsi'.
+- `field_types` (Map of String) Field name -> field type mapping for the collection's columns. Field types are used to determine the data type of the column in the collection. Supported field types are: `array`, `number`, `bool`, `time`, `string` and `cidr`.
+- `owner` (String) Owner of the collection. Defaults to 'nobody'.
+- `timeouts` (Block, Optional) (see [below for nested schema](#nestedblock--timeouts))
 
-### Read-Only
+<a id="nestedblock--timeouts"></a>
+### Nested Schema for `timeouts`
 
-- `id` (String) The ID of this resource.
+Optional:
+
+- `create` (String) A string that can be [parsed as a duration](https://pkg.go.dev/time#ParseDuration) consisting of numbers and unit suffixes, such as "30s" or "2h45m". Valid time units are "s" (seconds), "m" (minutes), "h" (hours).
+- `delete` (String) A string that can be [parsed as a duration](https://pkg.go.dev/time#ParseDuration) consisting of numbers and unit suffixes, such as "30s" or "2h45m". Valid time units are "s" (seconds), "m" (minutes), "h" (hours). Setting a timeout for a Delete operation is only applicable if changes are saved into state before the destroy operation occurs.
+- `read` (String) A string that can be [parsed as a duration](https://pkg.go.dev/time#ParseDuration) consisting of numbers and unit suffixes, such as "30s" or "2h45m". Valid time units are "s" (seconds), "m" (minutes), "h" (hours). Read operations occur during any refresh or planning operation when refresh is enabled.
+- `update` (String) A string that can be [parsed as a duration](https://pkg.go.dev/time#ParseDuration) consisting of numbers and unit suffixes, such as "30s" or "2h45m". Valid time units are "s" (seconds), "m" (minutes), "h" (hours).
 
 ## Import
 
 Import is supported using the following syntax:
 
 ```shell
-terraform import itsi_service.example {{id}}
+terraform import itsi_splunk_collection.example {{owner}}/{{app}}/{{name}}
 #OR
-terraform import itsi_service.example {{title}}
+terraform import itsi_service.example {{app}}/{{name}}
+#OR
+terraform import itsi_service.example {{name}}
+
+# NOTE:
+# When the collection's owner and/or app are not provided, the default values of "nobody" and "itsi" are assumed respectively.
 ```

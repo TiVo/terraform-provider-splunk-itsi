@@ -11,11 +11,19 @@ import (
 	"unicode"
 
 	"fmt"
+	"strconv"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/tivo/terraform-provider-splunk-itsi/models"
 	"github.com/tmccombs/hcl2json/convert"
+
+	"github.com/hashicorp/terraform-plugin-framework/attr"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 )
+
+const itsiDefaultSecurityGroup = "default_itsi_security_group"
 
 var cleanerRegex *regexp.Regexp
 
@@ -45,12 +53,12 @@ func newTemplate(resourcetpl *resourceTemplate) (*template.Template, error) {
 type TFFormatter func(*models.Base) (string, error)
 
 var Formatters map[string]TFFormatter = map[string]TFFormatter{
-	"kpi_base_search": kpiBSTFFormat,
+	//"kpi_base_search": kpiBSTFFormat,
 	//"kpi_threshold_template":           kpiThresholdTemplateTFFormat,
-	"entity":                           entityTFFormat,
-	"entity_type":                      entityTypeTFFormat,
-	"service":                          serviceTFFormat,
-	"notable_event_aggregation_policy": notableEventAggregationPolicyTFFormat,
+	//"entity":                           entityTFFormat,
+	//"entity_type":                      entityTypeTFFormat,
+	//"service":                          serviceTFFormat,
+	//"notable_event_aggregation_policy": notableEventAggregationPolicyTFFormat,
 }
 
 func JSONify(base *models.Base, formatter TFFormatter) (json.RawMessage, error) {
@@ -90,11 +98,11 @@ func NewResourceTemplate(data *schema.ResourceData, resourceSchema map[string]*s
 		rt.Fields = append(rt.Fields, k)
 	}
 	sort.Strings(rt.Fields)
-	rt.ResourceName, err = rt.escape(data.Get(title).(string))
+	rt.ResourceName, err = Escape(data.Get(title).(string))
 	return rt, err
 }
 
-func (rt *resourceTemplate) escape(name string) (string, error) {
+func Escape(name string) (string, error) {
 	reg, err := regexp.Compile("[^a-zA-Z0-9]+")
 	if err != nil {
 		return "", err
@@ -262,7 +270,17 @@ func (rt *resourceTemplate) display(index string, element interface{}, sc *schem
 	}
 }
 
-func unpackResourceMap[T any](in map[string]interface{}) (map[string]T, error) {
+func mapSubset[T comparable](m map[T]interface{}, keys []T) map[T]interface{} {
+	ms := make(map[T]interface{})
+	for _, k := range keys {
+		if v, ok := m[k]; ok {
+			ms[k] = v
+		}
+	}
+	return ms
+}
+
+func unpackMap[T any](in map[string]interface{}) (map[string]T, error) {
 	out := make(map[string]T)
 	for k, v := range in {
 		res, ok := v.(T)
@@ -276,9 +294,14 @@ func unpackResourceMap[T any](in map[string]interface{}) (map[string]T, error) {
 	return out, nil
 }
 
-func unpackResourceList[T any](in []interface{}) ([]T, error) {
-	out := make([]T, 0, len(in))
-	for _, v := range in {
+func unpackSlice[T any](in interface{}) ([]T, error) {
+	slice, ok := in.([]interface{})
+	if !ok {
+		return nil, fmt.Errorf("failed to unpack %#v to []%T ", in, *new(T))
+	}
+
+	out := make([]T, 0, len(slice))
+	for _, v := range slice {
 		res, ok := v.(T)
 		if !ok {
 			return nil, fmt.Errorf("failed to unpack %#v to []%T ", in, *new(T))
@@ -286,4 +309,78 @@ func unpackResourceList[T any](in []interface{}) ([]T, error) {
 		out = append(out, res)
 	}
 	return out, nil
+}
+
+func unmarshalBasicTypesByTag(tag string, in any, out map[string]interface{}) (diags diag.Diagnostics) {
+	t := reflect.TypeOf(in).Elem()
+	v := reflect.ValueOf(in).Elem()
+
+	for i := 0; i < v.NumField(); i++ {
+		field := v.Field(i)
+		_tag := t.Field(i).Tag.Get(tag)
+		if _tag == "" {
+			// skipping field
+			continue
+		}
+		fieldValue := field.Interface().(attr.Value)
+
+		if fieldValue.IsNull() || fieldValue.IsUnknown() {
+			// skipping field
+			continue
+		}
+		switch field.Type().Name() {
+		case "StringValue":
+			out[_tag] = field.Interface().(basetypes.StringValue).ValueString()
+		case "Float64Value":
+			out[_tag] = field.Interface().(basetypes.Float64Value).ValueFloat64()
+		case "BoolValue":
+			out[_tag] = field.Interface().(basetypes.BoolValue).ValueBool()
+		}
+	}
+	return
+}
+func marshalBasicTypesByTag(tag string, in map[string]interface{}, out any) (diags diag.Diagnostics) {
+
+	t := reflect.TypeOf(out).Elem()
+	v := reflect.ValueOf(out).Elem()
+
+	for i := 0; i < v.NumField(); i++ {
+		field := v.Field(i)
+		_tag := t.Field(i).Tag.Get(tag)
+		if value, ok := in[_tag]; ok && value != nil {
+			switch field.Type().Name() {
+			case "StringValue":
+				field.Set(reflect.ValueOf(types.StringValue(fmt.Sprintf("%v", value))))
+			case "Float64Value":
+				var val float64
+
+				switch v := value.(type) {
+				case string:
+					val, _ = strconv.ParseFloat(v, 64)
+				case float64:
+					val = v
+				default:
+					val = 0
+				}
+				field.Set(reflect.ValueOf(types.Float64Value(val)))
+			case "BoolValue":
+				switch v := value.(type) {
+				case float64:
+					field.Set(reflect.ValueOf(types.BoolValue(v != 0)))
+				case bool:
+					field.Set(reflect.ValueOf(types.BoolValue(v)))
+				}
+			}
+		} else {
+			switch field.Type().Name() {
+			case "StringValue":
+				field.Set(reflect.ValueOf(types.StringNull()))
+			case "Float64Value":
+				field.Set(reflect.ValueOf(types.Float64Null()))
+			case "Int64Value":
+				field.Set(reflect.ValueOf(types.Int64Null()))
+			}
+		}
+	}
+	return
 }

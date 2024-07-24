@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/hashicorp/terraform-plugin-framework-timeouts/datasource/timeouts"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -24,6 +25,8 @@ type dataSourceEntityType struct {
 type dataSourceEntityTypeModel struct {
 	ID    types.String `tfsdk:"id"`
 	Title types.String `tfsdk:"title"`
+
+	Timeouts timeouts.Value `tfsdk:"timeouts"`
 }
 
 func entityTypeBase(clientConfig models.ClientConfig, key string, title string) *models.Base {
@@ -35,26 +38,20 @@ func NewDataSourceEntityType() datasource.DataSource {
 	return &dataSourceEntityType{}
 }
 
-func (d *dataSourceEntityType) Configure(ctx context.Context, req datasource.ConfigureRequest, _ *datasource.ConfigureResponse) {
-	if req.ProviderData == nil {
-		return
-	}
-
-	client, ok := req.ProviderData.(models.ClientConfig)
-	if !ok {
-		tflog.Error(ctx, "Unable to prepare client")
-		return
-	}
-	d.client = client
+func (d *dataSourceEntityType) Configure(ctx context.Context, req datasource.ConfigureRequest, resp *datasource.ConfigureResponse) {
+	configureDataSourceClient(ctx, datasourceNameEntityType, req, &d.client, resp)
 }
 
 func (d *dataSourceEntityType) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + "_entity_type"
+	configureDataSourceMetadata(req, resp, datasourceNameEntityType)
 }
 
-func (d *dataSourceEntityType) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
+func (d *dataSourceEntityType) Schema(ctx context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Description: "Use this data source to get the ID of an available entity type.",
+		Blocks: map[string]schema.Block{
+			"timeouts": timeouts.Block(ctx),
+		},
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Description: "Identifier for this entity type",
@@ -74,6 +71,15 @@ func (d *dataSourceEntityType) Read(ctx context.Context, req datasource.ReadRequ
 
 	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
 
+	timeouts := config.Timeouts
+	readTimeout, diags := timeouts.Read(ctx, tftimeout.Read)
+	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, readTimeout)
+	defer cancel()
+
 	title := config.Title.ValueString()
 	base := entityTypeBase(d.client, config.ID.ValueString(), title)
 	b, err := base.Find(ctx)
@@ -90,8 +96,9 @@ func (d *dataSourceEntityType) Read(ctx context.Context, req datasource.ReadRequ
 	}
 
 	state := dataSourceEntityTypeModel{
-		ID:    types.StringValue(b.RESTKey),
-		Title: types.StringValue(title),
+		ID:       types.StringValue(b.RESTKey),
+		Title:    types.StringValue(title),
+		Timeouts: timeouts,
 	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)

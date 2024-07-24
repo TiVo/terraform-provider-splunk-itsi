@@ -2,22 +2,28 @@ package provider
 
 import (
 	"testing"
+
+	"github.com/hashicorp/terraform-plugin-testing/config"
+	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 )
 
-func TestDataSourceType(t *testing.T) {
-	t.Skip("test skipped, TBD")
+func TestDataSourceEntityTypeSchema(t *testing.T) {
+	testDataSourceSchema(t, new(dataSourceEntityType))
+}
 
-	// resource.UnitTest(t, resource.TestCase{
-	// 	//PreCheck:          func() { testAccPreCheck(t) },
-	// 	ProviderFactories: ProviderFactories,
-	// 	Steps: []resource.TestStep{
-	// 		{
-	// 			Config: testAccDataSourceScaffolding,
-	// 			Check: resource.ComposeTestCheckFunc(
-	// 				resource.TestMatchResourceAttr(
-	// 					"data.itsi_entity_type.foo", "title", regexp.MustCompile("^ba")),
-	// 			),
-	// 		},
-	// 	},
-	// })
+func TestAccDataSourceEntityTypeLifecycle(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		PreCheck:     func() { testAccPreCheck(t) },
+		CheckDestroy: testAccCheckResourceDestroy(resourceNameEntityType, "TestAcc_sample_entity_type"),
+		Steps: []resource.TestStep{
+			{
+				ProtoV6ProviderFactories: providerFactories,
+				ConfigDirectory:          config.TestStepDirectory(),
+			},
+			{
+				ProtoV6ProviderFactories: providerFactories,
+				ConfigDirectory:          config.TestStepDirectory(),
+			},
+		},
+	})
 }

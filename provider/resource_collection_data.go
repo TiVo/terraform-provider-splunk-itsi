@@ -3,18 +3,18 @@ package provider
 import (
 	"context"
 	"encoding/json"
+
 	"fmt"
-	"net/http"
-	"net/url"
 	"reflect"
 	"strings"
 
 	"github.com/google/uuid"
-	"github.com/hashicorp/terraform-plugin-framework-validators/objectvalidator"
+	"github.com/hashicorp/terraform-plugin-framework-timeouts/resource/timeouts"
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/objectplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
@@ -23,11 +23,13 @@ import (
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/tivo/terraform-provider-splunk-itsi/models"
 	"github.com/tivo/terraform-provider-splunk-itsi/provider/util"
+	"gopkg.in/yaml.v3"
 )
 
 const (
 	collectionDefaultUser          = "nobody"
 	collectionDefaultApp           = "itsi"
+	collectionDefaultScope         = "default"
 	collectionEntryDataDescription = "Collection entry `data` must be JSON encoded map where keys are field names, " +
 		"and values are strings, numbers, booleans, or arrays of those types."
 	collectionEntryInvalidError = "Invalid collection entry data"
@@ -45,49 +47,6 @@ type resourceCollectionData struct {
 
 func NewResourceCollectionData() resource.Resource {
 	return &resourceCollectionData{}
-}
-
-// resource terraform models
-
-type collectionModel struct {
-	Name  types.String `tfsdk:"name"`
-	App   types.String `tfsdk:"app"`
-	Owner types.String `tfsdk:"owner"`
-}
-
-func collectionSchema() schema.SingleNestedBlock {
-	return schema.SingleNestedBlock{
-		MarkdownDescription: "Block identifying the collection",
-		PlanModifiers: []planmodifier.Object{
-			objectplanmodifier.RequiresReplace(),
-		},
-		Attributes: map[string]schema.Attribute{
-			"name": schema.StringAttribute{
-				MarkdownDescription: "Name of the collection",
-				Required:            true,
-				Validators:          validateStringIdentifier2(),
-			},
-			"app": schema.StringAttribute{
-				MarkdownDescription: "App of the collection",
-				Optional:            true,
-				Computed:            true,
-				Default:             stringdefault.StaticString(collectionDefaultApp),
-				Validators:          validateStringIdentifier2(),
-			},
-			"owner": schema.StringAttribute{
-				MarkdownDescription: "Owner of the collection",
-				Optional:            true,
-				Computed:            true,
-				Default:             stringdefault.StaticString(collectionDefaultUser),
-				Validators:          validateStringIdentifier2(),
-			},
-		},
-		Validators: []validator.Object{objectvalidator.IsRequired()},
-	}
-}
-
-func (c *collectionModel) Key() string {
-	return fmt.Sprintf("%s/%s/%s", c.Owner.ValueString(), c.App.ValueString(), c.Name.ValueString())
 }
 
 type collectionEntryModel struct {
@@ -140,19 +99,23 @@ func (e *collectionEntryModel) Unpack() (data map[string]interface{}, diags diag
 }
 
 type collectionDataModel struct {
-	ID         types.String    `tfsdk:"id"`
-	Collection collectionModel `tfsdk:"collection"`
-	Scope      types.String    `tfsdk:"scope"`
-	Generation types.Int64     `tfsdk:"generation"`
-	Entries    types.Set       `tfsdk:"entry"`
+	ID         types.String      `tfsdk:"id"`
+	Collection collectionIDModel `tfsdk:"collection"`
+	Scope      types.String      `tfsdk:"scope"`
+	Generation types.Int64       `tfsdk:"generation"`
+	Entries    types.Set         `tfsdk:"entry"`
+
+	Timeouts timeouts.Value `tfsdk:"timeouts"`
 }
 
 // Normalize func allows for supressing the diff when a fields value changes from
 // a single value to a list of that 1 value or vice versa
 func (d *collectionDataModel) Normalize(ctx context.Context) (diags diag.Diagnostics) {
 	var srcEntries []collectionEntryModel
-	if diags.Append(d.Entries.ElementsAs(ctx, &srcEntries, false)...); diags.HasError() {
-		return
+	if !d.Entries.IsNull() {
+		if diags.Append(d.Entries.ElementsAs(ctx, &srcEntries, false)...); diags.HasError() {
+			return
+		}
 	}
 	entries := make([]collectionEntryModel, len(srcEntries))
 
@@ -179,210 +142,9 @@ func (d *collectionDataModel) Normalize(ctx context.Context) (diags diag.Diagnos
 	return
 }
 
-// collectionAPI client
-type collectionAPI struct {
-	collectionModel
-	client models.ClientConfig
-}
-
-func NewCollectionAPI(m collectionModel, c models.ClientConfig) *collectionAPI {
-	return &collectionAPI{m, c}
-}
-
-func (api *collectionAPI) Model(objectType string) *models.CollectionApi {
-	return models.NewCollection(
-		api.client,
-		api.Name.ValueString(),
-		api.App.ValueString(),
-		api.Owner.ValueString(),
-		api.Name.ValueString(),
-		objectType)
-}
-
-func (api *collectionAPI) CollectionExists(ctx context.Context, require bool) (exists bool, diags diag.Diagnostics) {
-	collection := api.Model("collection_config_no_body")
-	collection.SetCodeHandle(http.StatusNotFound, util.Ignore)
-	collection_, err := collection.Read(ctx)
-	if err != nil {
-		diags.AddError(fmt.Sprintf("Unable to read %s collection config", api.Key()), err.Error())
-		return
-	}
-	if exists = collection_ != nil; require && !exists {
-		diags.AddError("collection not found",
-			fmt.Sprintf("Collection %s does not exist", api.Key()))
-	}
-	return
-}
-
-func (api *collectionAPI) Query(ctx context.Context, query string, fields []string) (obj interface{}, diags diag.Diagnostics) {
-	collection := api.Model("collection_data")
-	var params, queryParams, fieldsParams string
-
-	if strings.TrimSpace(query) != "" {
-		queryParams = "query=" + url.QueryEscape(query)
-	}
-	if len(fields) > 0 {
-		urlEscapedFields := make([]string, len(fields))
-		for i, field := range fields {
-			urlEscapedFields[i] = url.QueryEscape(field)
-		}
-		fieldsParams = "fields=" + strings.Join(urlEscapedFields, ",")
-	}
-	params = strings.Join([]string{queryParams, fieldsParams}, "&")
-	collection.Params = params
-
-	var err error
-	if collection, err = collection.Read(ctx); err != nil {
-		diags.AddError(fmt.Sprintf("Unable to read %s collection data", api.Key()), err.Error())
-		return
-	}
-
-	if obj, err = collection.Unmarshal(collection.Body); err != nil {
-		diags.AddError(fmt.Sprintf("Unable to unmarshal %s collection data", api.Key()), err.Error())
-	}
-
-	return
-}
-
-// collectionDataAPI client
-
-type collectionDataAPI struct {
-	*collectionAPI
-	collectionDataModel
-}
-
-func NewCollectionDataAPI(m collectionDataModel, c models.ClientConfig) *collectionDataAPI {
-	return &collectionDataAPI{NewCollectionAPI(m.Collection, c), m}
-}
-
-func (api *collectionDataAPI) Model(ctx context.Context, includeData bool) (model *models.CollectionApi, diags diag.Diagnostics) {
-	data := map[string]interface{}{
-		"collection_name": api.Collection.Name.ValueString(),
-		"scope":           api.Scope.ValueString(),
-		"generation":      api.Generation.ValueInt64(),
-		"instance":        api.ID.ValueString(),
-	}
-	if includeData {
-		model = api.collectionAPI.Model("collection_batchsave")
-		var entries []collectionEntryModel
-		if diags = api.Entries.ElementsAs(ctx, &entries, false); diags.HasError() {
-			return
-		}
-
-		rows := make([]map[string]interface{}, len(entries))
-
-		for i, entry := range entries {
-			rowMap, diags_ := entry.Unpack()
-			diags.Append(diags_...)
-			rowMap["_instance"] = api.ID.ValueString()
-			rowMap["_gen"] = api.Generation.ValueInt64()
-			rowMap["_scope"] = api.Scope.ValueString()
-			rowMap["_key"] = entry.ID.ValueString()
-			rows[i] = rowMap
-		}
-		data["data"] = rows
-		var err error
-		model.Body, err = json.Marshal(rows)
-		if err != nil {
-			diags.AddError(fmt.Sprintf("Unable to marshal %s collection data", api.Key()), err.Error())
-			return nil, diags
-		}
-	} else {
-		model = api.collectionAPI.Model("collection_data")
-	}
-	model.Data = data
-	return
-}
-
-func (api *collectionDataAPI) Save(ctx context.Context) (diags diag.Diagnostics) {
-	if len(api.Entries.Elements()) == 0 {
-		return
-	}
-	model, diags := api.Model(ctx, true)
-	if diags.HasError() {
-		return
-	}
-	_, err := model.Create(ctx)
-	if err != nil {
-		diags.AddError(fmt.Sprintf("Unable to save %s collection data", api.Key()), err.Error())
-	}
-	return
-}
-
-func (api *collectionDataAPI) deleteOldRows(ctx context.Context) (diags diag.Diagnostics) {
-	model, diags := api.Model(ctx, false)
-	if diags.HasError() {
-		return
-	}
-	q := fmt.Sprintf(`{"$or":[{"_instance":null},{"_instance":{"$ne": "%s"}},{"_gen":null},{"_gen":{"$ne": %d}}]}`, api.ID.ValueString(), api.Generation.ValueInt64())
-	q = fmt.Sprintf(`{"$and":[{"_scope":"%s"},%s]}`, api.Scope.ValueString(), q)
-	model.Params = "query=" + url.QueryEscape(q)
-
-	_, err := model.Delete(ctx)
-	if err != nil {
-		diags.AddError(fmt.Sprintf("Unable to delete %s collection data", api.Key()), err.Error())
-	}
-	return
-}
-
-func (api *collectionDataAPI) Read(ctx context.Context) (data []collectionEntryModel, diags diag.Diagnostics) {
-	q := fmt.Sprintf(`{"_scope":"%s"}`, api.Scope.ValueString())
-	obj, diags := api.Query(ctx, q, []string{})
-	if diags.Append(diags...); diags.HasError() {
-		return
-	}
-
-	arr, ok := obj.([]interface{})
-	if !ok {
-		diags.AddError(fmt.Sprintf("Unable to read %s collection data", api.Key()), "expected array body return type")
-		return
-	}
-
-	data = make([]collectionEntryModel, len(arr))
-
-	for i, item := range arr {
-		var entry collectionEntryModel
-
-		item_, ok := item.(map[string]interface{})
-		if !ok {
-			diags.AddError(fmt.Sprintf("Unable to read %s collection data", api.Key()), "expected map in array body return type")
-		}
-		row := map[string]interface{}{}
-
-		for k, v := range item_ {
-			if k == "_key" {
-				entry.ID = types.StringValue(v.(string))
-			} else if !strings.HasPrefix(k, "_") {
-				switch val := v.(type) {
-				case []interface{}:
-					row[k] = val
-				default:
-					row[k] = []interface{}{val}
-				}
-			}
-		}
-		if diags.Append(entry.Pack(row)...); diags.HasError() {
-			return
-		}
-		data[i] = entry
-	}
-
-	return
-}
-
-func (api *collectionDataAPI) Delete(ctx context.Context) (diags diag.Diagnostics) {
-	model, diags_ := api.Model(ctx, false)
-	if diags.Append(diags_...); diags.HasError() {
-		return
-	}
-	model.Params = "query=" + url.QueryEscape(fmt.Sprintf(`{"_scope":"%s"}`, api.Scope.ValueString()))
-	if _, err := model.Delete(ctx); err != nil {
-		diags.AddError(fmt.Sprintf("Unable to delete %s collection data", api.Key()), err.Error())
-	}
-	return
-}
-
 // validations
+
+// entryDataValidator validates the collection entry data field.
 
 type entryDataValidator struct{}
 
@@ -460,31 +222,68 @@ func collectionDataEntryIsValid() entryDataValidator {
 	return entryDataValidator{}
 }
 
+// entrysetValidator validates the collection entry set, ensuring that each entry has a unique ID.
+
+type entrySetValidator struct{}
+
+const entrySetValidatorDescription = "Each item in the collection must have a unique ID."
+
+func (v entrySetValidator) Description(ctx context.Context) string {
+	return entrySetValidatorDescription
+}
+func (v entrySetValidator) MarkdownDescription(ctx context.Context) string {
+	return entrySetValidatorDescription
+}
+
+// validateResourceKeyUniqueness validates that the all entries in the list have unique keys.
+func (v entrySetValidator) ValidateKeyUniqueness(ctx context.Context, entries []collectionEntryModel) (diags diag.Diagnostics) {
+	ids := util.NewSet[string]()
+	for _, entry := range entries {
+		if entry.ID.IsUnknown() || entry.ID == types.StringNull() {
+			continue
+		}
+
+		if ids.Contains(entry.ID.ValueString()) {
+			errorDetails := util.Dedent(fmt.Sprintf(`
+				Entry with ID %q already exists in the defined collection data.
+				Please ensure that each entry has a unique ID.
+			`, entry.ID.ValueString()))
+
+			diags.AddError("Duplicate entry ID", errorDetails)
+		}
+		ids.Add(entry.ID.ValueString())
+	}
+	return
+}
+
+func (v entrySetValidator) ValidateSet(ctx context.Context, req validator.SetRequest, resp *validator.SetResponse) {
+	if req.ConfigValue.IsUnknown() || req.ConfigValue.IsNull() {
+		return
+	}
+	var entries []collectionEntryModel
+	if diags := req.ConfigValue.ElementsAs(ctx, &entries, false); diags.HasError() {
+		resp.Diagnostics.Append(diags...)
+		return
+	}
+
+	resp.Diagnostics = v.ValidateKeyUniqueness(ctx, entries)
+}
+
 // resource methods
 
 func (r *resourceCollectionData) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
-	if req.ProviderData == nil {
-		return
-	}
-
-	client, ok := req.ProviderData.(models.ClientConfig)
-	if !ok {
-		tflog.Error(ctx, "Unable to prepare client")
-		resp.Diagnostics.AddError("Unable to prepare client", "invalid provider data")
-		return
-	}
-	r.client = client
+	configureResourceClient(ctx, resourceNameCollectionData, req, &r.client, resp)
 }
 
 func (r *resourceCollectionData) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + "_collection_data"
+	configureResourceMetadata(req, resp, resourceNameCollectionData)
 }
 
-func (r *resourceCollectionData) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+func (r *resourceCollectionData) Schema(ctx context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		MarkdownDescription: "Collection data resource",
 		Blocks: map[string]schema.Block{
-			"collection": collectionSchema(),
+			"collection": collectionIDSchema(),
 			"entry": schema.SetNestedBlock{
 				MarkdownDescription: "Block representing an entry in the collection",
 				NestedObject: schema.NestedBlockObject{
@@ -501,7 +300,11 @@ func (r *resourceCollectionData) Schema(_ context.Context, _ resource.SchemaRequ
 						},
 					},
 				},
+				Validators: []validator.Set{
+					new(entrySetValidator),
+				},
 			},
+			"timeouts": timeouts.BlockAll(ctx),
 		},
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
@@ -515,7 +318,10 @@ func (r *resourceCollectionData) Schema(_ context.Context, _ resource.SchemaRequ
 				MarkdownDescription: "Scope of the collection data",
 				Optional:            true,
 				Computed:            true,
-				Default:             stringdefault.StaticString("default"),
+				Default:             stringdefault.StaticString(collectionDefaultScope),
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 			"generation": schema.Int64Attribute{
 				MarkdownDescription: "Computed latest generation of changes",
@@ -637,6 +443,15 @@ func (r *resourceCollectionData) Read(ctx context.Context, req resource.ReadRequ
 	var state collectionDataModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 
+	timeouts := state.Timeouts
+	readTimeout, diags := timeouts.Read(ctx, tftimeout.Read)
+	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, readTimeout)
+	defer cancel()
+
 	api := NewCollectionDataAPI(state, r.client)
 	exists, diags := api.CollectionExists(ctx, true)
 	resp.Diagnostics.Append(diags...)
@@ -661,10 +476,85 @@ func (r *resourceCollectionData) Read(ctx context.Context, req resource.ReadRequ
 		return
 	}
 
-	diags = resp.State.Set(ctx, state)
-	resp.Diagnostics.Append(diags...)
+	state.Timeouts = timeouts
+	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 
 	tflog.Trace(ctx, "Finished reading collecton data resource")
+}
+
+func (r *resourceCollectionData) validateScopeUniqueness(ctx context.Context, api *collectionDataAPI, scope string) (diags diag.Diagnostics) {
+	const unexpectedErrorSummary = "Unexpected error while validating scope uniqueness"
+	queryMap := map[string]string{"_scope": scope}
+	query, err := json.Marshal(queryMap)
+	if err != nil {
+		diags.AddError(unexpectedErrorSummary, err.Error())
+	}
+	resultsList, d := api.Query(ctx, string(query), []string{}, 1)
+	if diags.Append(d...); diags.HasError() {
+		return
+	}
+	if len(resultsList) > 0 {
+		conflictingRecordSample, err := yaml.Marshal(resultsList[0])
+		errorDetails := util.Dedent(fmt.Sprintf(`
+			'%s' collection already contains data with the '%s' scope, that is not managed by this instance of the collection_data resource.
+			Collection data modification will be aborted to prevent data loss.
+			Consider changing the scope, or use 'terraform import' to manage the existing data scope using this terraform resource.
+			Conflicting record example:
+			%s
+		`, api.collectionIDModel.Key(), scope, string(conflictingRecordSample)))
+		diags.AddError("Duplicate collection data scope", errorDetails)
+		if err != nil {
+			diags.AddError(unexpectedErrorSummary, err.Error())
+		}
+	}
+	return
+}
+
+// validateCollectionKeyUniqueness validates that the collection data managed keys are not present in the collection with a different scope.
+func (r *resourceCollectionData) validateCollectionKeyUniqueness(ctx context.Context, api *collectionDataAPI, scope string, entries []collectionEntryModel) (diags diag.Diagnostics) {
+	if len(entries) == 0 {
+		return
+	}
+
+	// IDs are not necessarily known during plan phase, so we need to validate their uniqueness here during apply as well.
+	if diags = new(entrySetValidator).ValidateKeyUniqueness(ctx, entries); diags.HasError() {
+		return
+	}
+
+	const unexpectedErrorSummary = "Unexpected error while validating key/scope uniqueness"
+	keyList := make([]map[string]string, len(entries))
+	for i, entry := range entries {
+		keyList[i] = map[string]string{"_key": entry.ID.ValueString()}
+	}
+	keyCond := map[string]interface{}{"$or": keyList}
+	scopeCond := map[string]interface{}{"_scope": map[string]string{"$ne": scope}}
+	queryMap := map[string]interface{}{"$and": []interface{}{keyCond, scopeCond}}
+
+	query, err := json.Marshal(queryMap)
+	if err != nil {
+		diags.AddError(unexpectedErrorSummary, err.Error())
+	}
+
+	resultsList, d := api.Query(ctx, string(query), []string{"_key", "_scope"}, 0)
+	if diags.Append(d...); diags.HasError() {
+		return
+	}
+
+	if len(resultsList) > 0 {
+		conflictingRecords, err := yaml.Marshal(resultsList)
+		errorDetails := util.Dedent(fmt.Sprintf(`
+			One or more records specified in the resource are already present in the '%s' collection and have a different scope.
+			Collection data modification will be aborted to prevent data loss.
+			Conflicting records:
+			%s
+		`, api.collectionIDModel.Key(), string(conflictingRecords)))
+		diags.AddError("Duplicate collection items", errorDetails)
+		if err != nil {
+			diags.AddError(unexpectedErrorSummary, err.Error())
+		}
+	}
+
+	return
 }
 
 func (r *resourceCollectionData) createOrUpdate(ctx context.Context, config, plan collectionDataModel, update bool) (state collectionDataModel, diags diag.Diagnostics) {
@@ -699,6 +589,15 @@ func (r *resourceCollectionData) createOrUpdate(ctx context.Context, config, pla
 		return
 	}
 
+	if !update {
+		if diags.Append(r.validateScopeUniqueness(ctx, api, plan.Scope.ValueString())...); diags.HasError() {
+			return
+		}
+	}
+	if diags.Append(r.validateCollectionKeyUniqueness(ctx, api, plan.Scope.ValueString(), planEntries)...); diags.HasError() {
+		return
+	}
+
 	diags.Append(api.Save(ctx)...)
 	if diags.HasError() {
 		return
@@ -728,6 +627,13 @@ func (r *resourceCollectionData) Create(ctx context.Context, req resource.Create
 
 	tflog.Trace(ctx, "collection_data Create - Parsed req config", map[string]interface{}{"config": config, "plan": plan})
 
+	createTimeout, diags := plan.Timeouts.Create(ctx, tftimeout.Create)
+	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
+		return
+	}
+	ctx, cancel := context.WithTimeout(ctx, createTimeout)
+	defer cancel()
+
 	plan.ID = types.StringValue(uuid.New().String())
 	plan.Generation = types.Int64Value(0)
 
@@ -749,6 +655,13 @@ func (r *resourceCollectionData) Update(ctx context.Context, req resource.Update
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	tflog.Trace(ctx, "collection_data Update - Parsed req config", map[string]interface{}{"config": config, "plan": plan, "state": state})
 
+	updateTimeout, diags := plan.Timeouts.Create(ctx, tftimeout.Update)
+	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
+		return
+	}
+	ctx, cancel := context.WithTimeout(ctx, updateTimeout)
+	defer cancel()
+
 	newState, diags := r.createOrUpdate(ctx, config, plan, true)
 	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
 		return
@@ -765,6 +678,13 @@ func (r *resourceCollectionData) Delete(ctx context.Context, req resource.Delete
 
 	tflog.Trace(ctx, "collection_data Delete - Parsed req config", map[string]interface{}{"state": state})
 
+	deleteTimeout, diags := state.Timeouts.Create(ctx, tftimeout.Delete)
+	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
+		return
+	}
+	ctx, cancel := context.WithTimeout(ctx, deleteTimeout)
+	defer cancel()
+
 	api := NewCollectionDataAPI(state, r.client)
 	exists, diags := api.CollectionExists(ctx, false)
 	resp.Diagnostics.Append(diags...)
@@ -774,4 +694,63 @@ func (r *resourceCollectionData) Delete(ctx context.Context, req resource.Delete
 
 	resp.Diagnostics.Append(api.Delete(ctx)...)
 	tflog.Trace(ctx, "Finished deleting collecton data resource")
+}
+
+func (r *resourceCollectionData) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	ctx, cancel := context.WithTimeout(ctx, tftimeout.Read)
+	defer cancel()
+
+	const unexpectedErrorSummary = "Unexpected error while importing collection data"
+
+	collectionID, scope, diags := collectionIDModelAndScopeFromString(req.ID)
+	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
+		return
+	}
+
+	state := collectionDataModel{
+		Collection: collectionID,
+		Scope:      types.StringValue(scope),
+		Entries:    types.SetValueMust(new(types.ObjectType).WithAttributeTypes(map[string]attr.Type{"id": types.StringType, "data": types.StringType}), []attr.Value{}),
+	}
+
+	query := fmt.Sprintf(`{"scope": "%s", "_instance": { "$ne": null }}`, scope)
+
+	api := NewCollectionDataAPI(state, r.client)
+
+	_, diags = api.CollectionExists(ctx, true)
+	if resp.Diagnostics.Append(diags...); diags.HasError() {
+		return
+	}
+
+	resultsList, diags := api.Query(ctx, query, []string{"_instance"}, 1)
+	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
+		return
+	}
+
+	id := ""
+	if len(resultsList) > 0 {
+		result, ok := resultsList[0].(map[string]string)
+		if !ok {
+			diags.AddError(unexpectedErrorSummary, "Splunk collection API returned unexpected results.")
+			return
+		}
+		id = result["_instance"]
+	} else {
+		warningDetails := util.Dedent(`
+			Collection data that is being improted is missing the '_instance' field.
+			This may indicate that it was created with an old version of the ITSI provider or does not exist.
+		`)
+		diags.AddWarning("Collection data is missing or corrupted.", warningDetails)
+		id = uuid.New().String()
+	}
+
+	state.ID = types.StringValue(id)
+
+	var timeouts timeouts.Value
+	resp.Diagnostics.Append(resp.State.GetAttribute(ctx, path.Root("timeouts"), &timeouts)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	state.Timeouts = timeouts
+	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }

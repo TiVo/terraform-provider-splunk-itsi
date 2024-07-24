@@ -236,14 +236,15 @@ resource "itsi_kpi_threshold_template" "static" {
 
 - `adaptive_thresholding_training_window` (String) The earliest time for the Adaptive Threshold training algorithm to run over (latest time is always 'now') (e.g. '-7d')
 - `adaptive_thresholds_is_enabled` (Boolean) Determines if adaptive threshold is enabled for this KPI threshold template.
-- `sec_grp` (String) The team the object belongs to.
 - `time_variate_thresholds` (Boolean) If true, thresholds for alerts are pulled from time_variate_thresholds_specification.
 - `title` (String) Name of this KPI threshold template.
 
 ### Optional
 
-- `description` (String) User defined description of the entity.
+- `description` (String) User-defined description for the kpi Threshold Template.
+- `sec_grp` (String) The team the object belongs to.
 - `time_variate_thresholds_specification` (Block, Optional) (see [below for nested schema](#nestedblock--time_variate_thresholds_specification))
+- `timeouts` (Block, Optional) (see [below for nested schema](#nestedblock--timeouts))
 
 ### Read-Only
 
@@ -270,26 +271,25 @@ Optional:
 
 - `aggregate_thresholds` (Block, Optional) User-defined thresholding levels for "Aggregate" threshold type. For more information, see KPI Threshold Setting. (see [below for nested schema](#nestedblock--time_variate_thresholds_specification--policies--aggregate_thresholds))
 - `entity_thresholds` (Block, Optional) User-defined thresholding levels for "Per Entity" threshold type. For more information, see KPI Threshold Setting. (see [below for nested schema](#nestedblock--time_variate_thresholds_specification--policies--entity_thresholds))
-- `time_blocks` (Block Set) (see [below for nested schema](#nestedblock--time_variate_thresholds_specification--policies--time_blocks))
+- `time_blocks` (Block List) (see [below for nested schema](#nestedblock--time_variate_thresholds_specification--policies--time_blocks))
 
 <a id="nestedblock--time_variate_thresholds_specification--policies--aggregate_thresholds"></a>
 ### Nested Schema for `time_variate_thresholds_specification.policies.aggregate_thresholds`
 
 Required:
 
-- `base_severity_label` (String) Base severity label assigned for the threshold (info, normal, low, medium, high, critical).
-- `gauge_max` (Number) Maximum value for the threshold gauge specified by user
-- `gauge_min` (Number) Minimum value for the threshold gauge specified by user.
 - `is_max_static` (Boolean) True when maximum threshold value is a static value, false otherwise.
 - `is_min_static` (Boolean) True when min threshold value is a static value, false otherwise.
-- `metric_field` (String) Thresholding field from the search.
-- `render_boundary_max` (Number) Upper bound value to use to render the graph for the thresholds.
-- `render_boundary_min` (Number) Lower bound value to use to render the graph for the thresholds.
-- `search` (String) Generated search used to compute the thresholds for this KPI.
 
 Optional:
 
-- `threshold_levels` (Block Set) (see [below for nested schema](#nestedblock--time_variate_thresholds_specification--policies--aggregate_thresholds--threshold_levels))
+- `base_severity_label` (String) Base severity label assigned for the threshold (info, normal, low, medium, high, critical).
+- `gauge_max` (Number) Maximum value for the threshold gauge specified by user
+- `gauge_min` (Number) Minimum value for the threshold gauge specified by user.
+- `metric_field` (String) Thresholding field from the search.
+- `render_boundary_max` (Number) Upper bound value to use to render the graph for the thresholds.
+- `render_boundary_min` (Number) Lower bound value to use to render the graph for the thresholds.
+- `threshold_levels` (Block List) (see [below for nested schema](#nestedblock--time_variate_thresholds_specification--policies--aggregate_thresholds--threshold_levels))
 
 <a id="nestedblock--time_variate_thresholds_specification--policies--aggregate_thresholds--threshold_levels"></a>
 ### Nested Schema for `time_variate_thresholds_specification.policies.aggregate_thresholds.threshold_levels`
@@ -308,19 +308,18 @@ Required:
 
 Required:
 
-- `base_severity_label` (String) Base severity label assigned for the threshold (info, normal, low, medium, high, critical).
-- `gauge_max` (Number) Maximum value for the threshold gauge specified by user
-- `gauge_min` (Number) Minimum value for the threshold gauge specified by user.
 - `is_max_static` (Boolean) True when maximum threshold value is a static value, false otherwise.
 - `is_min_static` (Boolean) True when min threshold value is a static value, false otherwise.
-- `metric_field` (String) Thresholding field from the search.
-- `render_boundary_max` (Number) Upper bound value to use to render the graph for the thresholds.
-- `render_boundary_min` (Number) Lower bound value to use to render the graph for the thresholds.
-- `search` (String) Generated search used to compute the thresholds for this KPI.
 
 Optional:
 
-- `threshold_levels` (Block Set) (see [below for nested schema](#nestedblock--time_variate_thresholds_specification--policies--entity_thresholds--threshold_levels))
+- `base_severity_label` (String) Base severity label assigned for the threshold (info, normal, low, medium, high, critical).
+- `gauge_max` (Number) Maximum value for the threshold gauge specified by user
+- `gauge_min` (Number) Minimum value for the threshold gauge specified by user.
+- `metric_field` (String) Thresholding field from the search.
+- `render_boundary_max` (Number) Upper bound value to use to render the graph for the thresholds.
+- `render_boundary_min` (Number) Lower bound value to use to render the graph for the thresholds.
+- `threshold_levels` (Block List) (see [below for nested schema](#nestedblock--time_variate_thresholds_specification--policies--entity_thresholds--threshold_levels))
 
 <a id="nestedblock--time_variate_thresholds_specification--policies--entity_thresholds--threshold_levels"></a>
 ### Nested Schema for `time_variate_thresholds_specification.policies.entity_thresholds.threshold_levels`
@@ -341,6 +340,19 @@ Required:
 
 - `cron` (String) Corresponds to the cron expression in format: {minute} {hour} {\*} {\*} {day}
 - `interval` (Number) Corresponds to the cron expression in format: {minute} {hour} {\*} {\*} {day}
+
+
+
+
+<a id="nestedblock--timeouts"></a>
+### Nested Schema for `timeouts`
+
+Optional:
+
+- `create` (String) A string that can be [parsed as a duration](https://pkg.go.dev/time#ParseDuration) consisting of numbers and unit suffixes, such as "30s" or "2h45m". Valid time units are "s" (seconds), "m" (minutes), "h" (hours).
+- `delete` (String) A string that can be [parsed as a duration](https://pkg.go.dev/time#ParseDuration) consisting of numbers and unit suffixes, such as "30s" or "2h45m". Valid time units are "s" (seconds), "m" (minutes), "h" (hours). Setting a timeout for a Delete operation is only applicable if changes are saved into state before the destroy operation occurs.
+- `read` (String) A string that can be [parsed as a duration](https://pkg.go.dev/time#ParseDuration) consisting of numbers and unit suffixes, such as "30s" or "2h45m". Valid time units are "s" (seconds), "m" (minutes), "h" (hours). Read operations occur during any refresh or planning operation when refresh is enabled.
+- `update` (String) A string that can be [parsed as a duration](https://pkg.go.dev/time#ParseDuration) consisting of numbers and unit suffixes, such as "30s" or "2h45m". Valid time units are "s" (seconds), "m" (minutes), "h" (hours).
 
 ## Import
 

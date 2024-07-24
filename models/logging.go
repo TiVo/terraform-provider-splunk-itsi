@@ -1,7 +1,6 @@
 package models
 
 import (
-	"fmt"
 	"log"
 	"net/http"
 	"net/http/httputil"
@@ -14,7 +13,7 @@ func logRequest(req *http.Request) error {
 	if err != nil {
 		return err
 	}
-	log.Println(fmt.Sprintf("%q", x))
+	log.Printf("%q\n", x)
 	return nil
 }
 
@@ -23,6 +22,6 @@ func logResponse(req *http.Response) error {
 	if err != nil {
 		return err
 	}
-	log.Println(fmt.Sprintf("%q", x))
+	log.Printf("%q\n", x)
 	return nil
 }
