@@ -15,7 +15,18 @@ on:
     tags:
       - "v*"
 jobs:
+  testacc:
+    uses: ./.github/workflows/matrix_test.yaml
+    secrets: inherit # pass all secrets
+    needs: build
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.ref }}
+      cancel-in-progress: true
+    with:
+      test_type: testacc
+
   goreleaser:
+    # needs: testacc #TODO: once we fix intermittent test failures, uncomment this to require passing acceptance test before each new release
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
