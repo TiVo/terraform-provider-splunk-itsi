@@ -10,7 +10,7 @@ require (
 	github.com/hashicorp/go-uuid v1.0.3
 	github.com/hashicorp/golang-lru v1.0.2
 	github.com/hashicorp/hcl/v2 v2.21.0
-	github.com/hashicorp/terraform-plugin-docs v0.18.0
+	github.com/hashicorp/terraform-plugin-docs v0.19.4
 	github.com/hashicorp/terraform-plugin-framework v1.10.0
 	github.com/hashicorp/terraform-plugin-framework-validators v0.13.0
 	github.com/hashicorp/terraform-plugin-go v0.23.0
@@ -21,6 +21,12 @@ require (
 	github.com/lestrrat-go/backoff/v2 v2.0.9-0.20211111113235-51026d9f5dca
 	github.com/tmccombs/hcl2json v0.6.3
 	gopkg.in/yaml.v3 v3.0.1
+)
+
+require (
+	github.com/BurntSushi/toml v1.2.1 // indirect
+	github.com/bmatcuk/doublestar/v4 v4.6.1 // indirect
+	go.abhg.dev/goldmark/frontmatter v0.2.0 // indirect
 )
 
 require (
@@ -80,14 +86,12 @@ require (
 	github.com/mitchellh/reflectwalk v1.0.2 // indirect
 	github.com/oklog/run v1.1.0 // indirect
 	github.com/posener/complete v1.2.3 // indirect
-	github.com/russross/blackfriday v1.6.0 // indirect
 	github.com/shopspring/decimal v1.3.1 // indirect
 	github.com/spf13/cast v1.5.0 // indirect
-	github.com/stretchr/testify v1.8.2 // indirect
 	github.com/vmihailenco/msgpack v4.0.4+incompatible // indirect
 	github.com/vmihailenco/msgpack/v5 v5.4.1 // indirect
 	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect
-	github.com/yuin/goldmark v1.6.0 // indirect
+	github.com/yuin/goldmark v1.7.1 // indirect
 	github.com/yuin/goldmark-meta v1.1.0 // indirect
 	github.com/zclconf/go-cty v1.15.0 // indirect
 	golang.org/x/crypto v0.25.0 // indirect
