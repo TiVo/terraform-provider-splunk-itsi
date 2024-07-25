@@ -6,9 +6,9 @@ on:
         type: string
         required: true
 jobs:
-  # run acceptance tests in a matrix with Terraform core versions
+  # run tests in a matrix with Terraform core versions
   test:
-    name: acc tests
+    name: tests
     runs-on: ubuntu-latest
     timeout-minutes: 90
 
