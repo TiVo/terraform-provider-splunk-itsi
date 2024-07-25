@@ -10,7 +10,7 @@ concurrency:
 
 jobs:
   test:
-    #if: github.event.issue.pull_request && contains(github.event.comment.body, '/testacc')
+    if: github.event.issue.pull_request && contains(github.event.comment.body, '/testacc')
     uses: ./.github/workflows/matrix_test.yaml
     secrets: inherit
     concurrency:
