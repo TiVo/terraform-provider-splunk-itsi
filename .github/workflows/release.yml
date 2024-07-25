@@ -20,7 +20,7 @@ jobs:
     secrets: inherit # pass all secrets
     needs: build
     concurrency:
-      group: ${{ github.workflow }}-${{ github.ref }}
+      group: ${{ github.workflow }}
       cancel-in-progress: true
     with:
       test_type: testacc
