@@ -9,12 +9,12 @@ concurrency:
   group: ${{ github.workflow }}
 
 jobs:
-  test:
+  testacc:
     if: github.event.issue.pull_request && contains(github.event.comment.body, '/testacc')
     uses: ./.github/workflows/matrix_test.yaml
     secrets: inherit
     concurrency:
-      group: ${{ github.workflow }}
+      group: ${{ github.workflow }}-${{ github.ref }}
       cancel-in-progress: true
     with:
       test_type: testacc
