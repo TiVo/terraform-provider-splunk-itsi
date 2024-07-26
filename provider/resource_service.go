@@ -24,23 +24,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
-	"github.com/hashicorp/terraform-plugin-framework-timeouts/resource/timeouts"
-	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
-	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
-	"github.com/hashicorp/terraform-plugin-framework/diag"
-	"github.com/hashicorp/terraform-plugin-framework/path"
-	"github.com/hashicorp/terraform-plugin-framework/resource"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/mapdefault"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/setdefault"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
-	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
-	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
-	"github.com/hashicorp/terraform-plugin-framework/types"
-	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/tivo/terraform-provider-splunk-itsi/models"
 	"github.com/tivo/terraform-provider-splunk-itsi/provider/util"
 )
@@ -108,76 +91,8 @@ type RuleState struct {
 	FieldType types.String `json:"field_type" tfsdk:"field_type"`
 	RuleType  types.String `json:"rule_type" tfsdk:"rule_type"`
 	Value     types.String `json:"value" tfsdk:"value"`
-	"github.com/tivo/terraform-provider-splunk-itsi/provider/util"
-)
-
-// Ensure the implementation satisfies the expected interfaces.
-var (
-	_ resource.Resource                = &resourceService{}
-	_ resource.ResourceWithImportState = &resourceService{}
-	_ resource.ResourceWithConfigure   = &resourceService{}
-)
-
-type resourceService struct {
-	client models.ClientConfig
 }
 
-func NewResourceService() resource.Resource {
-	return &resourceService{}
-}
-
-func (r *resourceService) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
-	configureResourceClient(ctx, resourceNameService, req, &r.client, resp)
-}
-
-type ServiceState struct {
-	ID                                    types.String            `json:"_key" tfsdk:"id"`
-	Title                                 types.String            `json:"title" tfsdk:"title"`
-	Description                           types.String            `json:"description" tfsdk:"description"`
-	Enabled                               types.Bool              `json:"enabled" tfsdk:"enabled"`
-	IsHealthscoreCalculateByEntityEnabled types.Bool              `json:"is_healthscore_calculate_by_entity_enabled" tfsdk:"is_healthscore_calculate_by_entity_enabled"`
-	SecurityGroup                         types.String            `json:"sec_grp" tfsdk:"security_group"`
-	Tags                                  types.Set               `tfsdk:"tags"`
-	ShkpiID                               types.String            `json:"shkpi_id" tfsdk:"shkpi_id"`
-	KPIs                                  []KpiState              `tfsdk:"kpi"`
-	EntityRules                           []EntityRuleState       `tfsdk:"entity_rules"`
-	ServiceDependsOn                      []ServiceDependsOnState `tfsdk:"service_depends_on"`
-
-	Timeouts timeouts.Value `tfsdk:"timeouts"`
-}
-
-type KpiState struct {
-	ID                  types.String `json:"_key" tfsdk:"id"`
-	Title               types.String `json:"title" tfsdk:"title"`
-	Description         types.String `json:"description" tfsdk:"description"`
-	Type                types.String `json:"type" tfsdk:"type"`
-	Urgency             types.Int64  `json:"urgency" tfsdk:"urgency"`
-	BaseSearchID        types.String `json:"base_search_id" tfsdk:"base_search_id"`
-	SearchType          types.String `json:"search_type" tfsdk:"search_type"`
-	BaseSearchMetric    types.String `tfsdk:"base_search_metric"`
-	ThresholdTemplateID types.String `json:"kpi_threshold_template_id" tfsdk:"threshold_template_id"`
-}
-
-// ServiceDependsOn represents the schema for service dependencies within a service.
-type ServiceDependsOnState struct {
-	Service             types.String `json:"service" tfsdk:"service"`
-	KPIs                types.Set    `tfsdk:"kpis"`
-	OverloadedUrgencies types.Map    `tfsdk:"overloaded_urgencies"`
-}
-
-// EntityRule represents the schema for an entity rule within a service.
-type EntityRuleState struct {
-	Rule []RuleState `tfsdk:"rule"`
-}
-type RuleState struct {
-	Field     types.String `json:"field" tfsdk:"field"`
-	FieldType types.String `json:"field_type" tfsdk:"field_type"`
-	RuleType  types.String `json:"rule_type" tfsdk:"rule_type"`
-	Value     types.String `json:"value" tfsdk:"value"`
-}
-
-func (r *resourceService) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
-	configureResourceMetadata(req, resp, resourceNameService)
 func (r *resourceService) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
 	configureResourceMetadata(req, resp, resourceNameService)
 }
@@ -322,13 +237,9 @@ func (r *resourceService) Schema(ctx context.Context, req resource.SchemaRequest
 				NestedObject: schema.NestedBlockObject{
 					Attributes: map[string]schema.Attribute{
 						"service": schema.StringAttribute{
-				NestedObject: schema.NestedBlockObject{
-					Attributes: map[string]schema.Attribute{
-						"service": schema.StringAttribute{
 							Required:    true,
 							Description: "_key value of service that this service depends on.",
 						},
-						"kpis": schema.SetAttribute{
 						"kpis": schema.SetAttribute{
 							Required:    true,
 							Description: "A set of _key ids for each KPI in service identified by serviceid, which this service will depend on.",
@@ -336,7 +247,6 @@ func (r *resourceService) Schema(ctx context.Context, req resource.SchemaRequest
 						},
 						"overloaded_urgencies": schema.MapAttribute{
 							Optional:    true,
-							Computed:    true,
 							Computed:    true,
 							Description: "A map of urgency overriddes for the KPIs this service is depending on.",
 							ElementType: types.Int64Type,
@@ -390,9 +300,6 @@ func (r *resourceService) Schema(ctx context.Context, req resource.SchemaRequest
 			"shkpi_id": schema.StringAttribute{
 				Computed:    true,
 				Description: "_key value for the Service Health Score KPI.",
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.UseStateForUnknown(),
-				},
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
@@ -640,7 +547,6 @@ func (r *resourceService) Update(ctx context.Context, req resource.UpdateRequest
 		resp.Diagnostics.AddError("Unable to update service", err.Error())
 		return
 	}
-
 	plan.ID = types.StringValue(base.RESTKey)
 
 	base, err = base.Read(ctx)
@@ -655,7 +561,6 @@ func (r *resourceService) Update(ctx context.Context, req resource.UpdateRequest
 	}
 	state.Timeouts = plan.Timeouts
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
-
 }
 
 func (r *resourceService) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
@@ -847,119 +752,12 @@ func serviceStateToJson(ctx context.Context, clientConfig models.ClientConfig, m
 	body["enabled"] = util.Btoi(m.Enabled.ValueBool())
 
 	body["sec_grp"] = m.SecurityGroup.ValueString()
-		m.Tags, diags = types.SetValueFrom(ctx, types.StringType, tags)
-	}
-
-	kpis, err := unpackSlice[map[string]interface{}](interfaceMap["kpis"])
-	if err != nil {
-		diags.AddError("Unable to unpack KPIs from service model", err.Error())
-		return
-	}
-
-	m.KPIs = []KpiState{}
-	metricLookup := new(KPIBSMetricLookup)
-
-	for _, kpi := range kpis {
-		kpiTF := KpiState{}
-		diags = append(diags, marshalBasicTypesByTag("json", kpi, &kpiTF)...)
-
-		if kpiTF.Title.ValueString() == "ServiceHealthScore" {
-			m.ShkpiID = kpiTF.ID
-		} else if kpiTF.SearchType.ValueString() != "shared_base" {
-			diags.AddWarning(
-				fmt.Sprintf("[%s] Skipping %s KPI", m.Title.ValueString(), kpiTF.Title.ValueString()),
-				fmt.Sprintf("%s KPIs is not supported", kpiTF.SearchType.ValueString()))
-		} else {
-			if kpiTF.BaseSearchMetric, err = metricLookup.lookupMetricTitleByID(ctx, b.Splunk, kpi["base_search_id"].(string), kpi["base_search_metric"].(string)); err != nil {
-				diags.AddError("Unable to map KPIs BS metric ID to KPIs BS name", err.Error())
-				continue
-			}
-			if val, ok := kpi["urgency"]; ok {
-				if urgency, err := util.Atoi(val); err == nil {
-					kpiTF.Urgency = types.Int64Value(int64(urgency))
-				} else {
-					diags.AddError("Unable to parse urgency from service model", err.Error())
-					continue
-				}
-			}
-
-			m.KPIs = append(m.KPIs, kpiTF)
-		}
-	}
-	m.EntityRules = []EntityRuleState{}
-	entityRules, err := unpackSlice[map[string]interface{}](interfaceMap["entity_rules"])
-	if err != nil {
-		diags.AddError("Unable to unpack entity rules from service model", err.Error())
-		return
-	}
-
-	for _, entityRuleAndSet := range entityRules {
-		ruleState := EntityRuleState{}
-		ruleSet := []RuleState{}
-		ruleItems, err := unpackSlice[map[string]interface{}](entityRuleAndSet["rule_items"])
-		if err != nil {
-			diags.AddError("Unable to unpack rule_item from service model", err.Error())
-			return
-		}
-		for _, ruleItem := range ruleItems {
-			ruleTF := RuleState{}
-			diags = append(diags, marshalBasicTypesByTag("json", ruleItem, &ruleTF)...)
-			ruleSet = append(ruleSet, ruleTF)
-		}
-		ruleState.Rule = ruleSet
-		m.EntityRules = append(m.EntityRules, ruleState)
-	}
-
-	m.ServiceDependsOn = []ServiceDependsOnState{}
-	serviceDependsOn, err := unpackSlice[map[string]interface{}](interfaceMap["services_depends_on"])
-	if interfaceMap["services_depends_on"] != nil && err != nil {
-		diags.AddError("Unable to unpack services_depends_on from service model", err.Error())
-		return
-	}
-	for _, serviceDepend := range serviceDependsOn {
-		serviceDependsOn := ServiceDependsOnState{}
-		serviceDependsOn.Service = types.StringValue(serviceDepend["serviceid"].(string))
-		kpiIds, err := unpackSlice[string](serviceDepend["kpis_depending_on"])
-		if err != nil {
-			diags.AddError("Unable to unpack kpis_depending_on from service model", err.Error())
-			return
-		}
-		serviceDependsOn.KPIs, diags = types.SetValueFrom(ctx, types.StringType, kpiIds)
-		if overloadedUrgencies, hasOverloadedUrgencies := serviceDepend["overloaded_urgencies"]; hasOverloadedUrgencies {
-			serviceDependsOn.OverloadedUrgencies, diags = types.MapValueFrom(ctx, types.Int64Type, overloadedUrgencies.(map[string]interface{}))
-		} else {
-			serviceDependsOn.OverloadedUrgencies = types.MapNull(types.Int64Type)
-		}
-		m.ServiceDependsOn = append(m.ServiceDependsOn, serviceDependsOn)
-	}
-
-	m.ID = types.StringValue(b.RESTKey)
-
-	return
-}
-
-func serviceStateToJson(ctx context.Context, clientConfig models.ClientConfig, m *ServiceState) (config *models.Base, diags diag.Diagnostics) {
-	body := map[string]interface{}{}
-	config = serviceBase(clientConfig, m.ID.ValueString(), m.Title.ValueString())
-
-	body["object_type"] = "service"
-	body["title"] = m.Title.ValueString()
-	body["description"] = m.Description.ValueString()
-
-	body["is_healthscore_calculate_by_entity_enabled"] = util.Btoi(m.IsHealthscoreCalculateByEntityEnabled.ValueBool())
-	body["enabled"] = util.Btoi(m.Enabled.ValueBool())
-
-	body["sec_grp"] = m.SecurityGroup.ValueString()
 
 	//[kpiId][thresholdId][policyName_severityLabel_dynamicParam]{thresholdValue Float64}
 	thresholdValueCache := map[string]map[string]map[string]float64{}
 	if m.ID.ValueString() != "" {
 		base, err := config.Find(ctx)
-	if m.ID.ValueString() != "" {
-		base, err := config.Find(ctx)
 		if err != nil {
-			diags.AddError("Failed to find service object", err.Error())
-			return nil, diags
 			diags.AddError("Failed to find service object", err.Error())
 			return nil, diags
 		}
@@ -968,15 +766,12 @@ func serviceStateToJson(ctx context.Context, clientConfig models.ClientConfig, m
 		if err != nil {
 			diags.AddError("Failed to convert service object", err.Error())
 			return nil, diags
-			diags.AddError("Failed to convert service object", err.Error())
-			return nil, diags
 		}
 
 		if kpis, ok := serviceInterface["kpis"].([]interface{}); ok {
 			for _, kpi := range kpis {
 				k := kpi.(map[string]interface{})
 				if _, ok := k["_key"]; !ok {
-					diags.AddError("Missed KPI", fmt.Sprintf("no kpiId was found for service: %v ", m.ID.ValueString()))
 					diags.AddError("Missed KPI", fmt.Sprintf("no kpiId was found for service: %v ", m.ID.ValueString()))
 				}
 				if _, ok := k["kpi_threshold_template_id"]; !ok || k["kpi_threshold_template_id"].(string) == "" {
@@ -1027,35 +822,13 @@ func serviceStateToJson(ctx context.Context, clientConfig models.ClientConfig, m
 		}
 
 		restKey := kpi.BaseSearchID.ValueString()
-	itsiKpis := []map[string]interface{}{}
-	tfKpis := []KpiState{}
-	for _, kpi := range m.KPIs {
-		if kpi.ID.IsUnknown() {
-			uuid, _ := uuid.GenerateUUID()
-			kpi.ID = types.StringValue(uuid)
-		}
-		if kpi.Description.IsUnknown() {
-			kpi.Description = types.StringNull()
-		}
-		if kpi.ThresholdTemplateID.IsUnknown() {
-			kpi.ThresholdTemplateID = types.StringNull()
-		}
-
-		restKey := kpi.BaseSearchID.ValueString()
 		kpiSearchInterface, err := getKpiBSData(ctx, clientConfig, restKey)
 		if err != nil {
-			diags.AddError("Failed to map KPI BS Data", err.Error())
-			return
 			diags.AddError("Failed to map KPI BS Data", err.Error())
 			return
 		}
 
 		itsiKpi := map[string]interface{}{
-			"title":                      kpi.Title.ValueString(),
-			"urgency":                    kpi.Urgency.ValueInt64(),
-			"search_type":                kpi.SearchType.ValueString(),
-			"type":                       kpi.Type.ValueString(),
-			"description":                kpi.Description.ValueString(),
 			"title":                      kpi.Title.ValueString(),
 			"urgency":                    kpi.Urgency.ValueInt64(),
 			"search_type":                kpi.SearchType.ValueString(),
@@ -1075,7 +848,6 @@ func serviceStateToJson(ctx context.Context, clientConfig models.ClientConfig, m
 		for _, metric := range kpiSearchInterface["metrics"].([]interface{}) {
 			_metric := metric.(map[string]interface{})
 			if _metric["title"].(string) == kpi.BaseSearchMetric.ValueString() {
-			if _metric["title"].(string) == kpi.BaseSearchMetric.ValueString() {
 				itsiKpi["base_search_metric"] = _metric["_key"].(string)
 				for _, metricKey := range []string{"aggregate_statop", "entity_statop", "fill_gaps",
 					"gap_custom_alert_value", "gap_severity", "gap_severity_color", "gap_severity_color_light",
@@ -1088,15 +860,10 @@ func serviceStateToJson(ctx context.Context, clientConfig models.ClientConfig, m
 		if _, ok := itsiKpi["base_search_metric"]; !ok {
 			diags.AddError("Metric Not Found", fmt.Sprintf("%s metric not found", kpi.BaseSearchMetric.ValueString()))
 			return
-			diags.AddError("Metric Not Found", fmt.Sprintf("%s metric not found", kpi.BaseSearchMetric.ValueString()))
-			return
 		}
 
 		itsiKpi["_key"] = kpi.ID.ValueString()
-		itsiKpi["_key"] = kpi.ID.ValueString()
 
-		if !kpi.ThresholdTemplateID.IsNull() {
-			thresholdRestKey := kpi.ThresholdTemplateID.ValueString()
 		if !kpi.ThresholdTemplateID.IsNull() {
 			thresholdRestKey := kpi.ThresholdTemplateID.ValueString()
 			thresholdTemplateBase := kpiThresholdTemplateBase(clientConfig, thresholdRestKey, thresholdRestKey)
@@ -1105,13 +872,8 @@ func serviceStateToJson(ctx context.Context, clientConfig models.ClientConfig, m
 			if err != nil {
 				diags.AddError("KPI Threshold Template fetching is failed", err.Error())
 				return
-				diags.AddError("KPI Threshold Template fetching is failed", err.Error())
-				return
 			}
 			if thresholdTemplateBase == nil {
-				diags.AddError("thresholdTemplateBase == nil",
-					fmt.Sprintf("KPI Threshold Template %s not found", thresholdRestKey))
-				return
 				diags.AddError("thresholdTemplateBase == nil",
 					fmt.Sprintf("KPI Threshold Template %s not found", thresholdRestKey))
 				return
@@ -1119,8 +881,6 @@ func serviceStateToJson(ctx context.Context, clientConfig models.ClientConfig, m
 
 			thresholdTemplateInterface, err := thresholdTemplateBase.RawJson.ToInterfaceMap()
 			if err != nil {
-				diags.AddError("KPI Threshold Template is failed to be populated", err.Error())
-				return
 				diags.AddError("KPI Threshold Template is failed to be populated", err.Error())
 				return
 			}
@@ -1135,7 +895,6 @@ func serviceStateToJson(ctx context.Context, clientConfig models.ClientConfig, m
 			}
 
 			//populate training data from cache
-			id := kpi.ID.ValueString()
 			id := kpi.ID.ValueString()
 			if _, ok := thresholdValueCache[id]; ok {
 				if currentThresholdCache, ok := thresholdValueCache[id][thresholdRestKey]; ok {
@@ -1160,11 +919,9 @@ func serviceStateToJson(ctx context.Context, clientConfig models.ClientConfig, m
 
 		itsiKpis = append(itsiKpis, itsiKpi)
 		tfKpis = append(tfKpis, kpi)
-		tfKpis = append(tfKpis, kpi)
 	}
 
 	body["kpis"] = itsiKpis
-	m.KPIs = tfKpis
 	m.KPIs = tfKpis
 
 	//entity rules
@@ -1172,16 +929,9 @@ func serviceStateToJson(ctx context.Context, clientConfig models.ClientConfig, m
 	for _, entityRuleGroup := range m.EntityRules {
 		itsiEntityGroupRules := []map[string]interface{}{}
 		if len(entityRuleGroup.Rule) == 0 {
-	for _, entityRuleGroup := range m.EntityRules {
-		itsiEntityGroupRules := []map[string]interface{}{}
-		if len(entityRuleGroup.Rule) == 0 {
 			continue
 		}
 
-		for _, entityRule := range entityRuleGroup.Rule {
-			rule := map[string]interface{}{}
-			unmarshalBasicTypesByTag("json", &entityRule, rule)
-			itsiEntityGroupRules = append(itsiEntityGroupRules, rule)
 		for _, entityRule := range entityRuleGroup.Rule {
 			rule := map[string]interface{}{}
 			unmarshalBasicTypesByTag("json", &entityRule, rule)
@@ -1199,13 +949,7 @@ func serviceStateToJson(ctx context.Context, clientConfig models.ClientConfig, m
 		dependsOnKPIs := []string{}
 		diags = append(diags, serviceDependsOn.KPIs.ElementsAs(ctx, &dependsOnKPIs, false)...)
 
-	for _, serviceDependsOn := range m.ServiceDependsOn {
-		dependsOnKPIs := []string{}
-		diags = append(diags, serviceDependsOn.KPIs.ElementsAs(ctx, &dependsOnKPIs, false)...)
-
 		if len(dependsOnKPIs) == 0 {
-			diags.AddWarning("Glitch on service_depends_on",
-				"service_depends_on might contain an unexpected empty element")
 			diags.AddWarning("Glitch on service_depends_on",
 				"service_depends_on might contain an unexpected empty element")
 			continue
@@ -1213,12 +957,8 @@ func serviceStateToJson(ctx context.Context, clientConfig models.ClientConfig, m
 
 		dependsOnItem := map[string]interface{}{
 			"serviceid":         serviceDependsOn.Service.ValueString(),
-			"serviceid":         serviceDependsOn.Service.ValueString(),
 			"kpis_depending_on": dependsOnKPIs,
 		}
-
-		overloaded_urgencies := map[string]int{}
-		diags = append(diags, serviceDependsOn.OverloadedUrgencies.ElementsAs(ctx, &overloaded_urgencies, false)...)
 
 		overloaded_urgencies := map[string]int{}
 		diags = append(diags, serviceDependsOn.OverloadedUrgencies.ElementsAs(ctx, &overloaded_urgencies, false)...)
@@ -1233,8 +973,6 @@ func serviceStateToJson(ctx context.Context, clientConfig models.ClientConfig, m
 
 	//tags
 	var serviceTags []string
-	diags = append(diags, m.Tags.ElementsAs(ctx, &serviceTags, false)...)
-
 	diags = append(diags, m.Tags.ElementsAs(ctx, &serviceTags, false)...)
 
 	if len(serviceTags) > 0 {
@@ -1252,25 +990,8 @@ func serviceStateToJson(ctx context.Context, clientConfig models.ClientConfig, m
 
 type KPIBSMetricLookup struct {
 	titleByKpiBsIDandMetricID map[string]string
-	if err := config.PopulateRawJSON(ctx, body); err != nil {
-		diags.AddError("Unable to populate base object", err.Error())
-	}
-
-	return
 }
 
-/* helper data structure to allow us specify metrics by title rather than ID */
-
-type KPIBSMetricLookup struct {
-	titleByKpiBsIDandMetricID map[string]string
-}
-
-func (ml *KPIBSMetricLookup) lookupKey(kpiBSID, metricID string) string {
-	return fmt.Sprintf("%s:%s", kpiBSID, metricID)
-}
-
-func (ml *KPIBSMetricLookup) getKpiBSMetricTitleByID(ctx context.Context, cc models.ClientConfig, id string) (titleByID map[string]string, err error) {
-	kpiBsData, err := getKpiBSData(ctx, cc, id)
 func (ml *KPIBSMetricLookup) lookupKey(kpiBSID, metricID string) string {
 	return fmt.Sprintf("%s:%s", kpiBSID, metricID)
 }
@@ -1301,42 +1022,7 @@ func (ml *KPIBSMetricLookup) lookupMetricTitleByID(ctx context.Context, cc model
 	}
 
 	metricTitleByID, err := ml.getKpiBSMetricTitleByID(ctx, cc, kpiBSID)
-		return nil, err
-	}
-	titleByID = make(map[string]string)
-
-	for _, metric_ := range kpiBsData["metrics"].([]interface{}) {
-		metric := metric_.(map[string]interface{})
-		titleByID[metric["_key"].(string)] = metric["title"].(string)
-	}
-	return
-}
-
-func (ml *KPIBSMetricLookup) lookupMetricTitleByID(ctx context.Context, cc models.ClientConfig, kpiBSID, metricID string) (titleTF types.String, err error) {
-	if ml.titleByKpiBsIDandMetricID == nil {
-		ml.titleByKpiBsIDandMetricID = make(map[string]string)
-	}
-	title, ok := ml.titleByKpiBsIDandMetricID[ml.lookupKey(kpiBSID, metricID)]
-	titleTF = types.StringValue(title)
-
-	if ok {
-		return
-	}
-
-	metricTitleByID, err := ml.getKpiBSMetricTitleByID(ctx, cc, kpiBSID)
 	if err != nil {
-		return
-	}
-
-	for metricID, metricTitle := range metricTitleByID {
-		ml.titleByKpiBsIDandMetricID[ml.lookupKey(kpiBSID, metricID)] = metricTitle
-	}
-
-	if title, ok = ml.titleByKpiBsIDandMetricID[ml.lookupKey(kpiBSID, metricID)]; !ok {
-		err = fmt.Errorf("metric %s not found in KPI Base search %s", metricID, kpiBSID)
-	}
-	titleTF = types.StringValue(title)
-
 		return
 	}
 
