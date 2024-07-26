@@ -1081,12 +1081,13 @@ func (r *resourceNEAP) Schema(ctx context.Context, _ resource.SchemaRequest, res
 				MarkdownDescription: "The default instructions of each episode created by the notable event aggregation policy.",
 				Optional:            true,
 				Computed:            true,
-				Default:             stringdefault.StaticString("%itsi_instruction%"),
+				Default:             stringdefault.StaticString(""),
 				Validators: []validator.String{stringvalidator.OneOf(
 					"%itsi_instruction%",
 					"%last_instruction%",
 					"%all_instruction%",
 					"%custom_instruction%",
+					"",
 				)},
 			},
 			"group_custom_instruction": schema.StringAttribute{
@@ -1105,8 +1106,8 @@ func (r *resourceNEAP) Schema(ctx context.Context, _ resource.SchemaRequest, res
 				MarkdownDescription: "Dashboard Tokens",
 				Optional:            true,
 				Computed:            true,
-				Default:             stringdefault.StaticString("first"),
-				Validators:          []validator.String{stringvalidator.OneOf("first", "last")},
+				Default:             stringdefault.StaticString(""),
+				Validators:          []validator.String{stringvalidator.OneOf("first", "last", "")},
 			},
 		},
 	}

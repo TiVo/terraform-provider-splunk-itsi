@@ -15,7 +15,18 @@ on:
     tags:
       - "v*"
 jobs:
+  testacc:
+    uses: ./.github/workflows/matrix_test.yaml
+    secrets: inherit # pass all secrets
+    needs: build
+    concurrency:
+      group: ${{ github.workflow }}
+      cancel-in-progress: true
+    with:
+      test_type: testacc
+
   goreleaser:
+    # needs: testacc #TODO: once we fix intermittent test failures, uncomment this to require passing acceptance test before each new release
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -33,10 +44,10 @@ jobs:
           gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
           passphrase: ${{ secrets.PASSPHRASE }}
       - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v5.0.0
+        uses: goreleaser/goreleaser-action@v6.0.0
         with:
-          version: latest
-          args: release --rm-dist
+          version: "~> v2"
+          args: release --clean
         env:
           GPG_FINGERPRINT: ${{ steps.import_gpg.outputs.fingerprint }}
           # GitHub sets this automatically

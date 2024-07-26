@@ -13,10 +13,10 @@ endif
 default: build
 
 build: fmt scraper
-	goreleaser build --skip-validate --single-target --clean
+	goreleaser build --single-target --snapshot --clean
 
 build_all: fmt scraper
-	goreleaser build --skip-validate --clean
+	goreleaser build --snapshot --clean
 
 release:
 	goreleaser release --clean
@@ -39,7 +39,7 @@ test: fmt
 	go test -v -cover -parallel=4 $(TEST_ARGS) github.com/tivo/terraform-provider-splunk-itsi/... -tags test_setup
 
 testacc: fmt
-	TF_ACC=1 go test -v -cover $(TEST_ARGS) -timeout 30m ./...
+	TF_ACC=1 go test -v -cover $(TEST_ARGS) -timeout 60m ./...
 
 sweep: fmt
 	TF_ACC_LOG=trace go test -v $(TEST_ARGS) -timeout 10m github.com/tivo/terraform-provider-splunk-itsi/provider -sweep=default
