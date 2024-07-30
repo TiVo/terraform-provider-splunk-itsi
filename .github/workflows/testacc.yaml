@@ -18,3 +18,4 @@ jobs:
       cancel-in-progress: true
     with:
       test_type: testacc
+      ref: ${{ github.event_name == 'issue_comment' && format('refs/pull/{0}/head', github.event.issue.number) || '' }}

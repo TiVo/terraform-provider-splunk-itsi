@@ -5,6 +5,13 @@ on:
       test_type: # 'test' or 'testacc'
         type: string
         required: true
+      # The branch, tag or SHA to checkout. When checking out the repository that
+      # triggered a workflow, this defaults to the reference or SHA for that event.
+      # Otherwise, uses the default branch.
+      ref:
+        type: string
+        required: false
+        default: ""
 jobs:
   # run tests in a matrix with Terraform core versions
   test:
@@ -35,6 +42,8 @@ jobs:
 
       - name: Check out code into the Go module directory
         uses: actions/checkout@v4
+        with:
+          ref: ${{inputs.ref}}
 
       - name: Format
         run: if [ "$(gofmt -s -l . | wc -l)" -gt 0 ]; then exit 1; fi
