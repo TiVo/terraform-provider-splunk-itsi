@@ -386,8 +386,8 @@ func (b *Base) updateConfirm(ctx context.Context) (ok bool, err error) {
 	*/
 	const updateSuccessTimeout = 100 * time.Second
 
-	ctx, cancel := context.WithCancelCause(ctx)
-	defer cancel(nil)
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 
 	reqBody, err := json.Marshal(b.RawJson)
 	if err != nil {
@@ -439,7 +439,7 @@ func (b *Base) updateConfirm(ctx context.Context) (ok bool, err error) {
 					defer timer.Stop()
 					select {
 					case <-timer.C:
-						cancel(fmt.Errorf("failed to confirm successful update of %s %s: timeout", b.ObjectType, b.RESTKey))
+						cancel()
 					case <-ctx.Done():
 					}
 				}()
@@ -453,8 +453,7 @@ func (b *Base) updateConfirm(ctx context.Context) (ok bool, err error) {
 				return false, err
 			}
 		case <-ctx.Done():
-			err = context.Cause(ctx)
-			return
+			return false, nil
 		}
 	}
 }
