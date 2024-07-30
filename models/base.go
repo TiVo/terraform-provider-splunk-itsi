@@ -378,18 +378,25 @@ func (b *Base) Update(ctx context.Context) error {
 	return nil
 }
 
-func (b *Base) updateAndWaitForState(ctx context.Context) (err error) {
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
+func (b *Base) updateConfirm(ctx context.Context) (ok bool, err error) {
+	/*
+		Sometimes PUT request may return 200 before an object is actually updated.
+		To handle this case, once PUT returns 200 we'll be making follow up GET requests to check if the object hash matches the expected one.
+		If we cannot confirm a successful update within the `updateSuccessTimeout` timeout, we'll cancel the context and return an error.
+	*/
+	const updateSuccessTimeout = 100 * time.Second
+
+	ctx, cancel := context.WithCancelCause(ctx)
+	defer cancel(nil)
 
 	reqBody, err := json.Marshal(b.RawJson)
 	if err != nil {
-		return err
+		return
 	}
 
 	resultCh := make(chan error, 1)
+
 	go func() {
-		defer close(resultCh)
 		_, _, err := b.requestWithRetry(ctx, http.MethodPut, b.urlBaseWithKey(), reqBody)
 		resultCh <- err
 	}()
@@ -397,24 +404,72 @@ func (b *Base) updateAndWaitForState(ctx context.Context) (err error) {
 	ticker := time.NewTicker(asyncUpdateCheckPeriod)
 	defer ticker.Stop()
 
+	updateReqComplete := false
+
+	checkOriginHashFunc := func() (ok bool, err error) {
+		originHash, err := b.getOriginHash(ctx)
+		if err != nil {
+			return false, err
+		}
+		if updateReqComplete && originHash != b.Hash {
+			tflog.Debug(ctx, fmt.Sprintf(util.Dedent(`
+				Update %s %s: despite the update request having returned 200 OK, remote object hash value does not match the value expected after the update.
+			`), b.ObjectType, b.RESTKey))
+		}
+		return (originHash == b.Hash && originHash != ""), nil
+	}
+
 	for {
 		select {
 		case err = <-resultCh:
-			return
-		case <-ticker.C:
-			if originHash, err := b.getOriginHash(ctx); err == nil && originHash != "" {
-				if originHash == b.Hash {
-					return nil
-				}
-			} else if err != nil {
-				return err
+			if err != nil {
+				return
 			}
-			continue
+			if !updateReqComplete {
+				updateReqComplete = true
+				if ok, err := checkOriginHashFunc(); err == nil {
+					if ok {
+						return ok, nil
+					}
+				} else {
+					return false, err
+				}
+				go func() {
+					timer := time.NewTimer(updateSuccessTimeout)
+					defer timer.Stop()
+					select {
+					case <-timer.C:
+						cancel(fmt.Errorf("failed to confirm successful update of %s %s: timeout", b.ObjectType, b.RESTKey))
+					case <-ctx.Done():
+					}
+				}()
+			}
+		case <-ticker.C:
+			if ok, err := checkOriginHashFunc(); err == nil {
+				if ok {
+					return ok, nil
+				}
+			} else {
+				return false, err
+			}
 		case <-ctx.Done():
-			err = ctx.Err()
+			err = context.Cause(ctx)
 			return
 		}
 	}
+}
+
+// Retries async updates until a successful update is confirmed by comparing
+// the expected hash value against the hash values stored in remote state
+func (b *Base) updateAndWaitForState(ctx context.Context) (err error) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	for ok := false; !ok && err == nil; ok, err = b.updateConfirm(ctx) {
+		tflog.Debug(ctx, fmt.Sprintf("Failed to confirm successful update of %s %s. Retrying update...", b.ObjectType, b.RESTKey))
+	}
+
+	return
 }
 
 func (b *Base) UpdateAsync(ctx context.Context) error {
