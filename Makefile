@@ -39,6 +39,7 @@ test: fmt
 	go test -v -cover -parallel=4 $(TEST_ARGS) github.com/tivo/terraform-provider-splunk-itsi/... -tags test_setup
 
 testacc: fmt
+	go clean -testcache
 	TF_ACC=1 go test -v -cover $(TEST_ARGS) -timeout 60m ./...
 
 sweep: fmt
