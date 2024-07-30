@@ -382,7 +382,8 @@ func (b *Base) updateConfirm(ctx context.Context) (ok bool, err error) {
 	/*
 		Sometimes PUT request may return 200 before an object is actually updated.
 		To handle this case, once PUT returns 200 we'll be making follow up GET requests to check if the object hash matches the expected one.
-		If we cannot confirm a successful update within the `updateSuccessTimeout` timeout, we'll cancel the context and return an error.
+		If we cannot confirm a successful update within the `updateSuccessTimeout` timeout, we'll cancel the context and return ok=false,
+		to indicate that the update was not successful.
 	*/
 	const updateSuccessTimeout = 100 * time.Second
 
