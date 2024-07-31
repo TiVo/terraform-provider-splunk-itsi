@@ -470,7 +470,7 @@ func (b *Base) updateAndWaitForState(ctx context.Context) (diags diag.Diagnostic
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	for ok := false; ok && !diags.HasError(); ok, diags = b.updateConfirm(ctx) {
+	for ok := false; !ok && !diags.HasError(); ok, diags = b.updateConfirm(ctx) {
 		diags.AddWarning(fmt.Sprintf("Failed to confirm successful update of %s %s.", b.ObjectType, b.RESTKey), "Retrying update...")
 	}
 
