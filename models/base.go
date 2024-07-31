@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-uuid"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/lestrrat-go/backoff/v2"
 	"github.com/tivo/terraform-provider-splunk-itsi/provider/util"
@@ -378,7 +379,7 @@ func (b *Base) Update(ctx context.Context) error {
 	return nil
 }
 
-func (b *Base) updateConfirm(ctx context.Context) (ok bool, err error) {
+func (b *Base) updateConfirm(ctx context.Context) (ok bool, diags diag.Diagnostics) {
 	/*
 		Sometimes PUT request may return 200 before an object is actually updated.
 		To handle this case, once PUT returns 200 we'll be making follow up GET requests to check if the object hash matches the expected one.
@@ -413,7 +414,7 @@ func (b *Base) updateConfirm(ctx context.Context) (ok bool, err error) {
 			return false, err
 		}
 		if updateReqComplete && originHash != b.Hash {
-			tflog.Debug(ctx, fmt.Sprintf(util.Dedent(`
+			diags.AddWarning("ITSI Inconsistent Update", fmt.Sprintf(util.Dedent(`
 				Update %s %s: despite the update request having returned 200 OK, remote object hash value does not match the value expected after the update.
 			`), b.ObjectType, b.RESTKey))
 		}
@@ -424,16 +425,18 @@ func (b *Base) updateConfirm(ctx context.Context) (ok bool, err error) {
 		select {
 		case err = <-resultCh:
 			if err != nil {
-				return
+				diags.AddError("PUT Request Error", err.Error())
+				return false, diags
 			}
 			if !updateReqComplete {
 				updateReqComplete = true
 				if ok, err := checkOriginHashFunc(); err == nil {
 					if ok {
-						return ok, nil
+						return true, diags
 					}
 				} else {
-					return false, err
+					diags.AddError("Origin Hash Check Error", err.Error())
+					return false, diags
 				}
 				go func() {
 					timer := time.NewTimer(updateSuccessTimeout)
@@ -448,37 +451,38 @@ func (b *Base) updateConfirm(ctx context.Context) (ok bool, err error) {
 		case <-ticker.C:
 			if ok, err := checkOriginHashFunc(); err == nil {
 				if ok {
-					return ok, nil
+					return true, diags
 				}
 			} else {
-				return false, err
+				diags.AddError("Origin Hash Check Error", err.Error())
+				return false, diags
 			}
 		case <-ctx.Done():
-			return false, nil
+			diags.AddWarning("Context Done", "The context has been canceled or timed out.")
+			return false, diags
 		}
 	}
 }
 
 // Retries async updates until a successful update is confirmed by comparing
 // the expected hash value against the hash values stored in remote state
-func (b *Base) updateAndWaitForState(ctx context.Context) (err error) {
+func (b *Base) updateAndWaitForState(ctx context.Context) (diags diag.Diagnostics) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	for ok := false; !ok && err == nil; ok, err = b.updateConfirm(ctx) {
-		tflog.Debug(ctx, fmt.Sprintf("Failed to confirm successful update of %s %s. Retrying update...", b.ObjectType, b.RESTKey))
+	for ok := false; ok && !diags.HasError(); ok, diags = b.updateConfirm(ctx) {
+		diags.AddWarning(fmt.Sprintf("Failed to confirm successful update of %s %s.", b.ObjectType, b.RESTKey), "Retrying update...")
 	}
 
 	return
 }
 
-func (b *Base) UpdateAsync(ctx context.Context) error {
-	err := b.updateAndWaitForState(ctx)
-	if err != nil {
-		return err
+func (b *Base) UpdateAsync(ctx context.Context) (diags diag.Diagnostics) {
+	diags = b.updateAndWaitForState(ctx)
+	if !diags.HasError() {
+		b.storeCache()
 	}
-	b.storeCache()
-	return nil
+	return
 }
 
 func (b *Base) Delete(ctx context.Context) error {
