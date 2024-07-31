@@ -28,6 +28,7 @@ import (
 const (
 	resourceHashField      = "_tf_hash"
 	asyncUpdateCheckPeriod = 15 * time.Second
+	updateSuccessTimeout   = 100 * time.Second //Max duration to wait after an update request returns 200 OK. If the update success cannot be confirmed within this period, it will be considered as failed.
 )
 
 var RestConfigs map[string]restConfig
@@ -386,7 +387,6 @@ func (b *Base) updateConfirm(ctx context.Context) (ok bool, diags diag.Diagnosti
 		If we cannot confirm a successful update within the `updateSuccessTimeout` timeout, we'll cancel the context and return ok=false,
 		to indicate that the update was not successful.
 	*/
-	const updateSuccessTimeout = 100 * time.Second
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -407,16 +407,21 @@ func (b *Base) updateConfirm(ctx context.Context) (ok bool, diags diag.Diagnosti
 	defer ticker.Stop()
 
 	updateReqComplete := false
-
+	postUpdateHashCheckMismatch := 0
 	checkOriginHashFunc := func() (ok bool, err error) {
 		originHash, err := b.getOriginHash(ctx)
 		if err != nil {
 			return false, err
 		}
 		if updateReqComplete && originHash != b.Hash {
-			diags.AddWarning("ITSI Inconsistent Update", fmt.Sprintf(util.Dedent(`
-				Update %s %s: despite the update request having returned 200 OK, remote object hash value does not match the value expected after the update.
-			`), b.ObjectType, b.RESTKey))
+			postUpdateHashCheckMismatch++
+			diags = diag.Diagnostics{}
+			diags.AddWarning("Transient Update Failure", fmt.Sprintf(util.Dedent(`
+				Update %s %s: The update request returned a 200 OK status, but we were unable to confirm its success after %d attempts.
+				This discrepancy might be due to the update taking longer to propagate or be fully applied.
+				This is a non-critical warning.
+				We will wait a bit longer to allow the update to complete successfully.
+			`), b.ObjectType, b.RESTKey, postUpdateHashCheckMismatch))
 		}
 		return (originHash == b.Hash && originHash != ""), nil
 	}
@@ -471,7 +476,12 @@ func (b *Base) updateAndWaitForState(ctx context.Context) (diags diag.Diagnostic
 	defer cancel()
 
 	for ok := false; !ok && !diags.HasError(); ok, diags = b.updateConfirm(ctx) {
-		diags.AddWarning(fmt.Sprintf("Failed to confirm successful update of %s %s.", b.ObjectType, b.RESTKey), "Retrying update...")
+		diags.AddWarning("Transient Update Failure", fmt.Sprintf(util.Dedent(`
+				Update %s %s: Unable to confirm the update's success after waiting for %s.
+				This may suggest an issue with the ITSI backend.
+				This is a non-critical warning.
+				We will handle this gracefully by retrying the update request...
+			`), b.ObjectType, b.RESTKey, updateSuccessTimeout.String()))
 	}
 
 	return
@@ -510,7 +520,7 @@ func (b *Base) Delete(ctx context.Context) (diags diag.Diagnostics) {
 		diags.AddWarning("Transient Delete Failure", fmt.Sprintf(util.Dedent(`
 				%s %s still exists despite the respective DELETE request having succeeded.
 				This is a non-critical warning.
-				We will attempt to gracefully handle this by retrying the request...
+				We will handle this gracefully by retrying the request...
  			`), b.ObjectType, b.RESTKey))
 
 	}
