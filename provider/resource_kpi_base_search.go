@@ -632,10 +632,7 @@ func (r *resourceKpiBaseSearch) Delete(ctx context.Context, req resource.DeleteR
 	if b == nil {
 		return
 	}
-	if err := b.Delete(ctx); err != nil {
-		resp.Diagnostics.AddError("Unable to delete KPI Base Search", err.Error())
-		return
-	}
+	resp.Diagnostics.Append(b.Delete(ctx)...)
 }
 
 func (r *resourceKpiBaseSearch) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {

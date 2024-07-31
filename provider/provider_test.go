@@ -314,9 +314,9 @@ func sweepObjectType(ctx context.Context, objecttype string) (err error) {
 				if strings.HasPrefix(title, accTestPrefix) {
 					log.Printf("Deleting %s %s (%s) ", objecttype, title, item.RESTKey)
 					deleted++
-					err = item.Delete(ctx)
-					if err != nil {
-						log.Printf("Failed to delete %s %s (%s): %s \n", objecttype, title, item.RESTKey, err)
+					diags := item.Delete(ctx)
+					if diags.HasError() {
+						log.Printf("Failed to delete %s %s (%s): %s \n", objecttype, title, item.RESTKey, diags.Errors()[0].Summary())
 						return err
 					}
 				}

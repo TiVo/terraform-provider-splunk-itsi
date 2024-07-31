@@ -571,10 +571,7 @@ func (r *resourceService) Delete(ctx context.Context, req resource.DeleteRequest
 	if b == nil {
 		return
 	}
-	if err := b.Delete(ctx); err != nil {
-		resp.Diagnostics.AddError("Unable to delete service", err.Error())
-		return
-	}
+	resp.Diagnostics.Append(b.Delete(ctx)...)
 }
 
 func (r *resourceService) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {

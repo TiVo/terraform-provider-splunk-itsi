@@ -139,7 +139,7 @@ func (b *Base) handleConflictOnCreate(ctx context.Context) (responseBody []byte,
 	}
 
 	if b.RESTKey == b_.RESTKey {
-		responseBody = []byte(fmt.Sprintf("{\"%s\": \"%s\"}", b.RestKeyField, b.RESTKey))
+		responseBody = []byte(fmt.Sprintf(`{"%s": "%s"}`, b.RestKeyField, b.RESTKey))
 	} else {
 		err = fmt.Errorf("409 Conflict response for create %s request", b.ObjectType)
 	}
@@ -485,10 +485,37 @@ func (b *Base) UpdateAsync(ctx context.Context) (diags diag.Diagnostics) {
 	return
 }
 
-func (b *Base) Delete(ctx context.Context) error {
+func (b *Base) Delete(ctx context.Context) (diags diag.Diagnostics) {
 	Cache.Remove(b)
-	_, _, err := b.requestWithRetry(ctx, http.MethodDelete, b.urlBaseWithKey(), nil)
-	return err
+	var err error
+
+	for {
+		_, _, err = b.requestWithRetry(ctx, http.MethodDelete, b.urlBaseWithKey(), nil)
+		if err != nil {
+			diags.AddError(fmt.Sprintf("Failed to delete %s/%s", b.ObjectType, b.RESTKey), err.Error())
+			return
+		}
+
+		exists := true
+		if exists, err = b.exists(ctx); err != nil {
+			diags.AddError(fmt.Sprintf("Failed to check if %s/%s exists", b.ObjectType, b.RESTKey), err.Error())
+			return
+		}
+
+		if !exists {
+			//deletion successful
+			break
+		}
+
+		diags.AddWarning("Transient Delete Failure", fmt.Sprintf(util.Dedent(`
+				%s %s still exists despite the respective DELETE request having succeeded.
+				This is a non-critical warning.
+				We will attempt to gracefully handle this by retrying the request...
+ 			`), b.ObjectType, b.RESTKey))
+
+	}
+
+	return
 }
 
 func (b *Base) storeCache() {
@@ -656,7 +683,7 @@ func (b *Base) Populate(raw []byte) error {
 func (b *Base) lookupRESTKey(ctx context.Context) error {
 	params := url.Values{}
 	params.Add("limit", "2")
-	params.Add("filter", fmt.Sprintf("{\"%s\":\"%s\"}", b.TFIDField, b.TFID))
+	params.Add("filter", fmt.Sprintf(`{"%s":"%s"}`, b.TFIDField, b.TFID))
 	params.Add("fields", strings.Join([]string{b.TFIDField, b.RestKeyField}, ","))
 
 	_, respBody, err := b.requestWithRetry(
@@ -691,9 +718,33 @@ func (b *Base) lookupRESTKey(ctx context.Context) error {
 	return nil
 }
 
+func (b *Base) exists(ctx context.Context) (ok bool, err error) {
+	params := url.Values{}
+	params.Add("filter", fmt.Sprintf(`{"%s":"%s"}`, b.RestKeyField, b.RESTKey))
+	params.Add("fields", b.RestKeyField)
+
+	_, respBody, err := b.requestWithRetry(
+		ctx,
+		http.MethodGet,
+		fmt.Sprintf("%s?%s", b.urlBase(), params.Encode()),
+		nil)
+
+	if err != nil {
+		return
+	}
+	if respBody == nil {
+		return false, fmt.Errorf("unexpected response while checking if an object exists")
+	}
+
+	var raw []json.RawMessage
+	err = json.Unmarshal(respBody, &raw)
+	ok = len(raw) > 0
+	return
+}
+
 func (b *Base) getOriginHash(ctx context.Context) (string, error) {
 	params := url.Values{}
-	params.Add("filter", fmt.Sprintf("{\"%s\":\"%s\"}", b.RestKeyField, b.RESTKey))
+	params.Add("filter", fmt.Sprintf(`{"%s":"%s"}`, b.RestKeyField, b.RESTKey))
 	params.Add("fields", strings.Join([]string{b.RestKeyField, b.TFIDField, resourceHashField}, ","))
 
 	_, respBody, err := b.requestWithRetry(
