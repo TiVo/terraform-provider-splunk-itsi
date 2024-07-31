@@ -458,7 +458,7 @@ func (b *Base) updateConfirm(ctx context.Context) (ok bool, diags diag.Diagnosti
 				return false, diags
 			}
 		case <-ctx.Done():
-			diags.AddWarning("Context Done", "The context has been canceled or timed out.")
+			diags.AddError(ctx.Err().Error(), ctx.Err().Error())
 			return false, diags
 		}
 	}
