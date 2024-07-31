@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-uuid"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/lestrrat-go/backoff/v2"
 	"github.com/tivo/terraform-provider-splunk-itsi/provider/util"
@@ -378,18 +379,26 @@ func (b *Base) Update(ctx context.Context) error {
 	return nil
 }
 
-func (b *Base) updateAndWaitForState(ctx context.Context) (err error) {
+func (b *Base) updateConfirm(ctx context.Context) (ok bool, diags diag.Diagnostics) {
+	/*
+		Sometimes PUT request may return 200 before an object is actually updated.
+		To handle this case, once PUT returns 200 we'll be making follow up GET requests to check if the object hash matches the expected one.
+		If we cannot confirm a successful update within the `updateSuccessTimeout` timeout, we'll cancel the context and return ok=false,
+		to indicate that the update was not successful.
+	*/
+	const updateSuccessTimeout = 100 * time.Second
+
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	reqBody, err := json.Marshal(b.RawJson)
 	if err != nil {
-		return err
+		return
 	}
 
 	resultCh := make(chan error, 1)
+
 	go func() {
-		defer close(resultCh)
 		_, _, err := b.requestWithRetry(ctx, http.MethodPut, b.urlBaseWithKey(), reqBody)
 		resultCh <- err
 	}()
@@ -397,33 +406,83 @@ func (b *Base) updateAndWaitForState(ctx context.Context) (err error) {
 	ticker := time.NewTicker(asyncUpdateCheckPeriod)
 	defer ticker.Stop()
 
+	updateReqComplete := false
+
+	checkOriginHashFunc := func() (ok bool, err error) {
+		originHash, err := b.getOriginHash(ctx)
+		if err != nil {
+			return false, err
+		}
+		if updateReqComplete && originHash != b.Hash {
+			diags.AddWarning("ITSI Inconsistent Update", fmt.Sprintf(util.Dedent(`
+				Update %s %s: despite the update request having returned 200 OK, remote object hash value does not match the value expected after the update.
+			`), b.ObjectType, b.RESTKey))
+		}
+		return (originHash == b.Hash && originHash != ""), nil
+	}
+
 	for {
 		select {
 		case err = <-resultCh:
-			return
-		case <-ticker.C:
-			if originHash, err := b.getOriginHash(ctx); err == nil && originHash != "" {
-				if originHash == b.Hash {
-					return nil
-				}
-			} else if err != nil {
-				return err
+			if err != nil {
+				diags.AddError("PUT Request Error", err.Error())
+				return false, diags
 			}
-			continue
+			if !updateReqComplete {
+				updateReqComplete = true
+				if ok, err := checkOriginHashFunc(); err == nil {
+					if ok {
+						return true, diags
+					}
+				} else {
+					diags.AddError("Origin Hash Check Error", err.Error())
+					return false, diags
+				}
+				go func() {
+					timer := time.NewTimer(updateSuccessTimeout)
+					defer timer.Stop()
+					select {
+					case <-timer.C:
+						cancel()
+					case <-ctx.Done():
+					}
+				}()
+			}
+		case <-ticker.C:
+			if ok, err := checkOriginHashFunc(); err == nil {
+				if ok {
+					return true, diags
+				}
+			} else {
+				diags.AddError("Origin Hash Check Error", err.Error())
+				return false, diags
+			}
 		case <-ctx.Done():
-			err = ctx.Err()
-			return
+			diags.AddError(ctx.Err().Error(), ctx.Err().Error())
+			return false, diags
 		}
 	}
 }
 
-func (b *Base) UpdateAsync(ctx context.Context) error {
-	err := b.updateAndWaitForState(ctx)
-	if err != nil {
-		return err
+// Retries async updates until a successful update is confirmed by comparing
+// the expected hash value against the hash values stored in remote state
+func (b *Base) updateAndWaitForState(ctx context.Context) (diags diag.Diagnostics) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	for ok := false; !ok && !diags.HasError(); ok, diags = b.updateConfirm(ctx) {
+		diags.AddWarning(fmt.Sprintf("Failed to confirm successful update of %s %s.", b.ObjectType, b.RESTKey), "Retrying update...")
 	}
-	b.storeCache()
-	return nil
+
+	return
+}
+
+func (b *Base) UpdateAsync(ctx context.Context) (diags diag.Diagnostics) {
+	diags = b.updateAndWaitForState(ctx)
+	if !diags.HasError() {
+		b.storeCache()
+	}
+	return
 }
 
 func (b *Base) Delete(ctx context.Context) error {

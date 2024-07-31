@@ -543,8 +543,8 @@ func (r *resourceService) Update(ctx context.Context, req resource.UpdateRequest
 		resp.Diagnostics.AddError("Unable to update Service", "service not found")
 		return
 	}
-	if err := base.UpdateAsync(ctx); err != nil {
-		resp.Diagnostics.AddError("Unable to update service", err.Error())
+	diags = base.UpdateAsync(ctx)
+	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
 		return
 	}
 
