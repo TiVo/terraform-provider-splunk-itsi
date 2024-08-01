@@ -28,6 +28,7 @@ import (
 const (
 	resourceHashField      = "_tf_hash"
 	asyncUpdateCheckPeriod = 15 * time.Second
+	updateSuccessTimeout   = 100 * time.Second //Max duration to wait after an update request returns 200 OK. If the update success cannot be confirmed within this period, it will be considered as failed.
 )
 
 var RestConfigs map[string]restConfig
@@ -139,7 +140,7 @@ func (b *Base) handleConflictOnCreate(ctx context.Context) (responseBody []byte,
 	}
 
 	if b.RESTKey == b_.RESTKey {
-		responseBody = []byte(fmt.Sprintf("{\"%s\": \"%s\"}", b.RestKeyField, b.RESTKey))
+		responseBody = []byte(fmt.Sprintf(`{"%s": "%s"}`, b.RestKeyField, b.RESTKey))
 	} else {
 		err = fmt.Errorf("409 Conflict response for create %s request", b.ObjectType)
 	}
@@ -386,7 +387,6 @@ func (b *Base) updateConfirm(ctx context.Context) (ok bool, diags diag.Diagnosti
 		If we cannot confirm a successful update within the `updateSuccessTimeout` timeout, we'll cancel the context and return ok=false,
 		to indicate that the update was not successful.
 	*/
-	const updateSuccessTimeout = 100 * time.Second
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -407,16 +407,21 @@ func (b *Base) updateConfirm(ctx context.Context) (ok bool, diags diag.Diagnosti
 	defer ticker.Stop()
 
 	updateReqComplete := false
-
+	postUpdateHashCheckMismatch := 0
 	checkOriginHashFunc := func() (ok bool, err error) {
 		originHash, err := b.getOriginHash(ctx)
 		if err != nil {
 			return false, err
 		}
 		if updateReqComplete && originHash != b.Hash {
-			diags.AddWarning("ITSI Inconsistent Update", fmt.Sprintf(util.Dedent(`
-				Update %s %s: despite the update request having returned 200 OK, remote object hash value does not match the value expected after the update.
-			`), b.ObjectType, b.RESTKey))
+			postUpdateHashCheckMismatch++
+			diags = diag.Diagnostics{}
+			diags.AddWarning("Transient Update Failure", fmt.Sprintf(util.Dedent(`
+				Update %s %s: The update request returned a 200 OK status, but we were unable to confirm its success after %d attempts.
+				This discrepancy might be due to the update taking longer to propagate or be fully applied.
+				This is a non-critical warning.
+				We will wait a bit longer to allow the update to complete successfully.
+			`), b.ObjectType, b.RESTKey, postUpdateHashCheckMismatch))
 		}
 		return (originHash == b.Hash && originHash != ""), nil
 	}
@@ -471,7 +476,12 @@ func (b *Base) updateAndWaitForState(ctx context.Context) (diags diag.Diagnostic
 	defer cancel()
 
 	for ok := false; !ok && !diags.HasError(); ok, diags = b.updateConfirm(ctx) {
-		diags.AddWarning(fmt.Sprintf("Failed to confirm successful update of %s %s.", b.ObjectType, b.RESTKey), "Retrying update...")
+		diags.AddWarning("Transient Update Failure", fmt.Sprintf(util.Dedent(`
+				Update %s %s: Unable to confirm the update's success after waiting for %s.
+				This may suggest an issue with the ITSI backend.
+				This is a non-critical warning.
+				We will handle this gracefully by retrying the update request...
+			`), b.ObjectType, b.RESTKey, updateSuccessTimeout.String()))
 	}
 
 	return
@@ -485,10 +495,37 @@ func (b *Base) UpdateAsync(ctx context.Context) (diags diag.Diagnostics) {
 	return
 }
 
-func (b *Base) Delete(ctx context.Context) error {
+func (b *Base) Delete(ctx context.Context) (diags diag.Diagnostics) {
 	Cache.Remove(b)
-	_, _, err := b.requestWithRetry(ctx, http.MethodDelete, b.urlBaseWithKey(), nil)
-	return err
+	var err error
+
+	for {
+		_, _, err = b.requestWithRetry(ctx, http.MethodDelete, b.urlBaseWithKey(), nil)
+		if err != nil {
+			diags.AddError(fmt.Sprintf("Failed to delete %s/%s", b.ObjectType, b.RESTKey), err.Error())
+			return
+		}
+
+		exists := true
+		if exists, err = b.exists(ctx); err != nil {
+			diags.AddError(fmt.Sprintf("Failed to check if %s/%s exists", b.ObjectType, b.RESTKey), err.Error())
+			return
+		}
+
+		if !exists {
+			//deletion successful
+			break
+		}
+
+		diags.AddWarning("Transient Delete Failure", fmt.Sprintf(util.Dedent(`
+				%s %s still exists despite the respective DELETE request having succeeded.
+				This is a non-critical warning.
+				We will handle this gracefully by retrying the request...
+ 			`), b.ObjectType, b.RESTKey))
+
+	}
+
+	return
 }
 
 func (b *Base) storeCache() {
@@ -656,7 +693,7 @@ func (b *Base) Populate(raw []byte) error {
 func (b *Base) lookupRESTKey(ctx context.Context) error {
 	params := url.Values{}
 	params.Add("limit", "2")
-	params.Add("filter", fmt.Sprintf("{\"%s\":\"%s\"}", b.TFIDField, b.TFID))
+	params.Add("filter", fmt.Sprintf(`{"%s":"%s"}`, b.TFIDField, b.TFID))
 	params.Add("fields", strings.Join([]string{b.TFIDField, b.RestKeyField}, ","))
 
 	_, respBody, err := b.requestWithRetry(
@@ -691,9 +728,33 @@ func (b *Base) lookupRESTKey(ctx context.Context) error {
 	return nil
 }
 
+func (b *Base) exists(ctx context.Context) (ok bool, err error) {
+	params := url.Values{}
+	params.Add("filter", fmt.Sprintf(`{"%s":"%s"}`, b.RestKeyField, b.RESTKey))
+	params.Add("fields", b.RestKeyField)
+
+	_, respBody, err := b.requestWithRetry(
+		ctx,
+		http.MethodGet,
+		fmt.Sprintf("%s?%s", b.urlBase(), params.Encode()),
+		nil)
+
+	if err != nil {
+		return
+	}
+	if respBody == nil {
+		return false, fmt.Errorf("unexpected response while checking if an object exists")
+	}
+
+	var raw []json.RawMessage
+	err = json.Unmarshal(respBody, &raw)
+	ok = len(raw) > 0
+	return
+}
+
 func (b *Base) getOriginHash(ctx context.Context) (string, error) {
 	params := url.Values{}
-	params.Add("filter", fmt.Sprintf("{\"%s\":\"%s\"}", b.RestKeyField, b.RESTKey))
+	params.Add("filter", fmt.Sprintf(`{"%s":"%s"}`, b.RestKeyField, b.RESTKey))
 	params.Add("fields", strings.Join([]string{b.RestKeyField, b.TFIDField, resourceHashField}, ","))
 
 	_, respBody, err := b.requestWithRetry(

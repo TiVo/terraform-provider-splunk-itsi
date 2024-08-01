@@ -385,10 +385,7 @@ func (r *resourceEntity) Delete(ctx context.Context, req resource.DeleteRequest,
 	if b == nil {
 		return
 	}
-	if err := b.Delete(ctx); err != nil {
-		resp.Diagnostics.AddError("Unable to delete entity", err.Error())
-		return
-	}
+	resp.Diagnostics.Append(b.Delete(ctx)...)
 }
 
 func (r *resourceEntity) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {

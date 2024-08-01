@@ -436,9 +436,12 @@ func (r *resourceKpiThresholdTemplate) Read(ctx context.Context, req resource.Re
 
 	base := kpiThresholdTemplateBase(r.client, state.ID.ValueString(), state.Title.ValueString())
 	b, err := base.Find(ctx)
-	if err != nil || b == nil {
-		diags.AddError("Failed to find kpi threshold template.", err.Error())
-		resp.Diagnostics.Append(diags...)
+	if err != nil {
+		resp.Diagnostics.AddError("Failed to find the kpi threshold template.", err.Error())
+		return
+	}
+	if b == nil {
+		resp.Diagnostics.AddError("KPI threshold template is not found", fmt.Sprintf("KPI threshold template %s (%s) is not found", state.ID.ValueString(), state.Title.ValueString()))
 		return
 	}
 
@@ -544,11 +547,7 @@ func (r *resourceKpiThresholdTemplate) Delete(ctx context.Context, req resource.
 		return
 	}
 
-	err = existing.Delete(ctx)
-	if err != nil {
-		diags.AddError("Failed to delete kpi threshold template.", err.Error())
-	}
-	resp.Diagnostics.Append(diags...)
+	resp.Diagnostics.Append(existing.Delete(ctx)...)
 }
 
 func kpiThresholdTemplate(ctx context.Context, tfKpiThresholdTemplate modelKpiThresholdTemplate, clientConfig models.ClientConfig) (config *models.Base, diags diag.Diagnostics) {
