@@ -48,11 +48,11 @@ test: fmt
 
 # Run acceptance test suite
 testacc: fmt
-	TF_ACC=1 go test -v -cover -p 1 $(TEST_ARGS) -timeout 60m ./...
+	TF_ACC=1 TF_ACC_LOG=WARN go test -v -cover -p 1 $(TEST_ARGS) -timeout 60m ./...
 
 # Run sweepers to delete leaked test resources (https://developer.hashicorp.com/terraform/plugin/testing/acceptance-tests/sweepers)
 sweep: fmt
-	TF_ACC_LOG=trace go test -v $(TEST_ARGS) -timeout 10m github.com/tivo/terraform-provider-splunk-itsi/provider -sweep=default
+	TF_ACC_LOG=TRACE go test -v $(TEST_ARGS) -timeout 10m github.com/tivo/terraform-provider-splunk-itsi/provider -sweep=default
 
 docs: fmt
 	go generate ./...

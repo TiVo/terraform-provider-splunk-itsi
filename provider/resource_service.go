@@ -144,6 +144,7 @@ func (r *resourceService) Schema(ctx context.Context, req resource.SchemaRequest
 							Description: "User-defined description for the KPI. ",
 							Optional:    true,
 							Computed:    true,
+							Default:     stringdefault.StaticString(""),
 						},
 						"type": schema.StringAttribute{
 							Optional:    true,
