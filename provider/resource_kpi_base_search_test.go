@@ -9,8 +9,6 @@ import (
 	"github.com/tivo/terraform-provider-splunk-itsi/provider/util"
 )
 
-var testAccResourceKPIBaseSearchLifecycle_kpiBSTitle = testAccResourceTitle("test_base_search")
-
 func TestResourceKPIBaseSearchSchema(t *testing.T) {
 	testResourceSchema(t, new(resourceKpiBaseSearch))
 }
@@ -86,6 +84,8 @@ func TestResourceKPIBaseSearchSchemaPlan(t *testing.T) {
 }
 
 func TestAccResourceKPIBaseSearchLifecycle(t *testing.T) {
+	t.Parallel()
+	var testAccResourceKPIBaseSearchLifecycle_kpiBSTitle = testAccResourceTitle("ResourceKPIBaseSearchLifecycle_test_base_search")
 	resource.Test(t, resource.TestCase{
 		PreCheck:     func() { testAccPreCheck(t) },
 		CheckDestroy: testAccCheckResourceDestroy(resourceNameKPIBaseSearch, testAccResourceKPIBaseSearchLifecycle_kpiBSTitle),

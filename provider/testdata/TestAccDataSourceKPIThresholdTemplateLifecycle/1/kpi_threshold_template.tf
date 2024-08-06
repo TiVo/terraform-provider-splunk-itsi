@@ -1,5 +1,5 @@
 resource "itsi_kpi_threshold_template" "test" {
-  title                                 = "TestAcc_stdev_test2"
+  title                                 = "TestAcc_DataSourceKPIThresholdTemplateLifecycle_stdev_test2"
   description                           = "stdev"
   adaptive_thresholds_is_enabled        = true
   adaptive_thresholding_training_window = "-7d"

@@ -1,5 +1,5 @@
 resource "itsi_kpi_base_search" "test" {
-  title                         = "TestAcc_test_base_search"
+  title                         = "TestAcc_ResourceKPIBaseSearchLifecycle_test_base_search"
   description                   = "TEST DESCRIPTION update"
   actions                       = null
   alert_lag                     = "5"

@@ -9,8 +9,6 @@ import (
 	"github.com/tivo/terraform-provider-splunk-itsi/provider/util"
 )
 
-var testAccCollectionLifecycle_collectionName = testAccResourceTitle("collection_test")
-
 func TestResourceCollectionSchema(t *testing.T) {
 	testResourceSchema(t, new(resourceCollection))
 }
@@ -43,6 +41,9 @@ func TestResourceCollectionPlan(t *testing.T) {
 }
 
 func TestAccResourceCollectionLifecycle(t *testing.T) {
+	t.Parallel()
+	var testAccCollectionLifecycle_collectionName = testAccResourceTitle("ResourceCollectionLifecycle_collection_test")
+
 	resource.Test(t, resource.TestCase{
 		PreCheck:     func() { testAccPreCheck(t) },
 		CheckDestroy: testAccCheckResourceDestroy(resourceNameCollection, testAccCollectionLifecycle_collectionName),

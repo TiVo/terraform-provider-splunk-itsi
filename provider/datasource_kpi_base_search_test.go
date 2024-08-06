@@ -12,9 +12,10 @@ func TestDataSourceKPIBaseSearchSchema(t *testing.T) {
 }
 
 func TestAccDataSourceKPIBaseSearchLifecycle(t *testing.T) {
+	t.Parallel()
 	resource.Test(t, resource.TestCase{
 		PreCheck:     func() { testAccPreCheck(t) },
-		CheckDestroy: testAccCheckResourceDestroy(resourceNameKPIBaseSearch, "TestAcc_test_base_search2"),
+		CheckDestroy: testAccCheckResourceDestroy(resourceNameKPIBaseSearch, "TestAcc_DataSourceKPIBaseSearchLifecycle_test_base_search2"),
 		Steps: []resource.TestStep{
 			{
 				ProtoV6ProviderFactories: providerFactories,

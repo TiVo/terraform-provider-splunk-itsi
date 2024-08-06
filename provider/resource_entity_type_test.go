@@ -9,8 +9,6 @@ import (
 	"github.com/tivo/terraform-provider-splunk-itsi/provider/util"
 )
 
-var testAccEntityTypeLifecycle_entityTypeTitle = testAccResourceTitle("kubernetes_pod")
-
 func TestResourceEntityTypeSchema(t *testing.T) {
 	testResourceSchema(t, new(resourceEntityType))
 }
@@ -118,6 +116,9 @@ func TestResourceEntityTypePlan(t *testing.T) {
 }
 
 func TestAccResourceEntityTypeLifecycle(t *testing.T) {
+	t.Parallel()
+	//var testAccEntityTypeLifecycle_entityTypeTitle = testAccResourceTitle("ResourceEntityTypeLifecycle_kubernetes_pod") //TODO: find out / fix the reason for why this doesn't work..
+	var testAccEntityTypeLifecycle_entityTypeTitle = testAccResourceTitle("kubernetes_pod")
 	resource.Test(t, resource.TestCase{
 		PreCheck:     func() { testAccPreCheck(t) },
 		CheckDestroy: testAccCheckResourceDestroy(resourceNameEntityType, testAccEntityTypeLifecycle_entityTypeTitle),

@@ -1,5 +1,5 @@
 resource "itsi_service" "test_kpis_2" {
-  title                                      = "TestAcc_Test_service_kpis_2"
+  title                                      = "TestAcc_ResourceServiceKpisHandleUnknownTemplateId_Test_service_kpis_2"
   description                                = null
   enabled                                    = true
   is_healthscore_calculate_by_entity_enabled = true

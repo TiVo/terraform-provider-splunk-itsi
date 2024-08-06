@@ -1,5 +1,5 @@
 resource "itsi_kpi_threshold_template" "test_kpis_kpi_threshold_template_1" {
-  title                                 = "TestAcc_stdev_test_linked_kpi_threshold_template_1"
+  title                                 = "TestAcc_ResourceServiceKpisLifecycle_stdev_test_linked_kpi_threshold_template_1"
   description                           = "stdev"
   adaptive_thresholds_is_enabled        = true
   adaptive_thresholding_training_window = "-7d"
@@ -107,7 +107,7 @@ resource "itsi_kpi_threshold_template" "test_kpis_static" {
   description                           = "kpi_threshold_template_1"
   sec_grp                               = "default_itsi_security_group"
   time_variate_thresholds               = true
-  title                                 = "TestAcc_static_kpi_threshold_template_1"
+  title                                 = "TestAcc_ResourceServiceKpisLifecycle_static_kpi_threshold_template_1"
   time_variate_thresholds_specification {
     policies {
       policy_name = "default_policy"

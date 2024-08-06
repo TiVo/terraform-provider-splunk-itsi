@@ -9,8 +9,6 @@ import (
 	"github.com/tivo/terraform-provider-splunk-itsi/provider/util"
 )
 
-var testAccResourceNEAPLifecycle_NEAPTitle = testAccResourceTitle("neap_test")
-
 func TestResourceNEAPSchema(t *testing.T) {
 	testResourceSchema(t, new(resourceNEAP))
 }
@@ -172,6 +170,9 @@ func TestResourceNEAPPlan(t *testing.T) {
 }
 
 func TestAccResourceNEAPLifecycle(t *testing.T) {
+	t.Parallel()
+	var testAccResourceNEAPLifecycle_NEAPTitle = testAccResourceTitle("ResourceNEAPLifecycle_neap_test")
+
 	resource.Test(t, resource.TestCase{
 		PreCheck:     func() { testAccPreCheck(t) },
 		CheckDestroy: testAccCheckResourceDestroy(resourceNameNEAP, testAccResourceNEAPLifecycle_NEAPTitle),

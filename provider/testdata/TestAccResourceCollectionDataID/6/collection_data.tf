@@ -13,7 +13,7 @@ locals {
 }
 
 resource "itsi_collection_data" "test" {
-  scope = "TestAcc_collection_data_id_test"
+  scope = "TestAcc_ResourceCollectionDataID_collection_data_id_test"
 
   collection {
     name = itsi_splunk_collection.test.name

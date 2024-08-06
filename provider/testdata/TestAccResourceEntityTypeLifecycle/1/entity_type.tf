@@ -1,6 +1,7 @@
 
 resource "itsi_entity_type" "test" {
-  title       = "TestAcc_kubernetes_pod"
+  title = "TestAcc_kubernetes_pod"
+  #title       = "TestAcc_ResourceEntityTypeLifecycle_kubernetes_pod"
   description = "Kubernetes Pod EXAMPLE"
 
   data_drilldown {

@@ -9,8 +9,6 @@ import (
 	"github.com/tivo/terraform-provider-splunk-itsi/provider/util"
 )
 
-var testAccResourceKPIThresholdTemplateLifecycle_kpiTTTitle = testAccResourceTitle("stdev_test")
-
 func TestResourceKpiThresholdTemplateSchema(t *testing.T) {
 	testResourceSchema(t, new(resourceKpiThresholdTemplate))
 }
@@ -143,6 +141,9 @@ func TestResourceKpiThresholdTemplatePlan(t *testing.T) {
 }
 
 func TestAccResourceKPIThresholdTemplateLifecycle(t *testing.T) {
+	t.Parallel()
+	var testAccResourceKPIThresholdTemplateLifecycle_kpiTTTitle = testAccResourceTitle("ResourceKPIThresholdTemplateLifecycle_stdev_test")
+
 	resource.Test(t, resource.TestCase{
 		PreCheck:     func() { testAccPreCheck(t) },
 		CheckDestroy: testAccCheckResourceDestroy(resourceNameKPIThresholdTemplate, testAccResourceKPIThresholdTemplateLifecycle_kpiTTTitle),

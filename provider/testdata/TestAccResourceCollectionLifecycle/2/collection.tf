@@ -1,5 +1,5 @@
 resource "itsi_splunk_collection" "test" {
-  name = "TestAcc_collection_test"
+  name = "TestAcc_ResourceCollectionLifecycle_collection_test"
 
   field_types = {
     name        = "string"

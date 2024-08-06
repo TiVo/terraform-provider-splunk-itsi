@@ -17,6 +17,7 @@ func TestResourceCollectionDataSchema(t *testing.T) {
 }
 
 func TestResourceCollectionDataPlan(t *testing.T) {
+	t.Parallel()
 	resource.Test(t, resource.TestCase{
 		IsUnitTest:               true,
 		ProtoV6ProviderFactories: providerFactories,
@@ -54,7 +55,8 @@ func TestResourceCollectionDataPlan(t *testing.T) {
 }
 
 func TestAccResourceCollectionDataLifecycle(t *testing.T) {
-	var scope = testAccResourceTitle("collection_data_test")
+	t.Parallel()
+	var scope = testAccResourceTitle("ResourceCollectionDataLifecycle_collection_data_test")
 
 	resource.Test(t, resource.TestCase{
 		PreCheck:     func() { testAccPreCheck(t) },
@@ -153,7 +155,8 @@ func TestAccResourceCollectionDataLifecycle(t *testing.T) {
 }
 
 func TestAccResourceCollectionDataID(t *testing.T) {
-	var scope = testAccResourceTitle("collection_data_id_test")
+	t.Parallel()
+	var scope = testAccResourceTitle("ResourceCollectionDataID_collection_data_id_test")
 
 	resource.Test(t, resource.TestCase{
 		PreCheck:     func() { testAccPreCheck(t) },

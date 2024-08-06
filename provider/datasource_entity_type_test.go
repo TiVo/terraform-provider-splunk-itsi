@@ -12,9 +12,10 @@ func TestDataSourceEntityTypeSchema(t *testing.T) {
 }
 
 func TestAccDataSourceEntityTypeLifecycle(t *testing.T) {
+	t.Parallel()
 	resource.Test(t, resource.TestCase{
 		PreCheck:     func() { testAccPreCheck(t) },
-		CheckDestroy: testAccCheckResourceDestroy(resourceNameEntityType, "TestAcc_sample_entity_type"),
+		CheckDestroy: testAccCheckResourceDestroy(resourceNameEntityType, "TestAcc_DataSourceEntityTypeLifecycle_sample_entity_type"),
 		Steps: []resource.TestStep{
 			{
 				ProtoV6ProviderFactories: providerFactories,

@@ -65,6 +65,8 @@ func TestResourceServicePlan(t *testing.T) {
 }
 
 func TestAccResourceServiceEntityFiltersLifecycle(t *testing.T) {
+	t.Parallel()
+
 	resource.Test(t, resource.TestCase{
 		PreCheck:     func() { testAccPreCheck(t) },
 		CheckDestroy: testAccCheckResourceDestroy(resourceNameService, "TestAcc_Test_Service_Create_filter_test"),
@@ -144,6 +146,7 @@ func TestAccResourceServiceEntityFiltersLifecycle(t *testing.T) {
 }
 
 func TestAccResourceServiceTagsLifecycle(t *testing.T) {
+	t.Parallel()
 	resource.Test(t, resource.TestCase{
 		PreCheck:     func() { testAccPreCheck(t) },
 		CheckDestroy: testAccCheckResourceDestroy(resourceNameService, "TestAcc_Test_Tag_Lifecycle"),
@@ -200,7 +203,7 @@ func TestAccResourceServiceTagsLifecycle(t *testing.T) {
 	})
 }
 
-func testCheckServiceDependsOnMatch(child_name string, expected_overloaded_urgency ...int) resource.TestCheckFunc {
+func testCheckServiceDependsOnMatch(t *testing.T, child_name string, expected_overloaded_urgency ...int) resource.TestCheckFunc {
 	return func(s *terraform.State) error {
 		leafResource, ok := s.RootModule().Resources[child_name]
 		if !ok {
@@ -219,7 +222,7 @@ func testCheckServiceDependsOnMatch(child_name string, expected_overloaded_urgen
 		for i := 0; i < kpiLength; i++ {
 			parentKPIID := parentResource.Primary.Attributes["service_depends_on.0.kpis."+strconv.Itoa(i)]
 			if leafKPIID == parentKPIID {
-				fmt.Printf("PASSED: Leaf shkpi_id %s, Parent's dependent kpis %s\n", leafKPIID, parentResource.Primary.Attributes["service_depends_on.0.kpis"])
+				t.Logf("PASSED: Leaf shkpi_id %s, Parent's dependent kpis %s", leafKPIID, parentResource.Primary.Attributes["service_depends_on.0.kpis"])
 
 				// if len(expected_overloaded_urgency) > 0 {
 				// 	if urgency, ok := parentResource.Primary.Attributes["service_depends_on.0.kpis."+strconv.Itoa(i)+
@@ -237,14 +240,15 @@ func testCheckServiceDependsOnMatch(child_name string, expected_overloaded_urgen
 }
 
 func TestAccResourceServiceKpisHandleUnknownTemplateId(t *testing.T) {
+	t.Parallel()
 	resource.Test(t, resource.TestCase{
 		PreCheck: func() { testAccPreCheck(t) },
 		CheckDestroy: resource.ComposeTestCheckFunc(
-			testAccCheckResourceDestroy(resourceNameService, "TestAcc_Test_service_kpis_2"),
-			testAccCheckResourceDestroy(resourceNameKPIBaseSearch, "TestAcc_linked_base_search_3"),
-			testAccCheckResourceDestroy(resourceNameEntityType, "TestAcc_linked_base_search_3"),
-			testAccCheckResourceDestroy(resourceNameKPIThresholdTemplate, "TestAcc_static_kpi_threshold_template_1"),
-			testAccCheckResourceDestroy(resourceNameKPIThresholdTemplate, "TestAcc_stdev_test_linked_kpi_threshold_template_3"),
+			testAccCheckResourceDestroy(resourceNameService, "TestAcc_ResourceServiceKpisHandleUnknownTemplateId_Test_service_kpis_2"),
+			testAccCheckResourceDestroy(resourceNameKPIBaseSearch, "TestAcc_ResourceServiceKpisHandleUnknownTemplateId_linked_base_search_3"),
+			testAccCheckResourceDestroy(resourceNameKPIBaseSearch, "TestAcc_ResourceServiceKpisHandleUnknownTemplateId_linked_base_search_4"),
+			testAccCheckResourceDestroy(resourceNameKPIThresholdTemplate, "TestAcc_ResourceServiceKpisHandleUnknownTemplateId_static_kpi_threshold_template_1"),
+			testAccCheckResourceDestroy(resourceNameKPIThresholdTemplate, "TestAcc_ResourceServiceKpisHandleUnknownTemplateId_stdev_test_linked_kpi_threshold_template_3"),
 		),
 		Steps: []resource.TestStep{
 			{
@@ -279,14 +283,15 @@ func TestAccResourceServiceKpisHandleUnknownTemplateId(t *testing.T) {
 }
 
 func TestAccResourceServiceHandleUnknownKpiBaseSearchId(t *testing.T) {
+	t.Parallel()
 	resource.Test(t, resource.TestCase{
 		PreCheck: func() { testAccPreCheck(t) },
 		CheckDestroy: resource.ComposeTestCheckFunc(
-			testAccCheckResourceDestroy(resourceNameService, "TestAcc_Test_service_kpis_2"),
-			testAccCheckResourceDestroy(resourceNameKPIBaseSearch, "TestAcc_linked_base_search_4"),
-			testAccCheckResourceDestroy(resourceNameKPIBaseSearch, "TestAcc_linked_base_search_3"),
-			testAccCheckResourceDestroy(resourceNameKPIThresholdTemplate, "TestAcc_static_kpi_threshold_template_1"),
-			testAccCheckResourceDestroy(resourceNameKPIThresholdTemplate, "TestAcc_stdev_test_linked_kpi_threshold_template_3"),
+			testAccCheckResourceDestroy(resourceNameService, "TestAcc_ResourceServiceHandleUnknownKpiBaseSearchId_Test_service_kpis_2"),
+			testAccCheckResourceDestroy(resourceNameKPIBaseSearch, "TestAcc_ResourceServiceHandleUnknownKpiBaseSearchId_linked_base_search_4"),
+			testAccCheckResourceDestroy(resourceNameKPIBaseSearch, "TestAcc_ResourceServiceHandleUnknownKpiBaseSearchId_linked_base_search_3"),
+			testAccCheckResourceDestroy(resourceNameKPIThresholdTemplate, "TestAcc_ResourceServiceHandleUnknownKpiBaseSearchId_static_kpi_threshold_template_1"),
+			testAccCheckResourceDestroy(resourceNameKPIThresholdTemplate, "TestAcc_ResourceServiceHandleUnknownKpiBaseSearchId_stdev_test_linked_kpi_threshold_template_3"),
 		),
 		Steps: []resource.TestStep{
 			{
@@ -321,6 +326,7 @@ func TestAccResourceServiceHandleUnknownKpiBaseSearchId(t *testing.T) {
 }
 
 func TestAccResourceServiceDependsOnLifecycle(t *testing.T) {
+	t.Parallel()
 	resource.Test(t, resource.TestCase{
 		PreCheck: func() { testAccPreCheck(t) },
 		CheckDestroy: resource.ComposeTestCheckFunc(
@@ -335,7 +341,7 @@ func TestAccResourceServiceDependsOnLifecycle(t *testing.T) {
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttrSet("itsi_service.service_create_leaf", "shkpi_id"),
 					resource.TestCheckResourceAttr("itsi_service.service_create_parent", "service_depends_on.#", "1"),
-					testCheckServiceDependsOnMatch("itsi_service.service_create_leaf"),
+					testCheckServiceDependsOnMatch(t, "itsi_service.service_create_leaf"),
 				),
 			},
 			{
@@ -345,8 +351,8 @@ func TestAccResourceServiceDependsOnLifecycle(t *testing.T) {
 					resource.TestCheckResourceAttrSet("itsi_service.service_create_leaf", "shkpi_id"),
 					resource.TestCheckResourceAttrSet("itsi_service.service_create_leaf_overloaded", "shkpi_id"),
 					resource.TestCheckResourceAttr("itsi_service.service_create_parent", "service_depends_on.#", "2"),
-					testCheckServiceDependsOnMatch("itsi_service.service_create_leaf"),
-					testCheckServiceDependsOnMatch("itsi_service.service_create_leaf_overloaded", 8),
+					testCheckServiceDependsOnMatch(t, "itsi_service.service_create_leaf"),
+					testCheckServiceDependsOnMatch(t, "itsi_service.service_create_leaf_overloaded", 8),
 				),
 			},
 			{
@@ -364,8 +370,8 @@ func TestAccResourceServiceDependsOnLifecycle(t *testing.T) {
 					resource.TestCheckResourceAttrSet("itsi_service.service_create_leaf", "shkpi_id"),
 					resource.TestCheckResourceAttrSet("itsi_service.service_create_leaf_overloaded", "shkpi_id"),
 					resource.TestCheckResourceAttr("itsi_service.service_create_parent", "service_depends_on.#", "2"),
-					testCheckServiceDependsOnMatch("itsi_service.service_create_leaf"),
-					testCheckServiceDependsOnMatch("itsi_service.service_create_leaf_overloaded", 8),
+					testCheckServiceDependsOnMatch(t, "itsi_service.service_create_leaf"),
+					testCheckServiceDependsOnMatch(t, "itsi_service.service_create_leaf_overloaded", 8),
 				),
 			},
 		},
@@ -373,14 +379,15 @@ func TestAccResourceServiceDependsOnLifecycle(t *testing.T) {
 }
 
 func TestAccResourceServiceKpisLifecycle(t *testing.T) {
+	t.Parallel()
 	resource.Test(t, resource.TestCase{
 		PreCheck: func() { testAccPreCheck(t) },
 		CheckDestroy: resource.ComposeTestCheckFunc(
-			testAccCheckResourceDestroy(resourceNameService, "TestAcc_Test_service_kpis"),
-			testAccCheckResourceDestroy(resourceNameKPIBaseSearch, "TestAcc_linked_base_search_1"),
-			testAccCheckResourceDestroy(resourceNameEntityType, "TestAcc_linked_base_search_2"),
-			testAccCheckResourceDestroy(resourceNameKPIThresholdTemplate, "TestAcc_static_kpi_threshold_template_1"),
-			testAccCheckResourceDestroy(resourceNameKPIThresholdTemplate, "TestAcc_stdev_test_linked_kpi_threshold_template_1"),
+			testAccCheckResourceDestroy(resourceNameService, "TestAcc_ResourceServiceKpisLifecycle_Test_service_kpis"),
+			testAccCheckResourceDestroy(resourceNameKPIBaseSearch, "TestAcc_ResourceServiceKpisLifecycle_linked_base_search_1"),
+			testAccCheckResourceDestroy(resourceNameEntityType, "TestAcc_ResourceServiceKpisLifecycle_linked_base_search_2"),
+			testAccCheckResourceDestroy(resourceNameKPIThresholdTemplate, "TestAcc_ResourceServiceKpisLifecycle_static_kpi_threshold_template_1"),
+			testAccCheckResourceDestroy(resourceNameKPIThresholdTemplate, "TestAcc_ResourceServiceKpisLifecycle_stdev_test_linked_kpi_threshold_template_1"),
 		),
 		Steps: []resource.TestStep{
 			{
@@ -411,7 +418,7 @@ func TestAccResourceServiceKpisLifecycle(t *testing.T) {
 					resource.TestCheckResourceAttrSet("itsi_service.test_kpis", "kpi.2.base_search_id"),
 					resource.TestCheckResourceAttrSet("itsi_service.test_kpis", "kpi.2.threshold_template_id"),
 
-					SaveKpiIds,
+					SaveKpiIds(t),
 				),
 			},
 			// add kpi
@@ -431,19 +438,19 @@ func TestAccResourceServiceKpisLifecycle(t *testing.T) {
 				},
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("itsi_service.test_kpis", "kpi.#", "4"),
-					resource.TestCheckResourceAttrWith("itsi_service.test_kpis", "kpi.0.id", verifyKpiId(0)),
+					resource.TestCheckResourceAttrWith("itsi_service.test_kpis", "kpi.0.id", verifyKpiId(t, 0)),
 					resource.TestCheckResourceAttr("itsi_service.test_kpis", "kpi.0.title", "KPI 1"),
 					resource.TestCheckResourceAttr("itsi_service.test_kpis", "kpi.0.base_search_metric", "metric 1.1"),
 					resource.TestCheckResourceAttrSet("itsi_service.test_kpis", "kpi.0.base_search_id"),
 					resource.TestCheckResourceAttrSet("itsi_service.test_kpis", "kpi.0.threshold_template_id"),
 
-					resource.TestCheckResourceAttrWith("itsi_service.test_kpis", "kpi.1.id", verifyKpiId(1)),
+					resource.TestCheckResourceAttrWith("itsi_service.test_kpis", "kpi.1.id", verifyKpiId(t, 1)),
 					resource.TestCheckResourceAttr("itsi_service.test_kpis", "kpi.1.title", "KPI 2"),
 					resource.TestCheckResourceAttr("itsi_service.test_kpis", "kpi.1.base_search_metric", "metric 1.2"),
 					resource.TestCheckResourceAttrSet("itsi_service.test_kpis", "kpi.1.base_search_id"),
 					resource.TestCheckResourceAttrSet("itsi_service.test_kpis", "kpi.1.threshold_template_id"),
 
-					resource.TestCheckResourceAttrWith("itsi_service.test_kpis", "kpi.2.id", verifyKpiId(2)),
+					resource.TestCheckResourceAttrWith("itsi_service.test_kpis", "kpi.2.id", verifyKpiId(t, 2)),
 					resource.TestCheckResourceAttr("itsi_service.test_kpis", "kpi.2.title", "KPI 3"),
 					resource.TestCheckResourceAttr("itsi_service.test_kpis", "kpi.2.base_search_metric", "metric 2.1"),
 					resource.TestCheckResourceAttrSet("itsi_service.test_kpis", "kpi.2.base_search_id"),
@@ -455,7 +462,7 @@ func TestAccResourceServiceKpisLifecycle(t *testing.T) {
 					resource.TestCheckResourceAttrSet("itsi_service.test_kpis", "kpi.3.base_search_id"),
 					resource.TestCheckResourceAttrSet("itsi_service.test_kpis", "kpi.3.threshold_template_id"),
 
-					SaveKpiIds,
+					SaveKpiIds(t),
 				),
 			}, // change metric of KPI 1 (ID regenerated), unit & description of KPI 2 (ID should stay the same), remove KPI 3
 			{
@@ -480,7 +487,7 @@ func TestAccResourceServiceKpisLifecycle(t *testing.T) {
 					resource.TestCheckResourceAttrSet("itsi_service.test_kpis", "kpi.0.base_search_id"),
 					resource.TestCheckResourceAttrSet("itsi_service.test_kpis", "kpi.0.threshold_template_id"),
 
-					resource.TestCheckResourceAttrWith("itsi_service.test_kpis", "kpi.1.id", verifyKpiId(1)),
+					resource.TestCheckResourceAttrWith("itsi_service.test_kpis", "kpi.1.id", verifyKpiId(t, 1)),
 					resource.TestCheckResourceAttr("itsi_service.test_kpis", "kpi.1.title", "KPI 2"),
 					resource.TestCheckResourceAttr("itsi_service.test_kpis", "kpi.1.base_search_metric", "metric 1.2"),
 
@@ -490,7 +497,7 @@ func TestAccResourceServiceKpisLifecycle(t *testing.T) {
 					resource.TestCheckResourceAttrSet("itsi_service.test_kpis", "kpi.1.base_search_id"),
 					resource.TestCheckResourceAttrSet("itsi_service.test_kpis", "kpi.1.threshold_template_id"),
 
-					resource.TestCheckResourceAttrWith("itsi_service.test_kpis", "kpi.2.id", verifyKpiId(2)),
+					resource.TestCheckResourceAttrWith("itsi_service.test_kpis", "kpi.2.id", verifyKpiId(t, 2)),
 					resource.TestCheckResourceAttr("itsi_service.test_kpis", "kpi.2.title", "KPI 3"),
 					resource.TestCheckResourceAttr("itsi_service.test_kpis", "kpi.2.base_search_metric", "metric 2.1"),
 					resource.TestCheckResourceAttrSet("itsi_service.test_kpis", "kpi.2.base_search_id"),
@@ -519,6 +526,7 @@ func TestAccResourceServiceKpisLifecycle(t *testing.T) {
 }
 
 func TestAccResourceServiceUnknownKPIs(t *testing.T) {
+	t.Parallel()
 	resource.Test(t, resource.TestCase{
 		PreCheck: func() { testAccPreCheck(t) },
 		CheckDestroy: resource.ComposeTestCheckFunc(
@@ -546,9 +554,9 @@ func TestAccResourceServiceUnknownKPIs(t *testing.T) {
 	})
 }
 
-func verifyKpiId(index int) resource.CheckResourceAttrWithFunc {
+func verifyKpiId(t *testing.T, index int) resource.CheckResourceAttrWithFunc {
 	return func(value string) error {
-		fmt.Printf("Verifying KPI Ids on index %d\n", index)
+		t.Logf("Verifying KPI Ids on index %d", index)
 		if len(PREV_KPI_IDS) < index {
 			return fmt.Errorf("Unexpected lenght of the state array: PREV_KPI_IDS")
 		}
@@ -563,22 +571,24 @@ func verifyKpiId(index int) resource.CheckResourceAttrWithFunc {
 
 var PREV_KPI_IDS []string
 
-func SaveKpiIds(s *terraform.State) error {
-	fmt.Printf("Saving current KPI Ids\n")
-	PREV_KPI_IDS = []string{}
-	resource, ok := s.RootModule().Resources["itsi_service.test_kpis"]
-	if !ok {
-		return fmt.Errorf("Not found: itsi_service.test_kpis")
-	}
-	kpiLength, err := strconv.Atoi(resource.Primary.Attributes["kpi.#"])
-	if err != nil {
-		return fmt.Errorf("Kpi depends on length not found")
-	}
-	for i := 0; i < kpiLength; i++ {
-		kpiId := resource.Primary.Attributes["kpi."+strconv.Itoa(i)+".id"]
-		PREV_KPI_IDS = append(PREV_KPI_IDS, kpiId)
-		fmt.Printf("Saving Prev State: Adding id %s\n", kpiId)
-	}
+func SaveKpiIds(t *testing.T) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
+		t.Log("Saving current KPI Ids")
+		PREV_KPI_IDS = []string{}
+		resource, ok := s.RootModule().Resources["itsi_service.test_kpis"]
+		if !ok {
+			return fmt.Errorf("Not found: itsi_service.test_kpis")
+		}
+		kpiLength, err := strconv.Atoi(resource.Primary.Attributes["kpi.#"])
+		if err != nil {
+			return fmt.Errorf("Kpi depends on length not found")
+		}
+		for i := 0; i < kpiLength; i++ {
+			kpiId := resource.Primary.Attributes["kpi."+strconv.Itoa(i)+".id"]
+			PREV_KPI_IDS = append(PREV_KPI_IDS, kpiId)
+			t.Logf("Saving Prev State: Adding id %s", kpiId)
+		}
 
-	return nil
+		return nil
+	}
 }
