@@ -12,6 +12,7 @@ func TestDataSourceCollectionDataSchema(t *testing.T) {
 }
 
 func TestAccDataCollectionData(t *testing.T) {
+	t.Parallel()
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: providerFactories,
 		Steps: []resource.TestStep{

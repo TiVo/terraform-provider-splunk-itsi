@@ -65,6 +65,8 @@ func TestResourceServicePlan(t *testing.T) {
 }
 
 func TestAccResourceServiceEntityFiltersLifecycle(t *testing.T) {
+	t.Parallel()
+
 	resource.Test(t, resource.TestCase{
 		PreCheck:     func() { testAccPreCheck(t) },
 		CheckDestroy: testAccCheckResourceDestroy(resourceNameService, "TestAcc_Test_Service_Create_filter_test"),
@@ -144,6 +146,7 @@ func TestAccResourceServiceEntityFiltersLifecycle(t *testing.T) {
 }
 
 func TestAccResourceServiceTagsLifecycle(t *testing.T) {
+	t.Parallel()
 	resource.Test(t, resource.TestCase{
 		PreCheck:     func() { testAccPreCheck(t) },
 		CheckDestroy: testAccCheckResourceDestroy(resourceNameService, "TestAcc_Test_Tag_Lifecycle"),
@@ -237,14 +240,15 @@ func testCheckServiceDependsOnMatch(child_name string, expected_overloaded_urgen
 }
 
 func TestAccResourceServiceKpisHandleUnknownTemplateId(t *testing.T) {
+	t.Parallel()
 	resource.Test(t, resource.TestCase{
 		PreCheck: func() { testAccPreCheck(t) },
 		CheckDestroy: resource.ComposeTestCheckFunc(
-			testAccCheckResourceDestroy(resourceNameService, "TestAcc_Test_service_kpis_2"),
-			testAccCheckResourceDestroy(resourceNameKPIBaseSearch, "TestAcc_linked_base_search_3"),
-			testAccCheckResourceDestroy(resourceNameEntityType, "TestAcc_linked_base_search_3"),
-			testAccCheckResourceDestroy(resourceNameKPIThresholdTemplate, "TestAcc_static_kpi_threshold_template_1"),
-			testAccCheckResourceDestroy(resourceNameKPIThresholdTemplate, "TestAcc_stdev_test_linked_kpi_threshold_template_3"),
+			testAccCheckResourceDestroy(resourceNameService, "TestAcc_ResourceServiceKpisHandleUnknownTemplateId_Test_service_kpis_2"),
+			testAccCheckResourceDestroy(resourceNameKPIBaseSearch, "TestAcc_ResourceServiceKpisHandleUnknownTemplateId_linked_base_search_3"),
+			testAccCheckResourceDestroy(resourceNameKPIBaseSearch, "TestAcc_ResourceServiceKpisHandleUnknownTemplateId_linked_base_search_4"),
+			testAccCheckResourceDestroy(resourceNameKPIThresholdTemplate, "TestAcc_ResourceServiceKpisHandleUnknownTemplateId_static_kpi_threshold_template_1"),
+			testAccCheckResourceDestroy(resourceNameKPIThresholdTemplate, "TestAcc_ResourceServiceKpisHandleUnknownTemplateId_stdev_test_linked_kpi_threshold_template_3"),
 		),
 		Steps: []resource.TestStep{
 			{
@@ -279,14 +283,15 @@ func TestAccResourceServiceKpisHandleUnknownTemplateId(t *testing.T) {
 }
 
 func TestAccResourceServiceHandleUnknownKpiBaseSearchId(t *testing.T) {
+	t.Parallel()
 	resource.Test(t, resource.TestCase{
 		PreCheck: func() { testAccPreCheck(t) },
 		CheckDestroy: resource.ComposeTestCheckFunc(
-			testAccCheckResourceDestroy(resourceNameService, "TestAcc_Test_service_kpis_2"),
-			testAccCheckResourceDestroy(resourceNameKPIBaseSearch, "TestAcc_linked_base_search_4"),
-			testAccCheckResourceDestroy(resourceNameKPIBaseSearch, "TestAcc_linked_base_search_3"),
-			testAccCheckResourceDestroy(resourceNameKPIThresholdTemplate, "TestAcc_static_kpi_threshold_template_1"),
-			testAccCheckResourceDestroy(resourceNameKPIThresholdTemplate, "TestAcc_stdev_test_linked_kpi_threshold_template_3"),
+			testAccCheckResourceDestroy(resourceNameService, "TestAcc_ResourceServiceHandleUnknownKpiBaseSearchId_Test_service_kpis_2"),
+			testAccCheckResourceDestroy(resourceNameKPIBaseSearch, "TestAcc_ResourceServiceHandleUnknownKpiBaseSearchId_linked_base_search_4"),
+			testAccCheckResourceDestroy(resourceNameKPIBaseSearch, "TestAcc_ResourceServiceHandleUnknownKpiBaseSearchId_linked_base_search_3"),
+			testAccCheckResourceDestroy(resourceNameKPIThresholdTemplate, "TestAcc_ResourceServiceHandleUnknownKpiBaseSearchId_static_kpi_threshold_template_1"),
+			testAccCheckResourceDestroy(resourceNameKPIThresholdTemplate, "TestAcc_ResourceServiceHandleUnknownKpiBaseSearchId_stdev_test_linked_kpi_threshold_template_3"),
 		),
 		Steps: []resource.TestStep{
 			{
@@ -321,6 +326,7 @@ func TestAccResourceServiceHandleUnknownKpiBaseSearchId(t *testing.T) {
 }
 
 func TestAccResourceServiceDependsOnLifecycle(t *testing.T) {
+	t.Parallel()
 	resource.Test(t, resource.TestCase{
 		PreCheck: func() { testAccPreCheck(t) },
 		CheckDestroy: resource.ComposeTestCheckFunc(
@@ -373,14 +379,15 @@ func TestAccResourceServiceDependsOnLifecycle(t *testing.T) {
 }
 
 func TestAccResourceServiceKpisLifecycle(t *testing.T) {
+	t.Parallel()
 	resource.Test(t, resource.TestCase{
 		PreCheck: func() { testAccPreCheck(t) },
 		CheckDestroy: resource.ComposeTestCheckFunc(
-			testAccCheckResourceDestroy(resourceNameService, "TestAcc_Test_service_kpis"),
-			testAccCheckResourceDestroy(resourceNameKPIBaseSearch, "TestAcc_linked_base_search_1"),
-			testAccCheckResourceDestroy(resourceNameEntityType, "TestAcc_linked_base_search_2"),
-			testAccCheckResourceDestroy(resourceNameKPIThresholdTemplate, "TestAcc_static_kpi_threshold_template_1"),
-			testAccCheckResourceDestroy(resourceNameKPIThresholdTemplate, "TestAcc_stdev_test_linked_kpi_threshold_template_1"),
+			testAccCheckResourceDestroy(resourceNameService, "TestAcc_ResourceServiceKpisLifecycle_Test_service_kpis"),
+			testAccCheckResourceDestroy(resourceNameKPIBaseSearch, "TestAcc_ResourceServiceKpisLifecycle_linked_base_search_1"),
+			testAccCheckResourceDestroy(resourceNameEntityType, "TestAcc_ResourceServiceKpisLifecycle_linked_base_search_2"),
+			testAccCheckResourceDestroy(resourceNameKPIThresholdTemplate, "TestAcc_ResourceServiceKpisLifecycle_static_kpi_threshold_template_1"),
+			testAccCheckResourceDestroy(resourceNameKPIThresholdTemplate, "TestAcc_ResourceServiceKpisLifecycle_stdev_test_linked_kpi_threshold_template_1"),
 		),
 		Steps: []resource.TestStep{
 			{
@@ -519,6 +526,7 @@ func TestAccResourceServiceKpisLifecycle(t *testing.T) {
 }
 
 func TestAccResourceServiceUnknownKPIs(t *testing.T) {
+	t.Parallel()
 	resource.Test(t, resource.TestCase{
 		PreCheck: func() { testAccPreCheck(t) },
 		CheckDestroy: resource.ComposeTestCheckFunc(

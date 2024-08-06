@@ -9,8 +9,6 @@ import (
 	"github.com/tivo/terraform-provider-splunk-itsi/provider/util"
 )
 
-var testAccEntityLifecycle_entityTitle = testAccResourceTitle("ExampleHost")
-
 func TestResourceEntitySchema(t *testing.T) {
 	testResourceSchema(t, new(resourceEntity))
 }
@@ -53,6 +51,9 @@ func TestResourceEntityPlan(t *testing.T) {
 }
 
 func TestAccResourceEntityLifecycle(t *testing.T) {
+	t.Parallel()
+	var testAccEntityLifecycle_entityTitle = testAccResourceTitle("ResourceEntityLifecycle_ExampleHost")
+
 	resource.Test(t, resource.TestCase{
 		PreCheck:     func() { testAccPreCheck(t) },
 		CheckDestroy: testAccCheckResourceDestroy(resourceNameEntity, testAccEntityLifecycle_entityTitle),

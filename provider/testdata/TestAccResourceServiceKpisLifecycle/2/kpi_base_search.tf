@@ -1,5 +1,5 @@
 resource "itsi_kpi_base_search" "test_kpis_linked_kpibs_1" {
-  title                         = "TestAcc_linked_base_search_1"
+  title                         = "TestAcc_ResourceServiceKpisLifecycle_linked_base_search_1"
   description                   = "abc"
   actions                       = null
   alert_lag                     = "5"
@@ -45,7 +45,7 @@ resource "itsi_kpi_base_search" "test_kpis_linked_kpibs_1" {
 }
 
 resource "itsi_kpi_base_search" "test_kpis_linked_kpibs_2" {
-  title                         = "TestAcc_linked_base_search_2"
+  title                         = "TestAcc_ResourceServiceKpisLifecycle_linked_base_search_2"
   description                   = "cba"
   actions                       = null
   alert_lag                     = "5"

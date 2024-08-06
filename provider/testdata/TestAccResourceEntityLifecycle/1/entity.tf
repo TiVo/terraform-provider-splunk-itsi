@@ -1,5 +1,5 @@
 resource "itsi_entity" "test" {
-  title       = "TestAcc_ExampleHost"
+  title       = "TestAcc_ResourceEntityLifecycle_ExampleHost"
   description = "entityTest.example.com"
   aliases = {
     "host"        = "entityTest.example.com"

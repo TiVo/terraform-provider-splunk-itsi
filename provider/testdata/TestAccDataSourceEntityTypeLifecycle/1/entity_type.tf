@@ -1,5 +1,5 @@
 
 resource "itsi_entity_type" "test" {
-  title       = "TestAcc_sample_entity_type"
+  title       = "TestAcc_DataSourceEntityTypeLifecycle_sample_entity_type"
   description = "TestAcc EXAMPLE"
 }

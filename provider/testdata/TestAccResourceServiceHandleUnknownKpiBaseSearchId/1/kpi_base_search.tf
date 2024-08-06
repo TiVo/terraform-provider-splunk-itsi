@@ -1,5 +1,5 @@
 resource "itsi_kpi_base_search" "test_kpis_linked_kpibs_3" {
-  title                         = "TestAcc_linked_base_search_3"
+  title                         = "TestAcc_ResourceServiceHandleUnknownKpiBaseSearchId_linked_base_search_3"
   description                   = "abc"
   actions                       = null
   alert_lag                     = "5"

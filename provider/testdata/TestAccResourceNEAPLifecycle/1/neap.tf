@@ -1,5 +1,5 @@
 resource "itsi_notable_event_aggregation_policy" "test" {
-  title       = "TestAcc_neap_test"
+  title       = "TestAcc_ResourceNEAPLifecycle_neap_test"
   description = "abc"
 
   breaking_criteria {

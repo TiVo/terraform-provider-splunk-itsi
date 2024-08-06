@@ -12,9 +12,10 @@ func TestDataSourceKpiThresholdTemplateSchema(t *testing.T) {
 }
 
 func TestAccDataSourceKPIThresholdTemplateLifecycle(t *testing.T) {
+	t.Parallel()
 	resource.Test(t, resource.TestCase{
 		PreCheck:     func() { testAccPreCheck(t) },
-		CheckDestroy: testAccCheckResourceDestroy(resourceNameKPIThresholdTemplate, "TestAcc_stdev_test2"),
+		CheckDestroy: testAccCheckResourceDestroy(resourceNameKPIThresholdTemplate, "TestAcc_DataSourceKPIThresholdTemplateLifecycle_stdev_test2"),
 		Steps: []resource.TestStep{
 			{
 				ProtoV6ProviderFactories: providerFactories,
