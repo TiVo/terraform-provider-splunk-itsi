@@ -469,6 +469,9 @@ func TestAccResourceServiceKpisLifecycle(t *testing.T) {
 						plancheck.ExpectKnownValue("itsi_service.test_kpis", tfjsonpath.New("kpi").AtSliceIndex(1).AtMapKey("id"), knownvalue.NotNull()),
 						plancheck.ExpectKnownValue("itsi_service.test_kpis", tfjsonpath.New("kpi").AtSliceIndex(2).AtMapKey("id"), knownvalue.NotNull()),
 					},
+					PostApplyPostRefresh: []plancheck.PlanCheck{
+						plancheck.ExpectKnownValue("itsi_service.test_kpis", tfjsonpath.New("kpi").AtSliceIndex(1).AtMapKey("description"), knownvalue.StringExact("test")),
+					},
 				},
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("itsi_service.test_kpis", "kpi.#", "3"),
@@ -493,7 +496,17 @@ func TestAccResourceServiceKpisLifecycle(t *testing.T) {
 					resource.TestCheckResourceAttrSet("itsi_service.test_kpis", "kpi.2.base_search_id"),
 					resource.TestCheckResourceAttrSet("itsi_service.test_kpis", "kpi.2.threshold_template_id"),
 				),
-			}, // remove kpis
+			}, // remove description of KPI 2
+			{
+				ProtoV6ProviderFactories: providerFactories,
+				ConfigDirectory:          config.TestStepDirectory(),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PostApplyPostRefresh: []plancheck.PlanCheck{
+						plancheck.ExpectKnownValue("itsi_service.test_kpis", tfjsonpath.New("kpi").AtSliceIndex(1).AtMapKey("description"), knownvalue.StringExact("")),
+					},
+				},
+			},
+			// remove kpis
 			{
 				ProtoV6ProviderFactories: providerFactories,
 				ConfigDirectory:          config.TestStepDirectory(),

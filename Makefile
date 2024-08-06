@@ -22,6 +22,7 @@ release:
 	goreleaser release --clean
 
 clean:
+	go clean -testcache
 	rm -rf dist bin
 
 fmt:
@@ -32,18 +33,26 @@ fmt:
 scraper:
 	go build -o ./bin/scraper github.com/tivo/terraform-provider-splunk-itsi/scraper
 
+# Allows to run a specific test
+#
+# E.g.:
+# make @TestAccResourceServiceKpisLifecycle testacc
+# or
+# make @'TestAccResourceService.*' testacc
 @%:
 	$(eval TEST_ARGS := -run $*)
 
+# Run unit test suite
 test: fmt
-	go test -v -cover -parallel=4 $(TEST_ARGS) github.com/tivo/terraform-provider-splunk-itsi/... -tags test_setup
+	go test -v -cover -p 1 -parallel=4 $(TEST_ARGS) github.com/tivo/terraform-provider-splunk-itsi/... -tags test_setup
 
+# Run acceptance test suite
 testacc: fmt
-	go clean -testcache
-	TF_ACC=1 go test -v -cover $(TEST_ARGS) -timeout 60m ./...
+	TF_ACC=1 TF_ACC_LOG=WARN go test -v -cover -p 1 $(TEST_ARGS) -timeout 60m ./...
 
+# Run sweepers to delete leaked test resources (https://developer.hashicorp.com/terraform/plugin/testing/acceptance-tests/sweepers)
 sweep: fmt
-	TF_ACC_LOG=trace go test -v $(TEST_ARGS) -timeout 10m github.com/tivo/terraform-provider-splunk-itsi/provider -sweep=default
+	TF_ACC_LOG=TRACE go test -v $(TEST_ARGS) -timeout 10m github.com/tivo/terraform-provider-splunk-itsi/provider -sweep=default
 
 docs: fmt
 	go generate ./...
