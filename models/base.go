@@ -400,6 +400,7 @@ func (b *Base) updateConfirm(ctx context.Context) (ok bool, diags diag.Diagnosti
 
 	resultCh := make(chan error, 1)
 
+	start := time.Now()
 	go func() {
 		_, _, err := b.requestWithRetry(ctx, http.MethodPut, b.urlBaseWithKey(), reqBody)
 		if ctx.Err() == nil {
@@ -422,6 +423,11 @@ func (b *Base) updateConfirm(ctx context.Context) (ok bool, diags diag.Diagnosti
 		}
 
 		hashMatches := (originHash == b.Hash && originHash != "")
+
+		tflog.Warn(ctx,
+			fmt.Sprintf("[Update %s %s] [checkOriginHash] update_request_completed=%v checksums_match=%v time_since_update_request=%s _tf_hash_expected=%s _tf_hash_actual=%s",
+				b.ObjectType, b.RESTKey, updateReqComplete, hashMatches, time.Since(start).String(), b.Hash, originHash),
+		)
 
 		if updateReqComplete && !hashMatches {
 			postUpdateHashCheckMismatch++
