@@ -10,7 +10,7 @@ concurrency:
 
 jobs:
   testacc:
-    if: github.event.issue.pull_request && contains(github.event.comment.body, '/testacc')
+    if: github.event.issue.pull_request && github.event.comment.body == '/testacc'
     uses: ./.github/workflows/matrix_test.yaml
     secrets: inherit
     concurrency:
@@ -18,4 +18,16 @@ jobs:
       cancel-in-progress: true
     with:
       test_type: testacc
+      ref: ${{ github.event_name == 'issue_comment' && format('refs/pull/{0}/head', github.event.issue.number) || '' }}
+
+  testacc_warn:
+    if: github.event.issue.pull_request && github.event.comment.body == '/testacc warn'
+    uses: ./.github/workflows/matrix_test.yaml
+    secrets: inherit
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.ref }}
+      cancel-in-progress: true
+    with:
+      test_type: testacc
+      tf_log: WARN
       ref: ${{ github.event_name == 'issue_comment' && format('refs/pull/{0}/head', github.event.issue.number) || '' }}

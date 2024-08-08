@@ -28,7 +28,7 @@ import (
 const (
 	resourceHashField      = "_tf_hash"
 	asyncUpdateCheckPeriod = 15 * time.Second
-	updateSuccessTimeout   = 100 * time.Second //Max duration to wait after an update request returns 200 OK. If the update success cannot be confirmed within this period, it will be considered as failed.
+	updateSuccessTimeout   = 100 * time.Second //If the update success cannot be confirmed within this period, the update will be considered as failed and retried.
 )
 
 var RestConfigs map[string]restConfig
@@ -388,7 +388,9 @@ func (b *Base) updateConfirm(ctx context.Context) (ok bool, diags diag.Diagnosti
 		to indicate that the update was not successful.
 	*/
 
-	ctx, cancel := context.WithCancel(ctx)
+	updateDeadlineExceeded := fmt.Errorf("update deadline exceeded")
+
+	ctx, cancel := context.WithTimeoutCause(ctx, updateSuccessTimeout, updateDeadlineExceeded)
 	defer cancel()
 
 	reqBody, err := json.Marshal(b.RawJson)
@@ -400,7 +402,9 @@ func (b *Base) updateConfirm(ctx context.Context) (ok bool, diags diag.Diagnosti
 
 	go func() {
 		_, _, err := b.requestWithRetry(ctx, http.MethodPut, b.urlBaseWithKey(), reqBody)
-		resultCh <- err
+		if ctx.Err() == nil {
+			resultCh <- err
+		}
 	}()
 
 	ticker := time.NewTicker(asyncUpdateCheckPeriod)
@@ -410,20 +414,26 @@ func (b *Base) updateConfirm(ctx context.Context) (ok bool, diags diag.Diagnosti
 	postUpdateHashCheckMismatch := 0
 	checkOriginHashFunc := func() (ok bool, err error) {
 		originHash, err := b.getOriginHash(ctx)
+		if ctx.Err() != nil {
+			return false, nil
+		}
 		if err != nil {
 			return false, err
 		}
-		if updateReqComplete && originHash != b.Hash {
+
+		hashMatches := (originHash == b.Hash && originHash != "")
+
+		if updateReqComplete && !hashMatches {
 			postUpdateHashCheckMismatch++
 			diags = diag.Diagnostics{}
-			diags.AddWarning("Transient Update Failure", fmt.Sprintf(util.Dedent(`
+			warnMsg := fmt.Sprintf(util.Dedent(`
 				Update %s %s: The update request returned a 200 OK status, but we were unable to confirm its success after %d attempts.
-				This discrepancy might be due to the update taking longer to propagate or be fully applied.
-				This is a non-critical warning.
-				We will wait a bit longer to allow the update to complete successfully.
-			`), b.ObjectType, b.RESTKey, postUpdateHashCheckMismatch))
+				This might be due to the update taking longer to propagate or be fully applied.
+			`), b.ObjectType, b.RESTKey, postUpdateHashCheckMismatch)
+			diags.AddWarning("Transient Update Failure", warnMsg)
+			tflog.Warn(ctx, warnMsg)
 		}
-		return (originHash == b.Hash && originHash != ""), nil
+		return hashMatches, nil
 	}
 
 	for {
@@ -433,25 +443,15 @@ func (b *Base) updateConfirm(ctx context.Context) (ok bool, diags diag.Diagnosti
 				diags.AddError("PUT Request Error", err.Error())
 				return false, diags
 			}
-			if !updateReqComplete {
-				updateReqComplete = true
-				if ok, err := checkOriginHashFunc(); err == nil {
-					if ok {
-						return true, diags
-					}
-				} else {
-					diags.AddError("Origin Hash Check Error", err.Error())
-					return false, diags
+
+			updateReqComplete = true
+			if ok, err := checkOriginHashFunc(); err == nil {
+				if ok {
+					return true, diags
 				}
-				go func() {
-					timer := time.NewTimer(updateSuccessTimeout)
-					defer timer.Stop()
-					select {
-					case <-timer.C:
-						cancel()
-					case <-ctx.Done():
-					}
-				}()
+			} else {
+				diags.AddError("Origin Hash Check Error", err.Error())
+				return false, diags
 			}
 		case <-ticker.C:
 			if ok, err := checkOriginHashFunc(); err == nil {
@@ -463,10 +463,15 @@ func (b *Base) updateConfirm(ctx context.Context) (ok bool, diags diag.Diagnosti
 				return false, diags
 			}
 		case <-ctx.Done():
+			if context.Cause(ctx) == updateDeadlineExceeded {
+				return false, diags
+			}
+
 			diags.AddError(ctx.Err().Error(), ctx.Err().Error())
 			return false, diags
 		}
 	}
+
 }
 
 // Retries async updates until a successful update is confirmed by comparing
@@ -475,13 +480,38 @@ func (b *Base) updateAndWaitForState(ctx context.Context) (diags diag.Diagnostic
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	for ok := false; !ok && !diags.HasError(); ok, diags = b.updateConfirm(ctx) {
-		diags.AddWarning("Transient Update Failure", fmt.Sprintf(util.Dedent(`
-				Update %s %s: Unable to confirm the update's success after waiting for %s.
-				This may suggest an issue with the ITSI backend.
-				This is a non-critical warning.
-				We will handle this gracefully by retrying the update request...
-			`), b.ObjectType, b.RESTKey, updateSuccessTimeout.String()))
+	ok := false
+	start := time.Now()
+
+	var i int
+	for i = 0; !ok && !diags.HasError() && ctx.Err() == nil; i++ {
+		var d diag.Diagnostics
+
+		ok, d = b.updateConfirm(ctx)
+
+		if ctx.Err() != nil {
+			break
+		}
+
+		if diags.Append(d...); diags.HasError() {
+			return
+		}
+
+		if !ok {
+			tflog.Warn(ctx, "Transient Update Failure: "+
+				fmt.Sprintf(`%s %s: Unable to confirm the update's success after waiting for %s.`,
+					b.ObjectType, b.RESTKey, time.Since(start).String()))
+		}
+	}
+
+	if ok && i > 1 {
+		diags.AddWarning("Update operation completed with transient failures",
+			fmt.Sprintf(`%s %s was updated successfully after %s but encountered %d verification failure(s). This may indicate an issue with ITSI backend.`,
+				b.ObjectType, b.RESTKey, time.Since(start).String(), i-1))
+	}
+
+	if ctx.Err() != nil {
+		diags.AddError(ctx.Err().Error(), ctx.Err().Error())
 	}
 
 	return
@@ -499,7 +529,10 @@ func (b *Base) Delete(ctx context.Context) (diags diag.Diagnostics) {
 	Cache.Remove(b)
 	var err error
 
-	for {
+	start := time.Now()
+	var i int
+
+	for i = 0; ; i++ {
 		_, _, err = b.requestWithRetry(ctx, http.MethodDelete, b.urlBaseWithKey(), nil)
 		if err != nil {
 			diags.AddError(fmt.Sprintf("Failed to delete %s/%s", b.ObjectType, b.RESTKey), err.Error())
@@ -517,12 +550,15 @@ func (b *Base) Delete(ctx context.Context) (diags diag.Diagnostics) {
 			break
 		}
 
-		diags.AddWarning("Transient Delete Failure", fmt.Sprintf(util.Dedent(`
-				%s %s still exists despite the respective DELETE request having succeeded.
-				This is a non-critical warning.
-				We will handle this gracefully by retrying the request...
- 			`), b.ObjectType, b.RESTKey))
+		tflog.Warn(ctx, "Transient Delete Failure: "+
+			fmt.Sprintf(`%s %s still exists despite the respective DELETE request having succeeded.`,
+				b.ObjectType, b.RESTKey))
+	}
 
+	if i > 1 {
+		diags.AddWarning("Delete operation completed with transient failures",
+			fmt.Sprintf(`%s %s was deleted successfully after %s but encountered %d verification failure(s). This may indicate an issue with ITSI backend.`,
+				b.ObjectType, b.RESTKey, time.Since(start).String(), i-1))
 	}
 
 	return
