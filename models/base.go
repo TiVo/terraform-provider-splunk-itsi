@@ -464,7 +464,7 @@ func (b *Base) updateConfirm(ctx context.Context) (ok bool, diags diag.Diagnosti
 			}
 		case <-ctx.Done():
 			if context.Cause(ctx) == updateDeadlineExceeded {
-				return false, nil
+				return false, diags
 			}
 
 			diags.AddError(ctx.Err().Error(), ctx.Err().Error())
