@@ -298,6 +298,7 @@ func TestAccResourceServiceHandleUnknownKpiBaseSearchId(t *testing.T) {
 			{
 				ProtoV6ProviderFactories: providerFactories,
 				ConfigDirectory:          config.TestStepDirectory(),
+				Check:                    Sleep(t, 30*time.Second),
 			},
 			// add kpi linked to new kpi bs
 			{
@@ -464,7 +465,7 @@ func TestAccResourceServiceKpisLifecycle(t *testing.T) {
 					resource.TestCheckResourceAttrSet("itsi_service.test_kpis", "kpi.3.threshold_template_id"),
 
 					SaveKpiIds(t),
-					Sleep(t, 60*time.Second),
+					Sleep(t, 30*time.Second),
 				),
 			}, // change metric of KPI 1 (ID regenerated), unit & description of KPI 2 (ID should stay the same), remove KPI 3
 			{
