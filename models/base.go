@@ -163,6 +163,8 @@ func (b *Base) handleRequestError(ctx context.Context, method string, statusCode
 		if newBody, err = b.handleConflictOnCreate(ctx); err != nil {
 			newStatusCode = http.StatusOK
 		}
+	case method == http.MethodDelete && statusCode == http.StatusInternalServerError:
+		shouldRetry, err = b.exists(ctx)
 	case statusCode == 400 || statusCode == 401 || statusCode == 403 || statusCode == 404 || statusCode == 409: //do not retry
 	default:
 		shouldRetry = true
