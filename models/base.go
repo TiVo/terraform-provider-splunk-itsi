@@ -535,11 +535,40 @@ func (b *Base) UpdateAsync(ctx context.Context) (diags diag.Diagnostics) {
 
 func (b *Base) Delete(ctx context.Context) (diags diag.Diagnostics) {
 	Cache.Remove(b)
-	_, _, err := b.requestWithRetry(ctx, http.MethodDelete, b.urlBaseWithKey(), nil)
-	if err != nil {
-		diags.AddError(fmt.Sprintf("Failed to delete %s/%s", b.ObjectType, b.RESTKey), err.Error())
-		return
+	var err error
+
+	start := time.Now()
+	var i int
+
+	for i = 0; ; i++ {
+		_, _, err = b.requestWithRetry(ctx, http.MethodDelete, b.urlBaseWithKey(), nil)
+		if err != nil {
+			diags.AddError(fmt.Sprintf("Failed to delete %s/%s", b.ObjectType, b.RESTKey), err.Error())
+			return
+		}
+
+		exists := true
+		if exists, err = b.exists(ctx); err != nil {
+			diags.AddError(fmt.Sprintf("Failed to check if %s/%s exists", b.ObjectType, b.RESTKey), err.Error())
+			return
+		}
+
+		if !exists {
+			//deletion successful
+			break
+		}
+
+		tflog.Warn(ctx, "Transient Delete Failure: "+
+			fmt.Sprintf(`%s %s still exists despite the respective DELETE request having succeeded.`,
+				b.ObjectType, b.RESTKey))
 	}
+
+	if i > 1 {
+		diags.AddWarning("Delete operation completed with transient failures",
+			fmt.Sprintf(`%s %s was deleted successfully after %s but encountered %d verification failure(s). This may indicate an issue with ITSI backend.`,
+				b.ObjectType, b.RESTKey, time.Since(start).String(), i-1))
+	}
+
 	return
 }
 
