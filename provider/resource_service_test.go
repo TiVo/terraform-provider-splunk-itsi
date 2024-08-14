@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strconv"
 	"testing"
-	"time"
 
 	"github.com/hashicorp/terraform-plugin-testing/config"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
@@ -298,7 +297,7 @@ func TestAccResourceServiceHandleUnknownKpiBaseSearchId(t *testing.T) {
 			{
 				ProtoV6ProviderFactories: providerFactories,
 				ConfigDirectory:          config.TestStepDirectory(),
-				Check:                    Sleep(t, 30*time.Second),
+				//Check:                    Sleep(t, 30*time.Second),
 			},
 			// add kpi linked to new kpi bs
 			{
@@ -465,7 +464,7 @@ func TestAccResourceServiceKpisLifecycle(t *testing.T) {
 					resource.TestCheckResourceAttrSet("itsi_service.test_kpis", "kpi.3.threshold_template_id"),
 
 					SaveKpiIds(t),
-					Sleep(t, 30*time.Second),
+					//Sleep(t, 30*time.Second),
 				),
 			}, // change metric of KPI 1 (ID regenerated), unit & description of KPI 2 (ID should stay the same), remove KPI 3
 			{
@@ -596,10 +595,10 @@ func SaveKpiIds(t *testing.T) resource.TestCheckFunc {
 	}
 }
 
-func Sleep(t *testing.T, d time.Duration) resource.TestCheckFunc {
-	return func(s *terraform.State) error {
-		t.Logf("Sleeping for %s ...", d.String())
-		time.Sleep(d)
-		return nil
-	}
-}
+// func Sleep(t *testing.T, d time.Duration) resource.TestCheckFunc {
+// 	return func(s *terraform.State) error {
+// 		t.Logf("Sleeping for %s ...", d.String())
+// 		time.Sleep(d)
+// 		return nil
+// 	}
+// }
