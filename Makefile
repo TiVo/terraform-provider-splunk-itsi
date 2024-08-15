@@ -48,7 +48,7 @@ test: fmt
 
 # Run acceptance test suite
 testacc: fmt
-	TF_ACC=1 TF_ACC_LOG=WARN go test -v -cover -p 1 -parallel 10 $(TEST_ARGS) -timeout 60m ./...
+	TF_ACC=1 TF_ACC_LOG=WARN go test -v -cover -p 1 -parallel 1 $(TEST_ARGS) -timeout 60m ./...
 
 # Run sweepers to delete leaked test resources (https://developer.hashicorp.com/terraform/plugin/testing/acceptance-tests/sweepers)
 sweep: fmt
