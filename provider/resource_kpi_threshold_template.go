@@ -44,8 +44,8 @@ type modelKpiThresholdTemplate struct {
 	TimeVariateThresholds                           types.Bool                               `tfsdk:"time_variate_thresholds" json:"time_variate_thresholds"`
 	TimeVariateThresholdsSpecification              *TimeVariateThresholdsSpecificationModel `tfsdk:"time_variate_thresholds_specification"`
 	AdaptiveThresholdsIsEnabled                     types.Bool                               `tfsdk:"adaptive_thresholds_is_enabled" json:"adaptive_thresholds_is_enabled"`
-	AdaptiveThresholdingOutlierExclusionAlgo        types.String                             `tfsdk:"adaptive_thresholding_outlier_exclusion_algo"`
-	AdaptiveThresholdingOutlierExclusionSensitivity types.Float64                            `tfsdk:"adaptive_thresholding_outlier_exclusion_sensitivity"`
+	AdaptiveThresholdingOutlierExclusionAlgo        types.String                             `tfsdk:"adaptive_thresholding_outlier_exclusion_algo" json:"outlier_detection_algo"`
+	AdaptiveThresholdingOutlierExclusionSensitivity types.Float64                            `tfsdk:"adaptive_thresholding_outlier_exclusion_sensitivity" json:"outlier_detection_sensitivity"`
 
 	SecGrp   types.String   `tfsdk:"sec_grp" json:"sec_grp"`
 	Timeouts timeouts.Value `tfsdk:"timeouts"`
@@ -654,14 +654,9 @@ func populateKpiThresholdTemplateModel(_ context.Context, b *models.Base, tfMode
 		outlierExclusionEnabled = v.(bool)
 	}
 
-	outlierExclusionSensitivity := types.Float64Null()
-	if v, ok := interfaceMap["outlier_detection_sensitivity"]; ok {
-		outlierExclusionSensitivity = types.Float64Value(v.(float64))
-	}
-	if outlierExclusionEnabled {
-		outlierExclusionAlgo := interfaceMap["outlier_detection_algo"].(string)
-		tfModelKpiThresholdTemplate.AdaptiveThresholdingOutlierExclusionAlgo = types.StringValue(outlierExclusionAlgo)
-		tfModelKpiThresholdTemplate.AdaptiveThresholdingOutlierExclusionSensitivity = outlierExclusionSensitivity
+	if !outlierExclusionEnabled {
+		tfModelKpiThresholdTemplate.AdaptiveThresholdingOutlierExclusionAlgo = types.StringNull()
+		tfModelKpiThresholdTemplate.AdaptiveThresholdingOutlierExclusionSensitivity = types.Float64Null()
 	}
 
 	timeVariateThresholdsSpecificationData := interfaceMap["time_variate_thresholds_specification"].(map[string]interface{})
