@@ -374,7 +374,7 @@ func (r *resourceKpiThresholdTemplate) Schema(ctx context.Context, _ resource.Sc
 					* stdev - Standard Deviation
 					* iqr - Interquartile Range
 					* mad - Median Absolute Deviation
-					If set to null, outlier exlusion will be disabled.
+					If set to null, outlier exclusion will be disabled.
 				`),
 				Validators: []validator.String{
 					stringvalidator.OneOf("stdev", "iqr", "mad"),
