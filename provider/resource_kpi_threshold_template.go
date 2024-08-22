@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/hashicorp/terraform-plugin-framework-timeouts/resource/timeouts"
+	"github.com/hashicorp/terraform-plugin-framework-validators/float64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -36,15 +37,17 @@ func NewResourceKpiThresholdTemplate() resource.Resource {
 }
 
 type modelKpiThresholdTemplate struct {
-	ID                                 types.String                             `tfsdk:"id" json:"_key"`
-	Title                              types.String                             `tfsdk:"title" json:"title"`
-	Description                        types.String                             `tfsdk:"description" json:"description"`
-	AdaptiveThresholdingTrainingWindow types.String                             `tfsdk:"adaptive_thresholding_training_window" json:"adaptive_thresholding_training_window"`
-	TimeVariateThresholds              types.Bool                               `tfsdk:"time_variate_thresholds" json:"time_variate_thresholds"`
-	TimeVariateThresholdsSpecification *TimeVariateThresholdsSpecificationModel `tfsdk:"time_variate_thresholds_specification"`
-	AdaptiveThresholdsIsEnabled        types.Bool                               `tfsdk:"adaptive_thresholds_is_enabled" json:"adaptive_thresholds_is_enabled"`
-	SecGrp                             types.String                             `tfsdk:"sec_grp" json:"sec_grp"`
+	ID                                              types.String                             `tfsdk:"id" json:"_key"`
+	Title                                           types.String                             `tfsdk:"title" json:"title"`
+	Description                                     types.String                             `tfsdk:"description" json:"description"`
+	AdaptiveThresholdingTrainingWindow              types.String                             `tfsdk:"adaptive_thresholding_training_window" json:"adaptive_thresholding_training_window"`
+	TimeVariateThresholds                           types.Bool                               `tfsdk:"time_variate_thresholds" json:"time_variate_thresholds"`
+	TimeVariateThresholdsSpecification              *TimeVariateThresholdsSpecificationModel `tfsdk:"time_variate_thresholds_specification"`
+	AdaptiveThresholdsIsEnabled                     types.Bool                               `tfsdk:"adaptive_thresholds_is_enabled" json:"adaptive_thresholds_is_enabled"`
+	AdaptiveThresholdingOutlierExclusionAlgo        types.String                             `tfsdk:"adaptive_thresholding_outlier_exclusion_algo"`
+	AdaptiveThresholdingOutlierExclusionSensitivity types.Float64                            `tfsdk:"adaptive_thresholding_outlier_exclusion_sensitivity"`
 
+	SecGrp   types.String   `tfsdk:"sec_grp" json:"sec_grp"`
 	Timeouts timeouts.Value `tfsdk:"timeouts"`
 }
 
@@ -345,7 +348,6 @@ func (r *resourceKpiThresholdTemplate) Schema(ctx context.Context, _ resource.Sc
 			},
 			"title": schema.StringAttribute{
 				Required: true,
-				//ForceNew:    true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
@@ -364,6 +366,29 @@ func (r *resourceKpiThresholdTemplate) Schema(ctx context.Context, _ resource.Sc
 				Required:    true,
 				Description: "The earliest time for the Adaptive Threshold training algorithm to run over (latest time is always 'now') (e.g. '-7d')",
 			},
+			"adaptive_thresholding_outlier_exclusion_algo": schema.StringAttribute{
+				Optional: true,
+				Description: util.Dedent(`
+					Statistical method applied to identify outliers in the data.
+					Supported algorithms are:
+					* stdev - Standard Deviation
+					* iqr - Interquartile Range
+					* mad - Median Absolute Deviation
+					If set to null, outlier exlusion will be disabled.
+				`),
+				Validators: []validator.String{
+					stringvalidator.OneOf("stdev", "iqr", "mad"),
+					stringvalidator.AlsoRequires(path.Root("adaptive_thresholding_outlier_exclusion_sensitivity").Expression()),
+				},
+			},
+			"adaptive_thresholding_outlier_exclusion_sensitivity": schema.Float64Attribute{
+				Optional:    true,
+				Description: "Sensitivity of the algorithm selected to identify outliers.",
+				Validators: []validator.Float64{
+					float64validator.Between(0.1, 30.0),
+					float64validator.AlsoRequires(path.Root("adaptive_thresholding_outlier_exclusion_algo").Expression()),
+				},
+			},
 			"time_variate_thresholds": schema.BoolAttribute{
 				Required:    true,
 				Description: "If true, thresholds for alerts are pulled from time_variate_thresholds_specification.",
@@ -371,7 +396,7 @@ func (r *resourceKpiThresholdTemplate) Schema(ctx context.Context, _ resource.Sc
 			"sec_grp": schema.StringAttribute{
 				Optional:    true,
 				Computed:    true,
-				Description: "The team the object belongs to. ",
+				Description: "The team the object belongs to.",
 				Default:     stringdefault.StaticString(itsiDefaultSecurityGroup),
 			},
 		},
@@ -555,6 +580,18 @@ func kpiThresholdTemplate(ctx context.Context, tfKpiThresholdTemplate modelKpiTh
 	diags = append(diags, unmarshalBasicTypesByTag("json", &tfKpiThresholdTemplate, body)...)
 	body["objectType"] = "kpi_threshold_template"
 
+	outlierExclusionAlgo := tfKpiThresholdTemplate.AdaptiveThresholdingOutlierExclusionAlgo.ValueString()
+	outlierExclusionEnabled := !tfKpiThresholdTemplate.AdaptiveThresholdingOutlierExclusionAlgo.IsNull()
+	body["aggregate_outlier_detection_enabled"] = outlierExclusionEnabled
+
+	if !tfKpiThresholdTemplate.AdaptiveThresholdingOutlierExclusionSensitivity.IsNull() {
+		body["outlier_detection_sensitivity"] = tfKpiThresholdTemplate.AdaptiveThresholdingOutlierExclusionSensitivity.ValueFloat64()
+	}
+
+	if outlierExclusionEnabled {
+		body["outlier_detection_algo"] = outlierExclusionAlgo
+	}
+
 	policies := map[string]interface{}{}
 	if tfKpiThresholdTemplate.TimeVariateThresholdsSpecification != nil {
 		for _, tfpolicy := range tfKpiThresholdTemplate.TimeVariateThresholdsSpecification.Policies {
@@ -611,6 +648,21 @@ func populateKpiThresholdTemplateModel(_ context.Context, b *models.Base, tfMode
 	diags = append(diags, marshalBasicTypesByTag("json", interfaceMap, tfModelKpiThresholdTemplate)...)
 
 	tfPolicies := []PolicyModel{}
+
+	outlierExclusionEnabled := false
+	if v, ok := interfaceMap["aggregate_outlier_detection_enabled"]; ok {
+		outlierExclusionEnabled = v.(bool)
+	}
+
+	outlierExclusionSensitivity := types.Float64Null()
+	if v, ok := interfaceMap["outlier_detection_sensitivity"]; ok {
+		outlierExclusionSensitivity = types.Float64Value(v.(float64))
+	}
+	if outlierExclusionEnabled {
+		outlierExclusionAlgo := interfaceMap["outlier_detection_algo"].(string)
+		tfModelKpiThresholdTemplate.AdaptiveThresholdingOutlierExclusionAlgo = types.StringValue(outlierExclusionAlgo)
+		tfModelKpiThresholdTemplate.AdaptiveThresholdingOutlierExclusionSensitivity = outlierExclusionSensitivity
+	}
 
 	timeVariateThresholdsSpecificationData := interfaceMap["time_variate_thresholds_specification"].(map[string]interface{})
 	for policyName, pData := range timeVariateThresholdsSpecificationData["policies"].(map[string]interface{}) {
