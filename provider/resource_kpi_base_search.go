@@ -580,7 +580,7 @@ func (r *resourceKpiBaseSearch) Update(ctx context.Context, req resource.UpdateR
 	}
 
 	timeouts := plan.Timeouts
-	updateTimeout, diags := timeouts.Create(ctx, tftimeout.Update)
+	updateTimeout, diags := timeouts.Update(ctx, tftimeout.Update)
 	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
 		return
 	}
@@ -616,7 +616,7 @@ func (r *resourceKpiBaseSearch) Delete(ctx context.Context, req resource.DeleteR
 	var state KpiBaseSearchState
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 
-	deleteTimeout, diags := state.Timeouts.Create(ctx, tftimeout.Delete)
+	deleteTimeout, diags := state.Timeouts.Delete(ctx, tftimeout.Delete)
 	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
 		return
 	}

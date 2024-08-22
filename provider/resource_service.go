@@ -524,7 +524,7 @@ func (r *resourceService) Update(ctx context.Context, req resource.UpdateRequest
 
 	r.remapAttributes(ctx, tfReq, tfResp)
 
-	updateTimeout, diags := plan.Timeouts.Create(ctx, tftimeout.Update)
+	updateTimeout, diags := plan.Timeouts.Update(ctx, tftimeout.Update)
 	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
 		return
 	}
@@ -556,7 +556,7 @@ func (r *resourceService) Delete(ctx context.Context, req resource.DeleteRequest
 	var state ServiceState
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 
-	deleteTimeout, diags := state.Timeouts.Create(ctx, tftimeout.Delete)
+	deleteTimeout, diags := state.Timeouts.Delete(ctx, tftimeout.Delete)
 	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
 		return
 	}

@@ -492,7 +492,7 @@ func (r *resourceKpiThresholdTemplate) Update(ctx context.Context, req resource.
 		return
 	}
 
-	updateTimeout, diags := plan.Timeouts.Create(ctx, tftimeout.Update)
+	updateTimeout, diags := plan.Timeouts.Update(ctx, tftimeout.Update)
 	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
 		return
 	}
@@ -554,7 +554,7 @@ func (r *resourceKpiThresholdTemplate) Delete(ctx context.Context, req resource.
 		return
 	}
 
-	deleteTimeout, diags := state.Timeouts.Create(ctx, tftimeout.Delete)
+	deleteTimeout, diags := state.Timeouts.Delete(ctx, tftimeout.Delete)
 	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
 		return
 	}

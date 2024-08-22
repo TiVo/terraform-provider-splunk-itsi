@@ -308,7 +308,7 @@ func (r *resourceCollection) Update(ctx context.Context, req resource.UpdateRequ
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	tflog.Trace(ctx, "collection_resource Update - Parsed req config", map[string]interface{}{"config": config, "plan": plan})
 
-	updateTimeout, diags := plan.Timeouts.Create(ctx, tftimeout.Update)
+	updateTimeout, diags := plan.Timeouts.Update(ctx, tftimeout.Update)
 	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
 		return
 	}
@@ -330,7 +330,7 @@ func (r *resourceCollection) Delete(ctx context.Context, req resource.DeleteRequ
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	tflog.Trace(ctx, "collection_resource Delete - Parsed req state", map[string]interface{}{"state": state})
 
-	deleteTimeout, diags := state.Timeouts.Create(ctx, tftimeout.Delete)
+	deleteTimeout, diags := state.Timeouts.Delete(ctx, tftimeout.Delete)
 	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
 		return
 	}

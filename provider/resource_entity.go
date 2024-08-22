@@ -341,7 +341,7 @@ func (r *resourceEntity) Update(ctx context.Context, req resource.UpdateRequest,
 		return
 	}
 
-	updateTimeout, diags := plan.Timeouts.Create(ctx, tftimeout.Update)
+	updateTimeout, diags := plan.Timeouts.Update(ctx, tftimeout.Update)
 	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
 		return
 	}
@@ -369,7 +369,7 @@ func (r *resourceEntity) Delete(ctx context.Context, req resource.DeleteRequest,
 	var state entityModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 
-	deleteTimeout, diags := state.Timeouts.Create(ctx, tftimeout.Delete)
+	deleteTimeout, diags := state.Timeouts.Delete(ctx, tftimeout.Delete)
 	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
 		return
 	}
