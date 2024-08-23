@@ -169,6 +169,19 @@ func TestAccResourceKPIThresholdTemplateLifecycle(t *testing.T) {
 					},
 				},
 			},
+			{
+				ProtoV6ProviderFactories: providerFactories,
+				ConfigDirectory:          config.TestStepDirectory(),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("itsi_kpi_threshold_template.test", "adaptive_thresholding_outlier_exclusion_algo", "mad"),
+					resource.TestCheckResourceAttr("itsi_kpi_threshold_template.test", "adaptive_thresholding_outlier_exclusion_sensitivity", "15.1"),
+				),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PostApplyPostRefresh: []plancheck.PlanCheck{
+						plancheck.ExpectEmptyPlan(),
+					},
+				},
+			},
 		},
 	})
 }

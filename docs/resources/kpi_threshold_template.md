@@ -241,6 +241,13 @@ resource "itsi_kpi_threshold_template" "static" {
 
 ### Optional
 
+- `adaptive_thresholding_outlier_exclusion_algo` (String) Statistical method applied to identify outliers in the data.
+Supported algorithms are:
+* stdev - Standard Deviation
+* iqr - Interquartile Range
+* mad - Median Absolute Deviation
+If set to null, outlier exclusion will be disabled.
+- `adaptive_thresholding_outlier_exclusion_sensitivity` (Number) Sensitivity of the algorithm selected to identify outliers.
 - `description` (String) User-defined description for the kpi Threshold Template.
 - `sec_grp` (String) The team the object belongs to.
 - `time_variate_thresholds_specification` (Block, Optional) (see [below for nested schema](#nestedblock--time_variate_thresholds_specification))
