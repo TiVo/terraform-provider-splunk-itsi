@@ -1,2 +1,2 @@
-go 1.22
-goreleaser 2.1.0
+go 1.23
+goreleaser 2.2.0
