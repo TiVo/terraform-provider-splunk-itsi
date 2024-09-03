@@ -456,7 +456,11 @@ func (r *resourceService) Read(ctx context.Context, req resource.ReadRequest, re
 		return
 	}
 	if b == nil || b.RawJson == nil {
-		resp.Diagnostics.Append(resp.State.Set(ctx, &ServiceState{})...)
+		nullState := &ServiceState{
+			Timeouts: state.Timeouts,
+			Tags:     types.SetNull(types.StringType),
+		}
+		resp.Diagnostics.Append(resp.State.Set(ctx, nullState)...)
 		return
 	}
 
@@ -541,12 +545,30 @@ func (r *resourceService) Update(ctx context.Context, req resource.UpdateRequest
 		return
 	}
 	if existing == nil {
-		resp.Diagnostics.AddError("Unable to update Service", "service not found")
-		return
-	}
-	diags = base.UpdateAsync(ctx)
-	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
-		return
+		resp.Diagnostics.AddWarning("Service was not found on the update. Probably it was deleted in the UI.", "Creating...")
+		base, err := base.Create(ctx)
+		if err != nil {
+			resp.Diagnostics.AddError("Unable to create Service", err.Error())
+			return
+		}
+
+		plan.ID = types.StringValue(base.RESTKey)
+		timeouts := plan.Timeouts
+
+		base, err = base.Read(ctx)
+		if err != nil {
+			resp.Diagnostics.AddError("Unable to update Service", err.Error())
+			return
+		}
+		plan, diags = serviceModelFromBase(ctx, base)
+		plan.Timeouts = timeouts
+
+	} else {
+		diags = base.UpdateAsync(ctx)
+		if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
+			return
+		}
+
 	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
