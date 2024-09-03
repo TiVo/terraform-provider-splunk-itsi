@@ -1,16 +1,19 @@
 package provider
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"testing"
 
+	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-testing/config"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/knownvalue"
 	"github.com/hashicorp/terraform-plugin-testing/plancheck"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
 	"github.com/hashicorp/terraform-plugin-testing/tfjsonpath"
+	"github.com/tivo/terraform-provider-splunk-itsi/models"
 	"github.com/tivo/terraform-provider-splunk-itsi/provider/util"
 )
 
@@ -236,6 +239,82 @@ func testCheckServiceDependsOnMatch(t *testing.T, child_name string, expected_ov
 		}
 		return fmt.Errorf("shkpi_id mismatch: Missing shkpi_id %s\n", leafKPIID)
 	}
+
+}
+
+func TestAccResourceServiceDeletedInUI(t *testing.T) {
+	t.Parallel()
+	resource.Test(t, resource.TestCase{
+		PreCheck: func() { testAccPreCheck(t) },
+		CheckDestroy: resource.ComposeTestCheckFunc(
+			testAccCheckResourceDestroy(resourceNameService, "TestAcc_ResourceServiceDeletedInUI_service"),
+			testAccCheckResourceDestroy(resourceNameKPIBaseSearch, "TestAcc_ResourceServiceDeletedInUI_helper_kpi_bs"),
+			testAccCheckResourceDestroy(resourceNameKPIThresholdTemplate, "TestAcc_ResourceServiceDeletedInUI_helper_threshold_template"),
+		),
+		Steps: []resource.TestStep{
+			{
+				ProtoV6ProviderFactories: providerFactories,
+				ConfigDirectory:          config.TestStepDirectory(),
+				Check:                    resource.ComposeTestCheckFunc(),
+			},
+			{
+				ProtoV6ProviderFactories: providerFactories,
+				ConfigDirectory:          config.TestStepDirectory(),
+				SkipFunc: func() (bool, error) {
+					return true, emulateUiDelete(t, "TestAcc_ResourceServiceDeletedInUI_service", "service")
+				},
+			},
+			{
+				ProtoV6ProviderFactories: providerFactories,
+				ConfigDirectory:          config.TestStepDirectory(),
+				Check:                    resource.ComposeTestCheckFunc(),
+				ExpectNonEmptyPlan:       true,
+			},
+			{
+				ProtoV6ProviderFactories: providerFactories,
+				ConfigDirectory:          config.TestStepDirectory(),
+				Check:                    resource.ComposeTestCheckFunc(),
+			},
+		},
+	})
+}
+
+func emulateUiDelete(t *testing.T, title string, object_type string) error {
+	ctx := context.Background()
+	t.Logf("Skip function, emulating removing from UI.")
+	client := configureTestClient()
+	base := models.NewBase(client, "", title, "service")
+	base, err := base.Find(ctx)
+	if err != nil {
+		t.Logf("%s %s not found: %s", object_type, title, err.Error())
+		return err
+	}
+
+	t.Logf("Firing the search")
+	diags := base.Delete(ctx)
+	if diags.HasError() {
+		t.Logf("%s %s failed to delete: %s", object_type, title, diags[0].Summary())
+		return fmt.Errorf(diags[0].Summary())
+	}
+	t.Logf("%s %s was deleted successfully", object_type, title)
+	return nil
+
+}
+
+func configureTestClient() models.ClientConfig {
+	client := models.ClientConfig{}
+	insecure := configBoolValueWithEnvFallback(types.BoolNull(), envITSIInsecure)
+	client.BearerToken = configStringValueWithEnvFallback(types.StringNull(), envITSIAccessToken)
+	client.User = configStringValueWithEnvFallback(types.StringNull(), envITSIUser)
+	client.Password = configStringValueWithEnvFallback(types.StringNull(), envITSIPassword)
+	client.Host = configStringValueWithEnvFallback(types.StringNull(), envITSIHost)
+	client.Port = int(configIntValueWithEnvFallback(types.Int64Null(), envITSIPort))
+	client.Timeout = defaultTimeout
+	client.SkipTLS = insecure
+	client.RetryPolicy = retryPolicy
+	client.Concurrency = clientConcurrency
+
+	return client
 
 }
 
@@ -593,6 +672,11 @@ func SaveKpiIds(t *testing.T) resource.TestCheckFunc {
 
 		return nil
 	}
+}
+
+var SERVICE_TO_DELETE struct {
+	Title string
+	ID    string
 }
 
 // func Sleep(t *testing.T, d time.Duration) resource.TestCheckFunc {
