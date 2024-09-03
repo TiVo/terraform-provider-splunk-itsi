@@ -268,7 +268,6 @@ func TestAccResourceServiceDeletedInUI(t *testing.T) {
 				ProtoV6ProviderFactories: providerFactories,
 				ConfigDirectory:          config.TestStepDirectory(),
 				Check:                    resource.ComposeTestCheckFunc(),
-				ExpectNonEmptyPlan:       true,
 			},
 			{
 				ProtoV6ProviderFactories: providerFactories,
