@@ -550,13 +550,16 @@ func (r *resourceKpiBaseSearch) Read(ctx context.Context, req resource.ReadReque
 	defer cancel()
 
 	base := kpiBaseSearchBase(r.client, state.ID.ValueString(), state.Title.ValueString())
-	b, err := base.Find(ctx)
+	b, err := base.Read(ctx)
 	if err != nil {
 		resp.Diagnostics.AddError("Unable to read KPI Base Search", err.Error())
 		return
 	}
 	if b == nil || b.RawJson == nil {
-		resp.Diagnostics.Append(resp.State.Set(ctx, &KpiBaseSearchState{})...)
+		nullState := &KpiBaseSearchState{
+			Timeouts: timeouts,
+		}
+		resp.Diagnostics.Append(resp.State.Set(ctx, nullState)...)
 		return
 	}
 
@@ -571,6 +574,7 @@ func (r *resourceKpiBaseSearch) Read(ctx context.Context, req resource.ReadReque
 
 func (r *resourceKpiBaseSearch) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	var plan KpiBaseSearchState
+	//var base *models.Base
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 
 	base, diags := newAPIBuilder(r.client, new(kpiBaseSearchBuildWorkflow)).build(ctx, plan)
@@ -593,15 +597,17 @@ func (r *resourceKpiBaseSearch) Update(ctx context.Context, req resource.UpdateR
 		return
 	}
 	if existing == nil {
-		resp.Diagnostics.AddError("Unable to update KPI Base Search", "KPI Base Search not found")
-		return
+		base, err = base.Create(ctx)
+		if err != nil {
+			resp.Diagnostics.AddError("Unable to create Kpi Base Search", err.Error())
+			return
+		}
+	} else {
+		diags = base.UpdateAsync(ctx)
+		if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
+			return
+		}
 	}
-
-	diags = base.UpdateAsync(ctx)
-	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
-		return
-	}
-
 	// populate computed fields
 	state, diags := newAPIParser(base, new(kpiBaseSearchParseWorkflow)).parse(ctx, base)
 	if resp.Diagnostics.Append(diags...); diags.HasError() {

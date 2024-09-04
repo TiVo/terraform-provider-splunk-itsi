@@ -261,7 +261,7 @@ func TestAccResourceServiceDeletedInUI(t *testing.T) {
 				ProtoV6ProviderFactories: providerFactories,
 				ConfigDirectory:          config.TestStepDirectory(),
 				SkipFunc: func() (bool, error) {
-					return true, emulateUiDelete(t, "TestAcc_ResourceServiceDeletedInUI_service", "service")
+					return true, EmulateUiDelete(t, "TestAcc_ResourceServiceDeletedInUI_service", "service")
 				},
 			},
 			{
@@ -278,11 +278,11 @@ func TestAccResourceServiceDeletedInUI(t *testing.T) {
 	})
 }
 
-func emulateUiDelete(t *testing.T, title string, object_type string) error {
+func EmulateUiDelete(t *testing.T, title string, object_type string) error {
 	ctx := context.Background()
 	t.Logf("Skip function, emulating removing from UI.")
 	client := configureTestClient()
-	base := models.NewBase(client, "", title, "service")
+	base := models.NewBase(client, "", title, object_type)
 	base, err := base.Find(ctx)
 	if err != nil {
 		t.Logf("%s %s not found: %s", object_type, title, err.Error())
