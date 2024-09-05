@@ -154,7 +154,7 @@ func getKpiThresholdSettingsBlocksAttrs() (map[string]schema.Block, map[string]s
 }
 
 func kpiThresholdSettingsToModel(attrName string, apiThresholdSetting map[string]interface{}, tfthresholdSettingModel *ThresholdSettingModel, settingType string) (diags diag.Diagnostics) {
-	diags.Append(marshalBasicTypesByTag("json", apiThresholdSetting, tfthresholdSettingModel)...)
+	diags.Append(unmarshalBasicTypesByTag("json", apiThresholdSetting, tfthresholdSettingModel)...)
 
 	thresholdLevels := []KpiThresholdLevelModel{}
 	for _, tData_ := range apiThresholdSetting["thresholdLevels"].([]interface{}) {
@@ -168,7 +168,7 @@ func kpiThresholdSettingsToModel(attrName string, apiThresholdSetting map[string
 			}
 			tData["dynamicParam"] = 0
 		}
-		diags.Append(marshalBasicTypesByTag("json", tData, thresholdLevel)...)
+		diags.Append(unmarshalBasicTypesByTag("json", tData, thresholdLevel)...)
 		thresholdLevels = append(thresholdLevels, *thresholdLevel)
 	}
 	tfthresholdSettingModel.ThresholdLevels = thresholdLevels
@@ -178,7 +178,7 @@ func kpiThresholdSettingsToModel(attrName string, apiThresholdSetting map[string
 func kpiThresholdThresholdSettingsAttributesToPayload(_ context.Context, source ThresholdSettingModel) (interface{}, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	thresholdSetting := map[string]interface{}{}
-	diags.Append(unmarshalBasicTypesByTag("json", &source, thresholdSetting)...)
+	diags.Append(marshalBasicTypesByTag("json", &source, thresholdSetting)...)
 
 	if severity, ok := util.SeverityMap[source.BaseSeverityLabel.ValueString()]; ok {
 		thresholdSetting["baseSeverityColor"] = severity.SeverityColor
@@ -578,7 +578,7 @@ func (r *resourceKpiThresholdTemplate) Delete(ctx context.Context, req resource.
 
 func kpiThresholdTemplate(ctx context.Context, tfKpiThresholdTemplate modelKpiThresholdTemplate, clientConfig models.ClientConfig) (config *models.Base, diags diag.Diagnostics) {
 	body := map[string]interface{}{}
-	diags = append(diags, unmarshalBasicTypesByTag("json", &tfKpiThresholdTemplate, body)...)
+	diags = append(diags, marshalBasicTypesByTag("json", &tfKpiThresholdTemplate, body)...)
 	body["objectType"] = "kpi_threshold_template"
 
 	outlierExclusionAlgo := tfKpiThresholdTemplate.AdaptiveThresholdingOutlierExclusionAlgo.ValueString()
@@ -646,7 +646,7 @@ func populateKpiThresholdTemplateModel(_ context.Context, b *models.Base, tfMode
 	if err != nil {
 		diags.AddError("Failed to populate interfaceMap.", err.Error())
 	}
-	diags = append(diags, marshalBasicTypesByTag("json", interfaceMap, tfModelKpiThresholdTemplate)...)
+	diags = append(diags, unmarshalBasicTypesByTag("json", interfaceMap, tfModelKpiThresholdTemplate)...)
 
 	tfPolicies := []PolicyModel{}
 

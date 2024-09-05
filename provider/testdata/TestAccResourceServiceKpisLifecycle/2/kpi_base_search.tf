@@ -88,4 +88,17 @@ resource "itsi_kpi_base_search" "test_kpis_linked_kpibs_2" {
     title                    = "metric 2.2"
     unit                     = "%"
   }
+  metrics {
+    aggregate_statop         = "sum"
+    entity_statop            = "sum"
+    fill_gaps                = "null_value"
+    gap_custom_alert_value   = 0
+    gap_severity             = "unknown"
+    gap_severity_color       = "#CCCCCC"
+    gap_severity_color_light = "#EEEEEE"
+    gap_severity_value       = "-1"
+    threshold_field          = "errors"
+    title                    = "metric 2.3"
+    unit                     = "%"
+  }
 }

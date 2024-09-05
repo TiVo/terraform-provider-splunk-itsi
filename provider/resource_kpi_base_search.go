@@ -265,7 +265,7 @@ func (w *kpiBaseSearchBuildWorkflow) buildSteps() []apibuildWorkflowStepFunc[Kpi
 func (w *kpiBaseSearchBuildWorkflow) basics(ctx context.Context, obj KpiBaseSearchState) (map[string]any, diag.Diagnostics) {
 
 	body := map[string]interface{}{}
-	diags := unmarshalBasicTypesByTag("json", &obj, body)
+	diags := marshalBasicTypesByTag("json", &obj, body)
 
 	body["objectType"] = itsiResourceKpiBaseSearch
 	return body, diags
@@ -282,7 +282,7 @@ func (w *kpiBaseSearchBuildWorkflow) metrics(ctx context.Context, obj KpiBaseSea
 			id, _ := uuid.GenerateUUID()
 			metricState.ID = types.StringValue(id)
 		}
-		diags := unmarshalBasicTypesByTag("json", &metricState, metric)
+		diags := marshalBasicTypesByTag("json", &metricState, metric)
 		if diags.HasError() {
 			return nil, diags
 		}
@@ -308,7 +308,7 @@ func (w *kpiBaseSearchParseWorkflow) parseSteps() []apiparseWorkflowStepFunc[Kpi
 }
 
 func (w *kpiBaseSearchParseWorkflow) basics(ctx context.Context, fields map[string]any, res *KpiBaseSearchState) (diags diag.Diagnostics) {
-	return marshalBasicTypesByTag("json", fields, res)
+	return unmarshalBasicTypesByTag("json", fields, res)
 }
 
 func (w *kpiBaseSearchParseWorkflow) metrics(ctx context.Context, fields map[string]any, res *KpiBaseSearchState) (diags diag.Diagnostics) {
@@ -321,7 +321,7 @@ func (w *kpiBaseSearchParseWorkflow) metrics(ctx context.Context, fields map[str
 		metricStates := []Metric{}
 		for _, metric := range metrics {
 			metricState := Metric{}
-			diags = append(diags, marshalBasicTypesByTag("json", metric, &metricState)...)
+			diags = append(diags, unmarshalBasicTypesByTag("json", metric, &metricState)...)
 			if diags.HasError() {
 				return
 			}
@@ -606,7 +606,6 @@ func (r *resourceKpiBaseSearch) Update(ctx context.Context, req resource.UpdateR
 	// populate computed fields
 	state, diags := newAPIParser(base, new(kpiBaseSearchParseWorkflow)).parse(ctx, base)
 	if resp.Diagnostics.Append(diags...); diags.HasError() {
-		resp.Diagnostics.AddError("Unable to parse computed fields from Kpi Base Search", err.Error())
 		return
 	}
 	state.Timeouts = timeouts

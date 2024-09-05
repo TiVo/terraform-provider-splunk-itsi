@@ -115,10 +115,10 @@ func Escape(name string) (string, error) {
 	return name, nil
 }
 
-func (rt *resourceTemplate) displayData(f interface{}) string {
+func (rt *resourceTemplate) displayData(f any) string {
 	field := f.(string)
 
-	var value interface{}
+	var value any
 	var ok bool
 
 	switch rt.Schema[field].Type {
@@ -136,7 +136,7 @@ func (rt *resourceTemplate) displayData(f interface{}) string {
 	return ""
 }
 
-func (rt *resourceTemplate) display(index string, element interface{}, sc *schema.Schema, ndepth int) string {
+func (rt *resourceTemplate) display(index string, element any, sc *schema.Schema, ndepth int) string {
 	if element == nil {
 		return ""
 	}
@@ -270,8 +270,8 @@ func (rt *resourceTemplate) display(index string, element interface{}, sc *schem
 	}
 }
 
-func mapSubset[T comparable](m map[T]interface{}, keys []T) map[T]interface{} {
-	ms := make(map[T]interface{})
+func mapSubset[T comparable](m map[T]any, keys []T) map[T]any {
+	ms := make(map[T]any)
 	for _, k := range keys {
 		if v, ok := m[k]; ok {
 			ms[k] = v
@@ -280,7 +280,7 @@ func mapSubset[T comparable](m map[T]interface{}, keys []T) map[T]interface{} {
 	return ms
 }
 
-func unpackMap[T any](in map[string]interface{}) (map[string]T, error) {
+func unpackMap[T any](in map[string]any) (map[string]T, error) {
 	out := make(map[string]T)
 	for k, v := range in {
 		res, ok := v.(T)
@@ -294,8 +294,8 @@ func unpackMap[T any](in map[string]interface{}) (map[string]T, error) {
 	return out, nil
 }
 
-func unpackSlice[T any](in interface{}) ([]T, error) {
-	slice, ok := in.([]interface{})
+func unpackSlice[T any](in any) ([]T, error) {
+	slice, ok := in.([]any)
 	if !ok {
 		return nil, fmt.Errorf("failed to unpack %#v to []%T ", in, *new(T))
 	}
@@ -311,7 +311,7 @@ func unpackSlice[T any](in interface{}) ([]T, error) {
 	return out, nil
 }
 
-func unmarshalBasicTypesByTag(tag string, in any, out map[string]interface{}) (diags diag.Diagnostics) {
+func marshalBasicTypesByTag(tag string, in any, out map[string]any) (diags diag.Diagnostics) {
 	t := reflect.TypeOf(in).Elem()
 	v := reflect.ValueOf(in).Elem()
 
@@ -339,7 +339,7 @@ func unmarshalBasicTypesByTag(tag string, in any, out map[string]interface{}) (d
 	}
 	return
 }
-func marshalBasicTypesByTag(tag string, in map[string]interface{}, out any) (diags diag.Diagnostics) {
+func unmarshalBasicTypesByTag(tag string, in map[string]any, out any) (diags diag.Diagnostics) {
 
 	t := reflect.TypeOf(out).Elem()
 	v := reflect.ValueOf(out).Elem()

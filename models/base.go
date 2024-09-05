@@ -656,7 +656,7 @@ func (b *Base) Dump(ctx context.Context, query_params *Parameters) ([]*Base, err
 		params.Add("count", strconv.Itoa(query_params.Count))
 		params.Add("offset", strconv.Itoa(query_params.Offset))
 	}
-	if query_params.Fields != nil && len(query_params.Fields) > 0 {
+	if len(query_params.Fields) > 0 {
 		params.Add("fields", strings.Join(query_params.Fields, ","))
 	}
 	if query_params.Filter != "" {

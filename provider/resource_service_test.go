@@ -474,6 +474,7 @@ func TestAccResourceServiceKpisLifecycle(t *testing.T) {
 			testAccCheckResourceDestroy(resourceNameKPIThresholdTemplate, "TestAcc_ResourceServiceKpisLifecycle_stdev_test_linked_kpi_threshold_template_1"),
 		),
 		Steps: []resource.TestStep{
+			// 1.
 			{
 				ProtoV6ProviderFactories: providerFactories,
 				ConfigDirectory:          config.TestStepDirectory(),
@@ -505,7 +506,7 @@ func TestAccResourceServiceKpisLifecycle(t *testing.T) {
 					SaveKpiIds(t),
 				),
 			},
-			// add kpi
+			// 2. add 2 kpis - 1 with threshold template and 1 configured for AI-recommended thresholds
 			{
 				ProtoV6ProviderFactories: providerFactories,
 				ConfigDirectory:          config.TestStepDirectory(),
@@ -521,7 +522,7 @@ func TestAccResourceServiceKpisLifecycle(t *testing.T) {
 					},
 				},
 				Check: resource.ComposeTestCheckFunc(
-					resource.TestCheckResourceAttr("itsi_service.test_kpis", "kpi.#", "4"),
+					resource.TestCheckResourceAttr("itsi_service.test_kpis", "kpi.#", "5"),
 					resource.TestCheckResourceAttrWith("itsi_service.test_kpis", "kpi.0.id", verifyKpiId(t, 0)),
 					resource.TestCheckResourceAttr("itsi_service.test_kpis", "kpi.0.title", "KPI 1"),
 					resource.TestCheckResourceAttr("itsi_service.test_kpis", "kpi.0.base_search_metric", "metric 1.1"),
@@ -546,10 +547,19 @@ func TestAccResourceServiceKpisLifecycle(t *testing.T) {
 					resource.TestCheckResourceAttrSet("itsi_service.test_kpis", "kpi.3.base_search_id"),
 					resource.TestCheckResourceAttrSet("itsi_service.test_kpis", "kpi.3.threshold_template_id"),
 
+					resource.TestCheckResourceAttrSet("itsi_service.test_kpis", "kpi.4.id"),
+					resource.TestCheckResourceAttr("itsi_service.test_kpis", "kpi.4.title", "KPI 5"),
+					resource.TestCheckResourceAttr("itsi_service.test_kpis", "kpi.4.base_search_metric", "metric 2.3"),
+					resource.TestCheckResourceAttrSet("itsi_service.test_kpis", "kpi.4.base_search_id"),
+					resource.TestCheckNoResourceAttr("itsi_service.test_kpis", "kpi.4.threshold_template_id"),
+					resource.TestCheckResourceAttr("itsi_service.test_kpis", "kpi.4.ml_thresholding.0.direction", "both"),
+					resource.TestCheckResourceAttr("itsi_service.test_kpis", "kpi.4.ml_thresholding.0.start_date", "2024-08-10T21:58:36Z"),
+					resource.TestCheckResourceAttr("itsi_service.test_kpis", "kpi.4.ml_thresholding.0.training_window", "-30d"),
+
 					SaveKpiIds(t),
 					//Sleep(t, 30*time.Second),
 				),
-			}, // change metric of KPI 1 (ID regenerated), unit & description of KPI 2 (ID should stay the same), remove KPI 3
+			}, // 3. change metric of KPI 1 (ID regenerated), unit & description of KPI 2 (ID should stay the same), remove KPIs 3 and 5
 			{
 				ProtoV6ProviderFactories: providerFactories,
 				ConfigDirectory:          config.TestStepDirectory(),
@@ -588,7 +598,7 @@ func TestAccResourceServiceKpisLifecycle(t *testing.T) {
 					resource.TestCheckResourceAttrSet("itsi_service.test_kpis", "kpi.2.base_search_id"),
 					resource.TestCheckResourceAttrSet("itsi_service.test_kpis", "kpi.2.threshold_template_id"),
 				),
-			}, // remove description of KPI 2
+			}, // 4. remove description of KPI 2
 			{
 				ProtoV6ProviderFactories: providerFactories,
 				ConfigDirectory:          config.TestStepDirectory(),
@@ -598,7 +608,7 @@ func TestAccResourceServiceKpisLifecycle(t *testing.T) {
 					},
 				},
 			},
-			// remove kpis
+			// 5. remove kpis
 			{
 				ProtoV6ProviderFactories: providerFactories,
 				ConfigDirectory:          config.TestStepDirectory(),

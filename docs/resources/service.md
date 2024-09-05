@@ -141,6 +141,7 @@ Required:
 Optional:
 
 - `description` (String) User-defined description for the KPI.
+- `ml_thresholding` (Block List) Configuration for AI-driven KPI Analysis (see [below for nested schema](#nestedblock--kpi--ml_thresholding))
 - `search_type` (String)
 - `threshold_template_id` (String)
 - `type` (String) Could be kpis_primary.
@@ -150,6 +151,16 @@ Read-Only:
 
 - `id` (String) id (splunk _key) is automatically generated sha1 string, from base_search_id & metric_id seed,
 							concatenated with serviceId.
+
+<a id="nestedblock--kpi--ml_thresholding"></a>
+### Nested Schema for `kpi.ml_thresholding`
+
+Required:
+
+- `direction` (String) Determines if the KPI should stay above a certain level, below a certain level, or constrained to a specific range. Takes values 'both', 'lower' or 'upper'.
+- `start_date` (String) timestamp in [RFC3339](https://datatracker.ietf.org/doc/html/rfc3339#section-5.8) format (see [RFC3339 time string](https://tools.ietf.org/html/rfc3339#section-5.8) e.g., `YYYY-MM-DDTHH:MM:SSZ`).
+- `training_window` (String) Time window over which the thresholding recommendation should run. Same window will be used as the training window for adaptive thresholding. Takes values '-7d', '-14d', '-30d', '-60d'.
+
 
 
 <a id="nestedblock--service_depends_on"></a>
