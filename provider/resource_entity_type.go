@@ -969,6 +969,7 @@ func (r *resourceEntityType) Update(ctx context.Context, req resource.UpdateRequ
 		return
 	}
 	if existing == nil {
+		resp.Diagnostics.AddWarning("Entity Type was not found on the update. Probably it was deleted in the UI.", "Creating...")
 		base, diags := newAPIBuilder(r.client, new(entityTypeBuildWorkflow)).build(ctx, plan)
 		if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
 			return

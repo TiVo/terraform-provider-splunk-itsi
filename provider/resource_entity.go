@@ -360,6 +360,7 @@ func (r *resourceEntity) Update(ctx context.Context, req resource.UpdateRequest,
 		return
 	}
 	if existing == nil {
+		resp.Diagnostics.AddWarning("Entity was not found on the update. Probably it was deleted in the UI.", "Creating...")
 		base, err := base.Create(ctx)
 		if err != nil {
 			resp.Diagnostics.AddError("Unable to create entity", err.Error())

@@ -1441,6 +1441,8 @@ func (r *resourceNEAP) Update(ctx context.Context, req resource.UpdateRequest, r
 		return
 	}
 	if existing == nil {
+		resp.Diagnostics.AddWarning("NEAP Threshold Template was not found on the update. Probably it was deleted in the UI.", "Creating...")
+
 		base, err = base.Create(ctx)
 		if err != nil {
 			resp.Diagnostics.AddError("Unable to create NEAP", err.Error())

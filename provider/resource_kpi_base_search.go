@@ -574,7 +574,6 @@ func (r *resourceKpiBaseSearch) Read(ctx context.Context, req resource.ReadReque
 
 func (r *resourceKpiBaseSearch) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	var plan KpiBaseSearchState
-	//var base *models.Base
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 
 	base, diags := newAPIBuilder(r.client, new(kpiBaseSearchBuildWorkflow)).build(ctx, plan)
@@ -597,6 +596,7 @@ func (r *resourceKpiBaseSearch) Update(ctx context.Context, req resource.UpdateR
 		return
 	}
 	if existing == nil {
+		resp.Diagnostics.AddWarning("KPI Base Search was not found on the update. Probably it was deleted in the UI.", "Creating...")
 		base, err = base.Create(ctx)
 		if err != nil {
 			resp.Diagnostics.AddError("Unable to create Kpi Base Search", err.Error())

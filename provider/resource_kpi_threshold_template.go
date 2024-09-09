@@ -517,6 +517,8 @@ func (r *resourceKpiThresholdTemplate) Update(ctx context.Context, req resource.
 		return
 	}
 	if existing == nil {
+		resp.Diagnostics.AddWarning("KPI Threshold Template was not found on the update. Probably it was deleted in the UI.", "Creating...")
+
 		base, diags = kpiThresholdTemplate(ctx, plan, r.client)
 		if diags.HasError() {
 			resp.Diagnostics.Append(diags...)
