@@ -460,13 +460,17 @@ func (r *resourceKpiThresholdTemplate) Read(ctx context.Context, req resource.Re
 	defer cancel()
 
 	base := kpiThresholdTemplateBase(r.client, state.ID.ValueString(), state.Title.ValueString())
-	b, err := base.Find(ctx)
+	b, err := base.Read(ctx)
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to find the kpi threshold template.", err.Error())
 		return
 	}
 	if b == nil {
-		resp.Diagnostics.AddError("KPI threshold template is not found", fmt.Sprintf("KPI threshold template %s (%s) is not found", state.ID.ValueString(), state.Title.ValueString()))
+		nullState := &modelKpiThresholdTemplate{
+			Title:    state.Title, // To avoid force-replacement
+			Timeouts: timeouts,
+		}
+		resp.Diagnostics.Append(resp.State.Set(ctx, nullState)...)
 		return
 	}
 
@@ -506,33 +510,40 @@ func (r *resourceKpiThresholdTemplate) Update(ctx context.Context, req resource.
 
 	base := kpiThresholdTemplateBase(r.client, state.ID.ValueString(), plan.Title.ValueString())
 	existing, err := base.Find(ctx)
+
 	if err != nil {
 		diags.AddError("Failed to find kpi threshold template.", err.Error())
 		resp.Diagnostics.Append(diags...)
 		return
 	}
 	if existing == nil {
-		_, err := base.Create(ctx)
+		base, diags = kpiThresholdTemplate(ctx, plan, r.client)
+		if diags.HasError() {
+			resp.Diagnostics.Append(diags...)
+			return
+		}
+		base, err = base.Create(ctx)
 		if err != nil {
 			diags.AddError("Failed to create kpi threshold template.", err.Error())
 			resp.Diagnostics.Append(diags...)
 			return
 		}
-	}
-	plan.ID = types.StringValue(base.RESTKey)
-	if resp.Diagnostics.HasError() {
-		return
-	}
+	} else {
+		plan.ID = types.StringValue(base.RESTKey)
+		base, diags = kpiThresholdTemplate(ctx, plan, r.client)
+		if diags.HasError() {
+			resp.Diagnostics.Append(diags...)
+			return
+		}
+		err = base.Update(ctx)
+		if err != nil {
+			diags.AddError("Failed to update kpi threshold template.", err.Error())
+			resp.Diagnostics.Append(diags...)
+			return
+		}
 
-	base, diags = kpiThresholdTemplate(ctx, plan, r.client)
-	if diags.HasError() {
-		resp.Diagnostics.Append(diags...)
-		return
 	}
-	err = base.Update(ctx)
-	if err != nil {
-		diags.AddError("Failed to update kpi threshold template.", err.Error())
-		resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
 		return
 	}
 	resp.Diagnostics.Append(populateKpiThresholdTemplateModel(ctx, base, &plan)...)

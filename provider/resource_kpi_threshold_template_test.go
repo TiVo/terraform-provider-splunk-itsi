@@ -185,3 +185,32 @@ func TestAccResourceKPIThresholdTemplateLifecycle(t *testing.T) {
 		},
 	})
 }
+
+func TestAccResourceKPIThresholdTemplateDeletedInUI(t *testing.T) {
+	t.Parallel()
+	resource.Test(t, resource.TestCase{
+		PreCheck: func() { testAccPreCheck(t) },
+		CheckDestroy: resource.ComposeTestCheckFunc(
+			testAccCheckResourceDestroy(resourceNameKPIThresholdTemplate, "TestAcc_ResourceServiceDeletedInUI_threshold_template"),
+		),
+		Steps: []resource.TestStep{
+			{
+				ProtoV6ProviderFactories: providerFactories,
+				ConfigDirectory:          config.TestStepDirectory(),
+				Check:                    resource.ComposeTestCheckFunc(),
+			},
+			{
+				ProtoV6ProviderFactories: providerFactories,
+				ConfigDirectory:          config.TestStepDirectory(),
+				SkipFunc: func() (bool, error) {
+					return true, EmulateUiDelete(t, "TestAcc_ResourceServiceDeletedInUI_threshold_template", "kpi_threshold_template")
+				},
+			},
+			{
+				ProtoV6ProviderFactories: providerFactories,
+				ConfigDirectory:          config.TestStepDirectory(),
+				Check:                    resource.ComposeTestCheckFunc(),
+			},
+		},
+	})
+}
