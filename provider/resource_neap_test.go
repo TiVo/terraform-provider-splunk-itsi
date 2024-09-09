@@ -1,11 +1,13 @@
 package provider
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/config"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/plancheck"
+	"github.com/hashicorp/terraform-plugin-testing/terraform"
 	"github.com/tivo/terraform-provider-splunk-itsi/provider/util"
 )
 
@@ -197,6 +199,48 @@ func TestAccResourceNEAPLifecycle(t *testing.T) {
 						plancheck.ExpectEmptyPlan(),
 					},
 				},
+			},
+		},
+	})
+}
+
+var NEAP_ID string
+
+func TestAccResourceNEAPDeletedInUI(t *testing.T) {
+	t.Parallel()
+	resource.Test(t, resource.TestCase{
+		PreCheck: func() { testAccPreCheck(t) },
+		CheckDestroy: resource.ComposeTestCheckFunc(
+			testAccCheckResourceDestroy(resourceNameNEAP, "TestAcc_ResourceNEAPDeleted_UI_neap_test"),
+		),
+		Steps: []resource.TestStep{
+			{
+				ProtoV6ProviderFactories: providerFactories,
+				ConfigDirectory:          config.TestStepDirectory(),
+				Check: resource.ComposeTestCheckFunc(
+					func(s *terraform.State) error {
+						t.Log("Saving current NEAP ID")
+						resource, ok := s.RootModule().Resources["itsi_notable_event_aggregation_policy.test"]
+						if !ok {
+							return fmt.Errorf("Not found: itsi_notable_event_aggregation_policy.test")
+						}
+						NEAP_ID = resource.Primary.Attributes["id"]
+
+						return nil
+					},
+				),
+			},
+			{
+				ProtoV6ProviderFactories: providerFactories,
+				ConfigDirectory:          config.TestStepDirectory(),
+				SkipFunc: func() (bool, error) {
+					return true, EmulateUiDelete(t, NEAP_ID, "notable_event_aggregation_policy")
+				},
+			},
+			{
+				ProtoV6ProviderFactories: providerFactories,
+				ConfigDirectory:          config.TestStepDirectory(),
+				Check:                    resource.ComposeTestCheckFunc(),
 			},
 		},
 	})

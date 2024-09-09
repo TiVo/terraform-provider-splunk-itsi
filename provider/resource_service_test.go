@@ -673,11 +673,6 @@ func SaveKpiIds(t *testing.T) resource.TestCheckFunc {
 	}
 }
 
-var SERVICE_TO_DELETE struct {
-	Title string
-	ID    string
-}
-
 // func Sleep(t *testing.T, d time.Duration) resource.TestCheckFunc {
 // 	return func(s *terraform.State) error {
 // 		t.Logf("Sleeping for %s ...", d.String())
