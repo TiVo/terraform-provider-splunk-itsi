@@ -899,7 +899,10 @@ func (r *resourceEntityType) Read(ctx context.Context, req resource.ReadRequest,
 		return
 	}
 	if b == nil || b.RawJson == nil {
-		resp.Diagnostics.Append(resp.State.Set(ctx, &entityTypeModel{})...)
+		nullState := &entityTypeModel{
+			Timeouts: timeouts,
+		}
+		resp.Diagnostics.Append(resp.State.Set(ctx, nullState)...)
 		return
 	}
 
@@ -966,10 +969,19 @@ func (r *resourceEntityType) Update(ctx context.Context, req resource.UpdateRequ
 		return
 	}
 	if existing == nil {
-		resp.Diagnostics.AddError("Unable to update entity type", "entity type not found")
-		return
-	}
-	if err := base.Update(ctx); err != nil {
+		base, diags := newAPIBuilder(r.client, new(entityTypeBuildWorkflow)).build(ctx, plan)
+		if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
+			return
+		}
+
+		base, err := base.Create(ctx)
+		if err != nil {
+			resp.Diagnostics.AddError("Unable to create entity type", err.Error())
+			return
+		}
+
+		plan.ID = types.StringValue(base.RESTKey)
+	} else if err := base.Update(ctx); err != nil {
 		resp.Diagnostics.AddError("Unable to update entity type", err.Error())
 		return
 	}
