@@ -153,7 +153,7 @@ func TestAccResourceEntityTypeDeletedInUI(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		PreCheck: func() { testAccPreCheck(t) },
 		CheckDestroy: resource.ComposeTestCheckFunc(
-			testAccCheckResourceDestroy(resourceNameEntityType, "TestAccResourceEntityType_deleted_in_ui"),
+			testAccCheckResourceDestroy(resourceNameEntityType, "TestAcc_ResourceEntityType_deleted_in_ui"),
 		),
 		Steps: []resource.TestStep{
 			{
@@ -165,7 +165,7 @@ func TestAccResourceEntityTypeDeletedInUI(t *testing.T) {
 				ProtoV6ProviderFactories: providerFactories,
 				ConfigDirectory:          config.TestStepDirectory(),
 				SkipFunc: func() (bool, error) {
-					return true, EmulateUiDelete(t, "TestAccResourceEntityType_deleted_in_ui", "entity_type")
+					return true, EmulateUiDelete(t, "TestAcc_ResourceEntityType_deleted_in_ui", "entity_type")
 				},
 			},
 			{
