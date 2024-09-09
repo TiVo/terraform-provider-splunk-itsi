@@ -460,7 +460,7 @@ func (r *resourceKpiThresholdTemplate) Read(ctx context.Context, req resource.Re
 	defer cancel()
 
 	base := kpiThresholdTemplateBase(r.client, state.ID.ValueString(), state.Title.ValueString())
-	b, err := base.Read(ctx)
+	b, err := base.Find(ctx)
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to find the kpi threshold template.", err.Error())
 		return

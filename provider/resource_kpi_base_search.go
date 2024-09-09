@@ -550,7 +550,7 @@ func (r *resourceKpiBaseSearch) Read(ctx context.Context, req resource.ReadReque
 	defer cancel()
 
 	base := kpiBaseSearchBase(r.client, state.ID.ValueString(), state.Title.ValueString())
-	b, err := base.Read(ctx)
+	b, err := base.Find(ctx)
 	if err != nil {
 		resp.Diagnostics.AddError("Unable to read KPI Base Search", err.Error())
 		return
