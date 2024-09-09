@@ -288,7 +288,13 @@ func (r *resourceEntity) Read(ctx context.Context, req resource.ReadRequest, res
 		return
 	}
 	if b == nil || b.RawJson == nil {
-		resp.Diagnostics.Append(resp.State.Set(ctx, &entityModel{})...)
+		nullState := &entityModel{
+			Timeouts:      timeouts,
+			EntityTypeIDs: types.SetNull(types.StringType),
+			Aliases:       types.MapNull(types.StringType),
+			Info:          types.MapNull(types.StringType),
+		}
+		resp.Diagnostics.Append(resp.State.Set(ctx, nullState)...)
 		return
 	}
 
@@ -354,10 +360,14 @@ func (r *resourceEntity) Update(ctx context.Context, req resource.UpdateRequest,
 		return
 	}
 	if existing == nil {
-		resp.Diagnostics.AddError("Unable to update entity", "entity not found")
-		return
-	}
-	if err := base.Update(ctx); err != nil {
+		base, err := base.Create(ctx)
+		if err != nil {
+			resp.Diagnostics.AddError("Unable to create entity", err.Error())
+			return
+		}
+
+		plan.ID = types.StringValue(base.RESTKey)
+	} else if err := base.Update(ctx); err != nil {
 		resp.Diagnostics.AddError("Unable to update entity", err.Error())
 		return
 	}
