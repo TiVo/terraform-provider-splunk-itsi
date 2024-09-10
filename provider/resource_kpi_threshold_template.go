@@ -16,6 +16,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-go/tftypes"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/tivo/terraform-provider-splunk-itsi/models"
 	"github.com/tivo/terraform-provider-splunk-itsi/provider/util"
@@ -466,7 +467,7 @@ func (r *resourceKpiThresholdTemplate) Read(ctx context.Context, req resource.Re
 		return
 	}
 	if b == nil {
-		resp.Diagnostics.AddError("KPI threshold template is not found", fmt.Sprintf("KPI threshold template %s (%s) is not found", state.ID.ValueString(), state.Title.ValueString()))
+		resp.State.Raw = tftypes.Value{}
 		return
 	}
 

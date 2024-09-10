@@ -11,6 +11,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework-timeouts/resource/timeouts"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
+	"github.com/hashicorp/terraform-plugin-go/tftypes"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
@@ -1366,7 +1367,7 @@ func (r *resourceNEAP) Read(ctx context.Context, req resource.ReadRequest, resp 
 		return
 	}
 	if b == nil || b.RawJson == nil {
-		resp.Diagnostics.Append(resp.State.Set(ctx, &neapModel{})...)
+		resp.State.Raw = tftypes.Value{}
 		return
 	}
 

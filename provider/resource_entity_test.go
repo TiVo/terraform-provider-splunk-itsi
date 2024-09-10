@@ -82,3 +82,37 @@ func TestAccResourceEntityLifecycle(t *testing.T) {
 		},
 	})
 }
+
+func TestAccResourceEntityDeletedInUI(t *testing.T) {
+	t.Parallel()
+	resource.Test(t, resource.TestCase{
+		PreCheck: func() { testAccPreCheck(t) },
+		CheckDestroy: resource.ComposeTestCheckFunc(
+			testAccCheckResourceDestroy(resourceNameEntity, "TestAcc_ResourceEntityDeletedInUI"),
+		),
+		Steps: []resource.TestStep{
+			{
+				ProtoV6ProviderFactories: providerFactories,
+				ConfigDirectory:          config.TestStepDirectory(),
+				Check:                    resource.ComposeTestCheckFunc(),
+			},
+			{
+				ProtoV6ProviderFactories: providerFactories,
+				ConfigDirectory:          config.TestStepDirectory(),
+				SkipFunc: func() (bool, error) {
+					return true, EmulateUiDelete(t, "TestAcc_ResourceEntityDeletedInUI", "entity")
+				},
+			},
+			{
+				ProtoV6ProviderFactories: providerFactories,
+				ConfigDirectory:          config.TestStepDirectory(),
+				Check:                    resource.ComposeTestCheckFunc(),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction("itsi_entity.test", plancheck.ResourceActionCreate),
+					},
+				},
+			},
+		},
+	})
+}

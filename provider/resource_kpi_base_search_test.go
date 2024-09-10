@@ -83,6 +83,41 @@ func TestResourceKPIBaseSearchSchemaPlan(t *testing.T) {
 	})
 }
 
+func TestAccResourceKpiBaseSearchDeletedInUI(t *testing.T) {
+	t.Parallel()
+	resource.Test(t, resource.TestCase{
+		PreCheck: func() { testAccPreCheck(t) },
+		CheckDestroy: resource.ComposeTestCheckFunc(
+			testAccCheckResourceDestroy(resourceNameKPIBaseSearch, "TestAcc_ResourceServiceDeletedInUI_kpi_bs"),
+		),
+		Steps: []resource.TestStep{
+			{
+				ProtoV6ProviderFactories: providerFactories,
+				ConfigDirectory:          config.TestStepDirectory(),
+				Check:                    resource.ComposeTestCheckFunc(),
+			},
+			{
+				ProtoV6ProviderFactories: providerFactories,
+				ConfigDirectory:          config.TestStepDirectory(),
+				SkipFunc: func() (bool, error) {
+					return true, EmulateUiDelete(t, "TestAcc_ResourceServiceDeletedInUI_kpi_bs", "kpi_base_search")
+				},
+			},
+			{
+				ProtoV6ProviderFactories: providerFactories,
+				ConfigDirectory:          config.TestStepDirectory(),
+				Check:                    resource.ComposeTestCheckFunc(),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction("itsi_kpi_base_search.test_kpis_deleted_in_ui", plancheck.ResourceActionCreate),
+					},
+				},
+			},
+		},
+	})
+
+}
+
 func TestAccResourceKPIBaseSearchLifecycle(t *testing.T) {
 	t.Parallel()
 	var testAccResourceKPIBaseSearchLifecycle_kpiBSTitle = testAccResourceTitle("ResourceKPIBaseSearchLifecycle_test_base_search")
