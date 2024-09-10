@@ -612,6 +612,7 @@ func (r *resourceKpiBaseSearch) Update(ctx context.Context, req resource.UpdateR
 	state.Timeouts = timeouts
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
+
 func (r *resourceKpiBaseSearch) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	var state KpiBaseSearchState
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
