@@ -210,6 +210,11 @@ func TestAccResourceKPIThresholdTemplateDeletedInUI(t *testing.T) {
 				ProtoV6ProviderFactories: providerFactories,
 				ConfigDirectory:          config.TestStepDirectory(),
 				Check:                    resource.ComposeTestCheckFunc(),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction("itsi_kpi_threshold_template.test_kpis_kpi_threshold_template_deleted_in_ui", plancheck.ResourceActionCreate),
+					},
+				},
 			},
 		},
 	})

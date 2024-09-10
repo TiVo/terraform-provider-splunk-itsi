@@ -107,6 +107,11 @@ func TestAccResourceEntityDeletedInUI(t *testing.T) {
 				ProtoV6ProviderFactories: providerFactories,
 				ConfigDirectory:          config.TestStepDirectory(),
 				Check:                    resource.ComposeTestCheckFunc(),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction("itsi_entity.test", plancheck.ResourceActionCreate),
+					},
+				},
 			},
 		},
 	})

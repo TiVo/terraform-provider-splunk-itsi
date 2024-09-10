@@ -107,6 +107,11 @@ func TestAccResourceKpiBaseSearchDeletedInUI(t *testing.T) {
 				ProtoV6ProviderFactories: providerFactories,
 				ConfigDirectory:          config.TestStepDirectory(),
 				Check:                    resource.ComposeTestCheckFunc(),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction("itsi_kpi_base_search.test_kpis_deleted_in_ui", plancheck.ResourceActionCreate),
+					},
+				},
 			},
 		},
 	})
