@@ -23,6 +23,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-go/tftypes"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/tivo/terraform-provider-splunk-itsi/models"
 	"github.com/tivo/terraform-provider-splunk-itsi/provider/util"
@@ -456,11 +457,7 @@ func (r *resourceService) Read(ctx context.Context, req resource.ReadRequest, re
 		return
 	}
 	if b == nil || b.RawJson == nil {
-		nullState := &ServiceState{
-			Timeouts: state.Timeouts,
-			Tags:     types.SetNull(types.StringType),
-		}
-		resp.Diagnostics.Append(resp.State.Set(ctx, nullState)...)
+		resp.State.Raw = tftypes.Value{}
 		return
 	}
 
@@ -545,30 +542,12 @@ func (r *resourceService) Update(ctx context.Context, req resource.UpdateRequest
 		return
 	}
 	if existing == nil {
-		resp.Diagnostics.AddWarning("Service was not found on the update. Probably it was deleted in the UI.", "Creating...")
-		base, err := base.Create(ctx)
-		if err != nil {
-			resp.Diagnostics.AddError("Unable to create Service", err.Error())
-			return
-		}
-
-		plan.ID = types.StringValue(base.RESTKey)
-		timeouts := plan.Timeouts
-
-		base, err = base.Read(ctx)
-		if err != nil {
-			resp.Diagnostics.AddError("Unable to update Service", err.Error())
-			return
-		}
-		plan, diags = serviceModelFromBase(ctx, base)
-		plan.Timeouts = timeouts
-
-	} else {
-		diags = base.UpdateAsync(ctx)
-		if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
-			return
-		}
-
+		resp.Diagnostics.AddError("Unable to update Service", "service not found")
+		return
+	}
+	diags = base.UpdateAsync(ctx)
+	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
+		return
 	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)

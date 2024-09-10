@@ -11,6 +11,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework-timeouts/resource/timeouts"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
+	"github.com/hashicorp/terraform-plugin-go/tftypes"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
@@ -1366,11 +1367,7 @@ func (r *resourceNEAP) Read(ctx context.Context, req resource.ReadRequest, resp 
 		return
 	}
 	if b == nil || b.RawJson == nil {
-		nullState := &neapModel{
-			SplitByField: types.SetNull(types.StringType),
-			Timeouts:     timeouts,
-		}
-		resp.Diagnostics.Append(resp.State.Set(ctx, nullState)...)
+		resp.State.Raw = tftypes.Value{}
 		return
 	}
 
@@ -1441,14 +1438,10 @@ func (r *resourceNEAP) Update(ctx context.Context, req resource.UpdateRequest, r
 		return
 	}
 	if existing == nil {
-		resp.Diagnostics.AddWarning("NEAP Threshold Template was not found on the update. Probably it was deleted in the UI.", "Creating...")
-
-		base, err = base.Create(ctx)
-		if err != nil {
-			resp.Diagnostics.AddError("Unable to create NEAP", err.Error())
-			return
-		}
-	} else if err := base.Update(ctx); err != nil {
+		resp.Diagnostics.AddError("Unable to update NEAP", "NEAP not found")
+		return
+	}
+	if err := base.Update(ctx); err != nil {
 		resp.Diagnostics.AddError("Unable to update NEAP", err.Error())
 		return
 	}

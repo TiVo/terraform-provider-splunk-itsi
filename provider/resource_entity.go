@@ -17,6 +17,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-go/tftypes"
 	"github.com/tivo/terraform-provider-splunk-itsi/models"
 	"github.com/tivo/terraform-provider-splunk-itsi/provider/util"
 )
@@ -288,13 +289,7 @@ func (r *resourceEntity) Read(ctx context.Context, req resource.ReadRequest, res
 		return
 	}
 	if b == nil || b.RawJson == nil {
-		nullState := &entityModel{
-			Timeouts:      timeouts,
-			EntityTypeIDs: types.SetNull(types.StringType),
-			Aliases:       types.MapNull(types.StringType),
-			Info:          types.MapNull(types.StringType),
-		}
-		resp.Diagnostics.Append(resp.State.Set(ctx, nullState)...)
+		resp.State.Raw = tftypes.Value{}
 		return
 	}
 
@@ -360,15 +355,10 @@ func (r *resourceEntity) Update(ctx context.Context, req resource.UpdateRequest,
 		return
 	}
 	if existing == nil {
-		resp.Diagnostics.AddWarning("Entity was not found on the update. Probably it was deleted in the UI.", "Creating...")
-		base, err := base.Create(ctx)
-		if err != nil {
-			resp.Diagnostics.AddError("Unable to create entity", err.Error())
-			return
-		}
-
-		plan.ID = types.StringValue(base.RESTKey)
-	} else if err := base.Update(ctx); err != nil {
+		resp.Diagnostics.AddError("Unable to update entity", "entity not found")
+		return
+	}
+	if err := base.Update(ctx); err != nil {
 		resp.Diagnostics.AddError("Unable to update entity", err.Error())
 		return
 	}

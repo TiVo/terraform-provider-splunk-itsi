@@ -16,6 +16,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-go/tftypes"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/tivo/terraform-provider-splunk-itsi/models"
 	"github.com/tivo/terraform-provider-splunk-itsi/provider/util"
@@ -466,11 +467,7 @@ func (r *resourceKpiThresholdTemplate) Read(ctx context.Context, req resource.Re
 		return
 	}
 	if b == nil {
-		nullState := &modelKpiThresholdTemplate{
-			Title:    state.Title, // To avoid force-replacement
-			Timeouts: timeouts,
-		}
-		resp.Diagnostics.Append(resp.State.Set(ctx, nullState)...)
+		resp.State.Raw = tftypes.Value{}
 		return
 	}
 
@@ -510,42 +507,33 @@ func (r *resourceKpiThresholdTemplate) Update(ctx context.Context, req resource.
 
 	base := kpiThresholdTemplateBase(r.client, state.ID.ValueString(), plan.Title.ValueString())
 	existing, err := base.Find(ctx)
-
 	if err != nil {
 		diags.AddError("Failed to find kpi threshold template.", err.Error())
 		resp.Diagnostics.Append(diags...)
 		return
 	}
 	if existing == nil {
-		resp.Diagnostics.AddWarning("KPI Threshold Template was not found on the update. Probably it was deleted in the UI.", "Creating...")
-
-		base, diags = kpiThresholdTemplate(ctx, plan, r.client)
-		if diags.HasError() {
-			resp.Diagnostics.Append(diags...)
-			return
-		}
-		base, err = base.Create(ctx)
+		_, err := base.Create(ctx)
 		if err != nil {
 			diags.AddError("Failed to create kpi threshold template.", err.Error())
 			resp.Diagnostics.Append(diags...)
 			return
 		}
-	} else {
-		plan.ID = types.StringValue(base.RESTKey)
-		base, diags = kpiThresholdTemplate(ctx, plan, r.client)
-		if diags.HasError() {
-			resp.Diagnostics.Append(diags...)
-			return
-		}
-		err = base.Update(ctx)
-		if err != nil {
-			diags.AddError("Failed to update kpi threshold template.", err.Error())
-			resp.Diagnostics.Append(diags...)
-			return
-		}
-
 	}
+	plan.ID = types.StringValue(base.RESTKey)
 	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	base, diags = kpiThresholdTemplate(ctx, plan, r.client)
+	if diags.HasError() {
+		resp.Diagnostics.Append(diags...)
+		return
+	}
+	err = base.Update(ctx)
+	if err != nil {
+		diags.AddError("Failed to update kpi threshold template.", err.Error())
+		resp.Diagnostics.Append(diags...)
 		return
 	}
 	resp.Diagnostics.Append(populateKpiThresholdTemplateModel(ctx, base, &plan)...)

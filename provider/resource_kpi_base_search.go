@@ -19,6 +19,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-go/tftypes"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/tivo/terraform-provider-splunk-itsi/models"
 )
@@ -556,10 +557,7 @@ func (r *resourceKpiBaseSearch) Read(ctx context.Context, req resource.ReadReque
 		return
 	}
 	if b == nil || b.RawJson == nil {
-		nullState := &KpiBaseSearchState{
-			Timeouts: timeouts,
-		}
-		resp.Diagnostics.Append(resp.State.Set(ctx, nullState)...)
+		resp.State.Raw = tftypes.Value{}
 		return
 	}
 
@@ -596,18 +594,15 @@ func (r *resourceKpiBaseSearch) Update(ctx context.Context, req resource.UpdateR
 		return
 	}
 	if existing == nil {
-		resp.Diagnostics.AddWarning("KPI Base Search was not found on the update. Probably it was deleted in the UI.", "Creating...")
-		base, err = base.Create(ctx)
-		if err != nil {
-			resp.Diagnostics.AddError("Unable to create Kpi Base Search", err.Error())
-			return
-		}
-	} else {
-		diags = base.UpdateAsync(ctx)
-		if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
-			return
-		}
+		resp.Diagnostics.AddError("Unable to update KPI Base Search", "KPI Base Search not found")
+		return
 	}
+
+	diags = base.UpdateAsync(ctx)
+	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
+		return
+	}
+
 	// populate computed fields
 	state, diags := newAPIParser(base, new(kpiBaseSearchParseWorkflow)).parse(ctx, base)
 	if resp.Diagnostics.Append(diags...); diags.HasError() {
@@ -617,7 +612,6 @@ func (r *resourceKpiBaseSearch) Update(ctx context.Context, req resource.UpdateR
 	state.Timeouts = timeouts
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
-
 func (r *resourceKpiBaseSearch) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	var state KpiBaseSearchState
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
