@@ -157,7 +157,7 @@ func (r *resourceService) blockMLThresholding(_ context.Context) schema.Block {
 				"start_date": schema.StringAttribute{
 					Required:   true,
 					CustomType: timetypes.RFC3339Type{},
-					Description: "timestamp in " +
+					Description: "Defines the starting date and time from which the ML-Assisted Thresholding algorithm would analyze the historical KPI data. Must be a timestamp in " +
 						"[RFC3339](https://datatracker.ietf.org/doc/html/rfc3339#section-5.8) format " +
 						"(see [RFC3339 time string](https://tools.ietf.org/html/rfc3339#section-5.8) e.g., " +
 						"`YYYY-MM-DDTHH:MM:SSZ`).",

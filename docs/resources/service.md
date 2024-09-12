@@ -158,7 +158,7 @@ Read-Only:
 Required:
 
 - `direction` (String) Determines if the KPI should stay above a certain level, below a certain level, or constrained to a specific range. Takes values 'both', 'lower' or 'upper'.
-- `start_date` (String) timestamp in [RFC3339](https://datatracker.ietf.org/doc/html/rfc3339#section-5.8) format (see [RFC3339 time string](https://tools.ietf.org/html/rfc3339#section-5.8) e.g., `YYYY-MM-DDTHH:MM:SSZ`).
+- `start_date` (String) Defines the starting date and time from which the ML-Assisted Thresholding algorithm would analyze the historical KPI data. Must be a timestamp in [RFC3339](https://datatracker.ietf.org/doc/html/rfc3339#section-5.8) format (see [RFC3339 time string](https://tools.ietf.org/html/rfc3339#section-5.8) e.g., `YYYY-MM-DDTHH:MM:SSZ`).
 - `training_window` (String) Time window over which the thresholding recommendation should run. Same window will be used as the training window for adaptive thresholding. Takes values '-7d', '-14d', '-30d', '-60d'.
 
 
