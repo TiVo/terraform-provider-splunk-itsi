@@ -845,7 +845,7 @@ func (w *serviceParseWorkflow) kpis(ctx context.Context, fields map[string]any, 
 
 			if util.Atob(kpi["is_recommended_time_policies"]) {
 				kpiTF.MLThresholding = []MLThresholding{{
-					Direction:      types.StringValue(kpi["recommendation_apply_to_value"].(string)),
+					Direction:      types.StringValue(kpi["threshold_direction"].(string)),
 					TrainingWindow: types.StringValue(kpi["recommendation_training_window"].(string)),
 					StartDate:      timetypes.NewRFC3339TimeValue(time.Unix(int64(kpi["recommendation_start_date"].(float64)), 0).UTC()),
 				}}
@@ -1059,7 +1059,9 @@ func (w *serviceBuildWorkflow) kpis(ctx context.Context, obj ServiceState) (body
 		}
 		if len(kpi.MLThresholding) > 0 {
 			rt := kpi.MLThresholding[0]
-			itsiKpi["recommendation_apply_to_value"] = rt.Direction.ValueString()
+			thresholdDirection := rt.Direction.ValueString()
+			itsiKpi["threshold_direction"] = thresholdDirection
+			itsiKpi["recommendation_apply_to_value"] = thresholdDirection
 			t, d := rt.StartDate.ValueRFC3339Time()
 			if diags.Append(d...); diags.HasError() {
 				return
