@@ -82,7 +82,9 @@ func newAPIBuilder[T tfmodel](client models.ClientConfig, buildWorkflow apibuild
 
 func (b *apibuilder[T]) build(ctx context.Context, obj T) (m *models.Base, diags diag.Diagnostics) {
 	body := make(map[string]any)
-
+	if version != "" {
+		body["mod_source"] = fmt.Sprintf("itsi-tf %s (%s #%s)", version, buildTime, commit)
+	}
 	for _, step := range b.workflow.buildSteps() {
 		stepbody, d := step(ctx, obj)
 		if diags.Append(d...); d.HasError() {

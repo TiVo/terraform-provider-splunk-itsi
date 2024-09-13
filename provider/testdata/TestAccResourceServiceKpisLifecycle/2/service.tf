@@ -50,5 +50,19 @@ resource "itsi_service" "test_kpis" {
     urgency               = 8
   }
 
+  kpi {
+    base_search_id     = itsi_kpi_base_search.test_kpis_linked_kpibs_2.id
+    base_search_metric = "metric 2.3"
+    description        = null
+    title              = "KPI 5"
+    urgency            = 4
+
+    ml_thresholding {
+      direction       = "both"
+      start_date      = "2024-08-10T21:58:36Z"
+      training_window = "-30d"
+    }
+  }
+
 }
 

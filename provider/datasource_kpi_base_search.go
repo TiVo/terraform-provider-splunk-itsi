@@ -98,7 +98,7 @@ func (d *dataSourceKpiBaseSearch) Read(ctx context.Context, req datasource.ReadR
 
 	state := &dataSourceKpiBaseSearchState{Timeouts: timeouts}
 
-	resp.Diagnostics.Append(marshalBasicTypesByTag("json", json, state)...)
+	resp.Diagnostics.Append(unmarshalBasicTypesByTag("json", json, state)...)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 
 	tflog.Debug(ctx, "Finished reading KPI BS data source", map[string]any{"success": true})

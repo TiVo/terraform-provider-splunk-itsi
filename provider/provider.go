@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"runtime"
 	"strconv"
 	"time"
 
@@ -25,6 +26,13 @@ const (
 	defaultTimeout    = 60
 	defaultPort       = 8089
 	cacheSize         = 1000
+)
+
+var (
+	// These variables are set in the build step
+	version   string
+	commit    string
+	buildTime string
 )
 
 var tftimeout = struct {
@@ -214,8 +222,13 @@ func configBoolValueWithEnvFallback(tfValue types.Bool, env string) bool {
 	return util.Atob(os.Getenv(env))
 }
 
+func (p *itsiProvider) printInfo(ctx context.Context) {
+	tflog.Info(ctx, fmt.Sprintf("itsi terraform provider %s %s/%s (%s #%s) \n", version, runtime.GOOS, runtime.GOARCH, buildTime, commit))
+}
+
 // Configure prepares a ITSI API client for data sources and resources.
 func (p *itsiProvider) Configure(ctx context.Context, req provider.ConfigureRequest, resp *provider.ConfigureResponse) {
+	p.printInfo(ctx)
 	var config itsiProviderModel
 	diags := req.Config.Get(ctx, &config)
 	resp.Diagnostics.Append(diags...)
@@ -264,9 +277,15 @@ func (p *itsiProvider) Configure(ctx context.Context, req provider.ConfigureRequ
 	}
 
 	client := models.ClientConfig{}
-	client.BearerToken = accessToken
-	client.User = user
-	client.Password = password
+
+	// credentials from provider config take precedence over environment variables
+	if !config.AccessToken.IsNull() || (accessToken != "" && config.User.IsNull() && config.Password.IsNull()) {
+		client.BearerToken = accessToken
+	} else {
+		client.User = user
+		client.Password = password
+	}
+
 	client.Host = host
 	client.Port = int(port)
 	client.Timeout = int(timeout)
