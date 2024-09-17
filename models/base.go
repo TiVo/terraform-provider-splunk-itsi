@@ -86,6 +86,7 @@ type Base struct {
 	Hash      string
 	RetryFunc RetryFunc
 }
+
 type RetryFunc func(ctx context.Context, method string, statusCode int, responseBody []byte, requestErr error) (shouldRetry bool, newStatusCode int, newBody []byte, err error)
 
 func init() {
