@@ -294,7 +294,7 @@ func unpackMap[T any](in map[string]any) (map[string]T, error) {
 	return out, nil
 }
 
-func unpackSlice[T any](in any) ([]T, error) {
+func UnpackSlice[T any](in any) ([]T, error) {
 	slice, ok := in.([]any)
 	if !ok {
 		return nil, fmt.Errorf("failed to unpack %#v to []%T ", in, *new(T))

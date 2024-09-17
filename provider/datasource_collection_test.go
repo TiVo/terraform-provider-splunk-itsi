@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
-	"github.com/tivo/terraform-provider-splunk-itsi/provider/util"
+	"github.com/tivo/terraform-provider-splunk-itsi/util"
 )
 
 func TestDataSourceCollectionSchema(t *testing.T) {

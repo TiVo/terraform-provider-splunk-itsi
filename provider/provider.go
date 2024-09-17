@@ -18,7 +18,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/lestrrat-go/backoff/v2"
 	"github.com/tivo/terraform-provider-splunk-itsi/models"
-	"github.com/tivo/terraform-provider-splunk-itsi/provider/util"
+	"github.com/tivo/terraform-provider-splunk-itsi/util"
 )
 
 const (

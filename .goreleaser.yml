@@ -33,9 +33,38 @@ builds:
       - goos: darwin
         goarch: "386"
     binary: "{{ .ProjectName }}_v{{ .Version }}"
+  - dir: itsictl
+    id: itsictl
+    env:
+      - CGO_ENABLED=0
+    mod_timestamp: "{{ .CommitTimestamp }}"
+    ldflags:
+      - "-s -w -X main.version={{.Version}} -X main.commit={{.ShortCommit}} -X main.buildTime={{.Date}}"
+    goos:
+      - freebsd
+      - windows
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - "386"
+      - arm
+      - arm64
+    ignore:
+      - goos: darwin
+        goarch: "386"
+    binary: "itsictl_v{{ .Version }}"
+
 archives:
-  - format: zip
+  - builds:
+      - terraform-provider-splunk-itsi
+    format: zip
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+  - id: itsictl
+    builds:
+      - itsictl
+    name_template: "{{ .Binary }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+
 checksum:
   extra_files:
     - glob: "terraform-registry-manifest.json"

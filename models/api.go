@@ -1,7 +1,7 @@
 package models
 
 import (
-	"github.com/tivo/terraform-provider-splunk-itsi/provider/util"
+	"github.com/tivo/terraform-provider-splunk-itsi/util"
 )
 
 var clients IHttpClients

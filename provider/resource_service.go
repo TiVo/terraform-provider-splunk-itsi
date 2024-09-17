@@ -30,7 +30,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/tivo/terraform-provider-splunk-itsi/models"
-	"github.com/tivo/terraform-provider-splunk-itsi/provider/util"
+	"github.com/tivo/terraform-provider-splunk-itsi/util"
 )
 
 const (
@@ -515,7 +515,7 @@ func (r *resourceService) Read(ctx context.Context, req resource.ReadRequest, re
 	ctx, cancel := context.WithTimeout(ctx, readTimeout)
 	defer cancel()
 
-	b, err := serviceBase(r.client, state.ID.ValueString(), state.Title.ValueString()).Read(ctx)
+	b, err := ServiceBase(r.client, state.ID.ValueString(), state.Title.ValueString()).Read(ctx)
 	if err != nil {
 		resp.Diagnostics.AddError("Unable to read service", err.Error())
 		return
@@ -641,7 +641,7 @@ func (r *resourceService) Delete(ctx context.Context, req resource.DeleteRequest
 	ctx, cancel := context.WithTimeout(ctx, deleteTimeout)
 	defer cancel()
 
-	base := serviceBase(r.client, state.ID.ValueString(), state.Title.ValueString())
+	base := ServiceBase(r.client, state.ID.ValueString(), state.Title.ValueString())
 	b, err := base.Find(ctx)
 	if err != nil {
 		resp.Diagnostics.AddError("Unable to delete entity", err.Error())
@@ -657,7 +657,7 @@ func (r *resourceService) ImportState(ctx context.Context, req resource.ImportSt
 	ctx, cancel := context.WithTimeout(ctx, tftimeout.Read)
 	defer cancel()
 
-	b, err := serviceBase(r.client, "", req.ID).Find(ctx)
+	b, err := ServiceBase(r.client, "", req.ID).Find(ctx)
 	if err != nil {
 		resp.Diagnostics.AddError("Unable to find service model", err.Error())
 		return
@@ -682,7 +682,7 @@ func (r *resourceService) ImportState(ctx context.Context, req resource.ImportSt
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
-func serviceBase(clientConfig models.ClientConfig, key string, title string) *models.ItsiObj {
+func ServiceBase(clientConfig models.ClientConfig, key string, title string) *models.ItsiObj {
 	base := models.NewItsiObj(clientConfig, key, title, "service")
 	return base
 }
@@ -810,7 +810,7 @@ func (w *serviceParseWorkflow) tags(ctx context.Context, fields map[string]any, 
 }
 
 func (w *serviceParseWorkflow) kpis(ctx context.Context, fields map[string]any, res *ServiceState) (diags diag.Diagnostics) {
-	kpis, err := unpackSlice[map[string]any](fields["kpis"])
+	kpis, err := UnpackSlice[map[string]any](fields["kpis"])
 	if err != nil {
 		diags.AddError("Unable to unpack KPIs from service model", err.Error())
 		return
@@ -862,7 +862,7 @@ func (w *serviceParseWorkflow) kpis(ctx context.Context, fields map[string]any, 
 
 func (w *serviceParseWorkflow) entityRules(ctx context.Context, fields map[string]any, res *ServiceState) (diags diag.Diagnostics) {
 	res.EntityRules = []EntityRuleState{}
-	entityRules, err := unpackSlice[map[string]any](fields["entity_rules"])
+	entityRules, err := UnpackSlice[map[string]any](fields["entity_rules"])
 	if err != nil {
 		diags.AddError("Unable to unpack entity rules from service model", err.Error())
 		return
@@ -871,7 +871,7 @@ func (w *serviceParseWorkflow) entityRules(ctx context.Context, fields map[strin
 	for _, entityRuleAndSet := range entityRules {
 		ruleState := EntityRuleState{}
 		ruleSet := []RuleState{}
-		ruleItems, err := unpackSlice[map[string]any](entityRuleAndSet["rule_items"])
+		ruleItems, err := UnpackSlice[map[string]any](entityRuleAndSet["rule_items"])
 		if err != nil {
 			diags.AddError("Unable to unpack rule_item from service model", err.Error())
 			return
@@ -890,7 +890,7 @@ func (w *serviceParseWorkflow) entityRules(ctx context.Context, fields map[strin
 
 func (w *serviceParseWorkflow) serviceDependsOn(ctx context.Context, fields map[string]any, res *ServiceState) (diags diag.Diagnostics) {
 	res.ServiceDependsOn = []ServiceDependsOnState{}
-	serviceDependsOn, err := unpackSlice[map[string]any](fields["services_depends_on"])
+	serviceDependsOn, err := UnpackSlice[map[string]any](fields["services_depends_on"])
 	if fields["services_depends_on"] != nil && err != nil {
 		diags.AddError("Unable to unpack services_depends_on from service model", err.Error())
 		return
@@ -898,7 +898,7 @@ func (w *serviceParseWorkflow) serviceDependsOn(ctx context.Context, fields map[
 	for _, serviceDepend := range serviceDependsOn {
 		serviceDependsOn := ServiceDependsOnState{}
 		serviceDependsOn.Service = types.StringValue(serviceDepend["serviceid"].(string))
-		kpiIds, err := unpackSlice[string](serviceDepend["kpis_depending_on"])
+		kpiIds, err := UnpackSlice[string](serviceDepend["kpis_depending_on"])
 		if err != nil {
 			diags.AddError("Unable to unpack kpis_depending_on from service model", err.Error())
 			return
@@ -975,7 +975,7 @@ func (w *serviceBuildWorkflow) populateThresholdValueCache(ctx context.Context, 
 		return
 	}
 
-	b, err := serviceBase(w.clientConfig, obj.ID.ValueString(), obj.Title.ValueString()).Find(ctx)
+	b, err := ServiceBase(w.clientConfig, obj.ID.ValueString(), obj.Title.ValueString()).Find(ctx)
 	if err != nil {
 		diags.AddError("Failed to find the service object", err.Error())
 		return
@@ -990,7 +990,7 @@ func (w *serviceBuildWorkflow) populateThresholdValueCache(ctx context.Context, 
 	if _, ok := svc["kpis"]; !ok {
 		return
 	}
-	kpis, err := unpackSlice[map[string]any](svc["kpis"])
+	kpis, err := UnpackSlice[map[string]any](svc["kpis"])
 	if err != nil {
 		diags.AddError("Failed to parse service KPIs", err.Error())
 	}

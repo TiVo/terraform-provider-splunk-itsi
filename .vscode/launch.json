@@ -16,6 +16,20 @@
             "showLog": true
         },
         {
+            "name": "Debug itsictl",
+            "type": "go",
+            "request": "launch",
+            "mode": "debug",
+            "program": "${workspaceFolder}/itsictl",
+            "env": {
+                "PKG_NAME": "${relativeFileDirname}"
+            },
+            "args": [
+                "--debug"
+            ],
+            "showLog": true
+        },
+        {
             "name": "Debug Scrapper",
             "type": "go",
             "request": "launch",

@@ -14,7 +14,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
 	"github.com/hashicorp/terraform-plugin-testing/tfjsonpath"
 	"github.com/tivo/terraform-provider-splunk-itsi/models"
-	"github.com/tivo/terraform-provider-splunk-itsi/provider/util"
+	"github.com/tivo/terraform-provider-splunk-itsi/util"
 )
 
 func TestResourceServiceSchema(t *testing.T) {

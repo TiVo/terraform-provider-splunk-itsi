@@ -21,6 +21,9 @@ build_all: fmt scraper
 release:
 	goreleaser release --clean
 
+testrelease:
+	goreleaser release --clean --snapshot --skip sign
+
 clean:
 	go clean -testcache
 	rm -rf dist bin
