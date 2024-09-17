@@ -1,5 +1,5 @@
 package models
 
-func NilTemplateMarshal(b *Base) (string, error) {
+func NilTemplateMarshal(b *ItsiObj) (string, error) {
 	return "", nil
 }

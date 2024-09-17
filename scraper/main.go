@@ -208,7 +208,7 @@ func runGenerateCommand(clientConfig models.ClientConfig, objectType string, log
 	defer wg.Done()
 	errors := []error{}
 
-	base := models.NewBase(clientConfig, "", "", objectType)
+	base := models.NewItsiObj(clientConfig, "", "", objectType)
 
 	// Parse Templates for import.tf & versions.tf
 	importT := template.Must(template.New("import").Funcs(template.FuncMap{
@@ -306,7 +306,7 @@ func runGenerateCommand(clientConfig models.ClientConfig, objectType string, log
 func dump(clientConfig models.ClientConfig, objectType, format string, formatter provider.TFFormatter, logsCh chan Logs, wg *sync.WaitGroup) {
 	defer wg.Done()
 
-	base := models.NewBase(clientConfig, "", "", objectType)
+	base := models.NewItsiObj(clientConfig, "", "", objectType)
 	errors := []error{}
 
 	fieldsMap := map[string]bool{}
@@ -352,7 +352,7 @@ func dump(clientConfig models.ClientConfig, objectType, format string, formatter
 	}
 }
 
-func auditLog(items []*models.Base, objectType, format string, formatter provider.TFFormatter) *[]error {
+func auditLog(items []*models.ItsiObj, objectType, format string, formatter provider.TFFormatter) *[]error {
 	folder := fmt.Sprintf("%s/%s", outputBasePath, format)
 	err := os.MkdirAll(folder, os.ModePerm)
 	if err != nil {

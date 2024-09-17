@@ -56,8 +56,8 @@ func (m entityModel) title() string {
 	return m.Title.ValueString()
 }
 
-func entityBase(clientConfig models.ClientConfig, key string, title string) *models.Base {
-	base := models.NewBase(clientConfig, key, title, itsiResourceTypeEntity)
+func entityBase(clientConfig models.ClientConfig, key string, title string) *models.ItsiObj {
+	base := models.NewItsiObj(clientConfig, key, title, itsiResourceTypeEntity)
 	return base
 }
 

@@ -22,8 +22,8 @@ import (
 	"github.com/tivo/terraform-provider-splunk-itsi/provider/util"
 )
 
-func kpiThresholdTemplateBase(clientConfig models.ClientConfig, key string, title string) *models.Base {
-	base := models.NewBase(clientConfig, key, title, "kpi_threshold_template")
+func kpiThresholdTemplateBase(clientConfig models.ClientConfig, key string, title string) *models.ItsiObj {
+	base := models.NewItsiObj(clientConfig, key, title, "kpi_threshold_template")
 	return base
 }
 
@@ -576,7 +576,7 @@ func (r *resourceKpiThresholdTemplate) Delete(ctx context.Context, req resource.
 	resp.Diagnostics.Append(existing.Delete(ctx)...)
 }
 
-func kpiThresholdTemplate(ctx context.Context, tfKpiThresholdTemplate modelKpiThresholdTemplate, clientConfig models.ClientConfig) (config *models.Base, diags diag.Diagnostics) {
+func kpiThresholdTemplate(ctx context.Context, tfKpiThresholdTemplate modelKpiThresholdTemplate, clientConfig models.ClientConfig) (config *models.ItsiObj, diags diag.Diagnostics) {
 	body := map[string]interface{}{}
 	diags = append(diags, marshalBasicTypesByTag("json", &tfKpiThresholdTemplate, body)...)
 	body["objectType"] = "kpi_threshold_template"
@@ -641,7 +641,7 @@ func kpiThresholdTemplate(ctx context.Context, tfKpiThresholdTemplate modelKpiTh
 	return base, nil
 }
 
-func populateKpiThresholdTemplateModel(_ context.Context, b *models.Base, tfModelKpiThresholdTemplate *modelKpiThresholdTemplate) (diags diag.Diagnostics) {
+func populateKpiThresholdTemplateModel(_ context.Context, b *models.ItsiObj, tfModelKpiThresholdTemplate *modelKpiThresholdTemplate) (diags diag.Diagnostics) {
 	interfaceMap, err := b.RawJson.ToInterfaceMap()
 	if err != nil {
 		diags.AddError("Failed to populate interfaceMap.", err.Error())
