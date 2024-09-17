@@ -1,8 +1,9 @@
 package models
 
 import (
-	"github.com/lestrrat-go/backoff/v2"
 	"net/http"
+
+	"github.com/lestrrat-go/backoff/v2"
 )
 
 type ClientConfig struct {

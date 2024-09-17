@@ -80,11 +80,13 @@ type Base struct {
 	// key used to collect this resource via the REST API
 	RESTKey string
 	// Terraform Identifier
-	TFID    string
-	RawJson RawJson
-	Fields  []string
-	Hash    string
+	TFID      string
+	RawJson   RawJson
+	Fields    []string
+	Hash      string
+	RetryFunc RetryFunc
 }
+type RetryFunc func(ctx context.Context, method string, statusCode int, responseBody []byte, requestErr error) (shouldRetry bool, newStatusCode int, newBody []byte, err error)
 
 func init() {
 	clients = InitHttpClients()
@@ -104,6 +106,7 @@ func NewBase(clientConfig ClientConfig, key, id, objectType string) *Base {
 		RESTKey:    key,
 		TFID:       id,
 	}
+	b.RetryFunc = b.handleRequestError
 	return b
 }
 
@@ -187,7 +190,7 @@ func (b *Base) requestWithRetry(ctx context.Context, method string, url string, 
 		tflog.Trace(ctx, fmt.Sprintf("%v %v (%v): %v %v [%s]", method, url, attempt, statusCode, http.StatusText(statusCode), time.Since(start).String()))
 		if requestErr != nil {
 
-			if shouldRetry, newStatus, newBody, err := b.handleRequestError(ctx, method, statusCode, responseBody, requestErr); !shouldRetry {
+			if shouldRetry, newStatus, newBody, err := b.RetryFunc(ctx, method, statusCode, responseBody, requestErr); !shouldRetry {
 				if err == nil {
 					statusCode = newStatus
 					responseBody = newBody
@@ -276,7 +279,7 @@ func (b *Base) request(ctx context.Context, method string, url string, body []by
 			responseBody = nil
 		}
 	default:
-		success = resp.StatusCode == 200
+		success = resp.StatusCode >= 200 && resp.StatusCode < 300
 	}
 
 	if !success {
