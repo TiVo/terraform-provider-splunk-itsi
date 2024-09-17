@@ -72,7 +72,7 @@ type restConfig struct {
 }
 
 type ItsiObj struct {
-	base Base
+	Base
 	restConfig
 	// key used to collect this resource via the REST API
 	RESTKey string
@@ -101,7 +101,7 @@ func NewItsiObj(clientConfig ClientConfig, key, id, objectType string) *ItsiObj 
 		TFID:       id,
 	}
 
-	obj.base = Base{
+	obj.Base = Base{
 		Splunk:    clientConfig,
 		RetryFunc: obj.handleRequestError,
 	}
@@ -112,7 +112,7 @@ func (obj *ItsiObj) Clone() *ItsiObj {
 	obj_ := &ItsiObj{
 		restConfig: obj.restConfig,
 		RawJson:    obj.RawJson,
-		base:       obj.base,
+		Base:       obj.Base,
 		RESTKey:    obj.RESTKey,
 		TFID:       obj.TFID,
 	}
@@ -121,13 +121,13 @@ func (obj *ItsiObj) Clone() *ItsiObj {
 
 func (obj *ItsiObj) urlBase() string {
 	const restBaseFmt = "https://%[1]s:%[2]d/servicesNS/nobody/SA-ITOA/%[3]s/%[4]s"
-	url := fmt.Sprintf(restBaseFmt, obj.base.Splunk.Host, obj.base.Splunk.Port, obj.RestInterface, obj.ObjectType)
+	url := fmt.Sprintf(restBaseFmt, obj.Splunk.Host, obj.Splunk.Port, obj.RestInterface, obj.ObjectType)
 	return url
 }
 
 func (obj *ItsiObj) urlBaseWithKey() string {
 	const restKeyFmt = "https://%[1]s:%[2]d/servicesNS/nobody/SA-ITOA/%[3]s/%[4]s/%[5]s"
-	url := fmt.Sprintf(restKeyFmt, obj.base.Splunk.Host, obj.base.Splunk.Port, obj.RestInterface, obj.ObjectType, obj.RESTKey)
+	url := fmt.Sprintf(restKeyFmt, obj.Splunk.Host, obj.Splunk.Port, obj.RestInterface, obj.ObjectType, obj.RESTKey)
 	return url
 }
 
@@ -218,7 +218,7 @@ func (obj *ItsiObj) Create(ctx context.Context) (*ItsiObj, error) {
 		return nil, err
 	}
 	var respBody []byte
-	_, respBody, err = obj.base.requestWithRetry(ctx, http.MethodPost, obj.urlBase(), reqBody)
+	_, respBody, err = obj.requestWithRetry(ctx, http.MethodPost, obj.urlBase(), reqBody)
 	if err != nil {
 		return nil, err
 	}
@@ -237,7 +237,7 @@ func (obj *ItsiObj) Read(ctx context.Context) (*ItsiObj, error) {
 		return nil, fmt.Errorf("could not Read %s resource: RESTKey was not provided", obj.ObjectType)
 	}
 
-	_, respBody, err := obj.base.requestWithRetry(ctx, http.MethodGet, obj.urlBaseWithKey(), nil)
+	_, respBody, err := obj.requestWithRetry(ctx, http.MethodGet, obj.urlBaseWithKey(), nil)
 	if err != nil || respBody == nil {
 		return nil, err
 	}
@@ -262,7 +262,7 @@ func (obj *ItsiObj) Update(ctx context.Context) error {
 		return err
 	}
 
-	_, _, err = obj.base.requestWithRetry(ctx, http.MethodPut, obj.urlBaseWithKey(), reqBody)
+	_, _, err = obj.requestWithRetry(ctx, http.MethodPut, obj.urlBaseWithKey(), reqBody)
 	if err != nil {
 		return err
 	}
@@ -292,7 +292,7 @@ func (obj *ItsiObj) updateConfirm(ctx context.Context) (ok bool, diags diag.Diag
 
 	start := time.Now()
 	go func() {
-		_, _, err := obj.base.requestWithRetry(ctx, http.MethodPut, obj.urlBaseWithKey(), reqBody)
+		_, _, err := obj.requestWithRetry(ctx, http.MethodPut, obj.urlBaseWithKey(), reqBody)
 		if ctx.Err() == nil {
 			resultCh <- err
 		}
@@ -429,7 +429,7 @@ func (obj *ItsiObj) Delete(ctx context.Context) (diags diag.Diagnostics) {
 	var i int
 
 	for i = 0; ; i++ {
-		_, _, err = obj.base.requestWithRetry(ctx, http.MethodDelete, obj.urlBaseWithKey(), nil)
+		_, _, err = obj.requestWithRetry(ctx, http.MethodDelete, obj.urlBaseWithKey(), nil)
 		if err != nil {
 			diags.AddError(fmt.Sprintf("Failed to delete %s/%s", obj.ObjectType, obj.RESTKey), err.Error())
 			return
@@ -552,7 +552,7 @@ func (obj *ItsiObj) Dump(ctx context.Context, query_params *Parameters) ([]*Itsi
 	}
 
 	log.Printf("Requesting %s with params %s\n", obj.restConfig.ObjectType, params.Encode())
-	_, respBody, err := obj.base.requestWithRetry(ctx, http.MethodGet, fmt.Sprintf("%s?%s", obj.urlBase(), params.Encode()), nil)
+	_, respBody, err := obj.requestWithRetry(ctx, http.MethodGet, fmt.Sprintf("%s?%s", obj.urlBase(), params.Encode()), nil)
 	if err != nil || respBody == nil {
 		return nil, err
 	}
@@ -628,7 +628,7 @@ func (obj *ItsiObj) lookupRESTKey(ctx context.Context) error {
 	params.Add("filter", fmt.Sprintf(`{"%s":"%s"}`, obj.TFIDField, obj.TFID))
 	params.Add("fields", strings.Join([]string{obj.TFIDField, obj.RestKeyField}, ","))
 
-	_, respBody, err := obj.base.requestWithRetry(
+	_, respBody, err := obj.requestWithRetry(
 		ctx,
 		http.MethodGet,
 		fmt.Sprintf("%s?%s", obj.urlBase(), params.Encode()),
@@ -665,7 +665,7 @@ func (obj *ItsiObj) exists(ctx context.Context) (ok bool, err error) {
 	params.Add("filter", fmt.Sprintf(`{"%s":"%s"}`, obj.RestKeyField, obj.RESTKey))
 	params.Add("fields", obj.RestKeyField)
 
-	_, respBody, err := obj.base.requestWithRetry(
+	_, respBody, err := obj.requestWithRetry(
 		ctx,
 		http.MethodGet,
 		fmt.Sprintf("%s?%s", obj.urlBase(), params.Encode()),
@@ -689,7 +689,7 @@ func (obj *ItsiObj) getOriginHash(ctx context.Context) (string, error) {
 	params.Add("filter", fmt.Sprintf(`{"%s":"%s"}`, obj.RestKeyField, obj.RESTKey))
 	params.Add("fields", strings.Join([]string{obj.RestKeyField, obj.TFIDField, resourceHashField}, ","))
 
-	_, respBody, err := obj.base.requestWithRetry(
+	_, respBody, err := obj.requestWithRetry(
 		ctx,
 		http.MethodGet,
 		fmt.Sprintf("%s?%s", obj.urlBase(), params.Encode()),

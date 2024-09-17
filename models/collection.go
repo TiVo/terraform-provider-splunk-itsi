@@ -132,7 +132,7 @@ collection_batchfind:
 )
 
 type CollectionApi struct {
-	base       Base
+	Base
 	RESTKey    string // key used to collect this resource via the REST API
 	apiConfig  collectionApiConfig
 	Collection string                 // Collection name
@@ -155,7 +155,7 @@ func NewCollection(clientConfig ClientConfig, collection, app, owner, key, objec
 		RESTKey:    key,
 		Owner:      owner,
 	}
-	c.base = Base{
+	c.Base = Base{
 		Splunk:    clientConfig,
 		RetryFunc: c.handleRequestError,
 	}
@@ -168,7 +168,7 @@ func NewCollection(clientConfig ClientConfig, collection, app, owner, key, objec
 
 func (c *CollectionApi) url() (u string) {
 	const f = "https://%[1]s:%[2]d/servicesNS/%[3]s/%[4]s/%[5]s"
-	u = fmt.Sprintf(f, c.base.Splunk.Host, c.base.Splunk.Port, c.Owner, c.App, c.apiConfig.Path)
+	u = fmt.Sprintf(f, c.Splunk.Host, c.Splunk.Port, c.Owner, c.App, c.apiConfig.Path)
 	if c.apiConfig.ApiCollectionKeyInUrl {
 		u = fmt.Sprintf("%[1]s/%[2]s", u, c.Collection)
 	}
@@ -215,7 +215,7 @@ func (c *CollectionApi) Create(ctx context.Context) (*CollectionApi, error) {
 		return nil, err
 	}
 
-	_, respBody, err := c.base.requestWithRetry(ctx, http.MethodPost, c.url(), reqBody)
+	_, respBody, err := c.requestWithRetry(ctx, http.MethodPost, c.url(), reqBody)
 	if err != nil {
 		return nil, err
 	}
@@ -247,7 +247,7 @@ func (c *CollectionApi) Read(ctx context.Context) (*CollectionApi, error) {
 		method = http.MethodGet
 	}
 
-	_, respBody, err := c.base.requestWithRetry(ctx, method, c.url(), body)
+	_, respBody, err := c.requestWithRetry(ctx, method, c.url(), body)
 	if err != nil {
 		return nil, err
 	}
@@ -269,7 +269,7 @@ func (c *CollectionApi) Update(ctx context.Context) (*CollectionApi, error) {
 		return nil, err
 	}
 
-	_, _, err = c.base.requestWithRetry(ctx, http.MethodPost, c.url(), reqBody)
+	_, _, err = c.requestWithRetry(ctx, http.MethodPost, c.url(), reqBody)
 	if err != nil {
 		return nil, err
 	}
@@ -279,7 +279,7 @@ func (c *CollectionApi) Update(ctx context.Context) (*CollectionApi, error) {
 func (c *CollectionApi) Delete(ctx context.Context) (*CollectionApi, error) {
 	tflog.Trace(ctx, "COLLECTION DELETE: Delete", map[string]interface{}{"c": c})
 
-	_, _, err := c.base.requestWithRetry(ctx, http.MethodDelete, c.url(), nil)
+	_, _, err := c.requestWithRetry(ctx, http.MethodDelete, c.url(), nil)
 	if err != nil {
 		return nil, err
 	}
