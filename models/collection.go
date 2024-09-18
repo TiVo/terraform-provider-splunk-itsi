@@ -4,19 +4,14 @@ package models
 // REST APIs.
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"encoding/xml"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
-	"time"
 
 	"github.com/hashicorp/terraform-plugin-log/tflog"
-	"github.com/lestrrat-go/backoff/v2"
-	"github.com/tivo/terraform-provider-splunk-itsi/provider/util"
 	"gopkg.in/yaml.v3"
 )
 
@@ -137,17 +132,15 @@ collection_batchfind:
 )
 
 type CollectionApi struct {
-	splunk    ClientConfig
-	apiConfig collectionApiConfig
-
-	RESTKey              string                  // key used to collect this resource via the REST API
-	Collection           string                  // Collection name
-	App                  string                  // Collection App
-	Owner                string                  // Collection owner
-	Data                 map[string]interface{}  // Data for this object
-	Params               string                  // URL query string, iff provided
-	Body                 []byte                  // Body used for this API call
-	CustomBehaviourCodes map[int]util.HandleCode // Common unretriable errors
+	Base
+	RESTKey    string // key used to collect this resource via the REST API
+	apiConfig  collectionApiConfig
+	Collection string                 // Collection name
+	App        string                 // Collection App
+	Owner      string                 // Collection owner
+	Data       map[string]interface{} // Data for this object
+	Params     string                 // URL query string, iff provided
+	Body       []byte                 // Body used for this API call
 }
 
 func NewCollection(clientConfig ClientConfig, collection, app, owner, key, objectType string) *CollectionApi {
@@ -156,38 +149,26 @@ func NewCollection(clientConfig ClientConfig, collection, app, owner, key, objec
 	}
 
 	c := &CollectionApi{
-		splunk:     clientConfig,
 		apiConfig:  CollectionApiConfigs[objectType],
-		RESTKey:    key,
 		Collection: collection,
 		App:        app,
+		RESTKey:    key,
 		Owner:      owner,
-		CustomBehaviourCodes: map[int]util.HandleCode{
-			//400: Bad Request
-			400: util.ReturnError,
-			//401: Unauthorized
-			401: util.ReturnError,
-			//403: Forbidden
-			403: util.ReturnError,
-			//404: Not Found
-			404: util.ReturnError,
-			//409: Conflict
-			409: util.ReturnError,
-		},
 	}
+	c.Base = Base{
+		Splunk:    clientConfig,
+		RetryFunc: c.handleRequestError,
+	}
+
 	if c.apiConfig.BodyFormat == "" {
 		c.apiConfig.BodyFormat = "JSON"
 	}
 	return c
 }
 
-func (c *CollectionApi) SetCodeHandle(code int, instruction util.HandleCode) {
-	c.CustomBehaviourCodes[code] = instruction
-}
-
 func (c *CollectionApi) url() (u string) {
 	const f = "https://%[1]s:%[2]d/servicesNS/%[3]s/%[4]s/%[5]s"
-	u = fmt.Sprintf(f, c.splunk.Host, c.splunk.Port, c.Owner, c.App, c.apiConfig.Path)
+	u = fmt.Sprintf(f, c.Splunk.Host, c.Splunk.Port, c.Owner, c.App, c.apiConfig.Path)
 	if c.apiConfig.ApiCollectionKeyInUrl {
 		u = fmt.Sprintf("%[1]s/%[2]s", u, c.Collection)
 	}
@@ -215,128 +196,15 @@ func (c *CollectionApi) body() (body []byte, err error) {
 	return
 }
 
-func (c *CollectionApi) shouldRetry(method string, statusCode int, err error) bool {
-	if handle_code, ok := c.CustomBehaviourCodes[statusCode]; ok && (handle_code == util.ReturnError || handle_code == util.Ignore) {
-		return false
-	}
-	return true
-}
+func (c *CollectionApi) handleRequestError(ctx context.Context, method string, statusCode int, responseBody []byte, requestErr error) (shouldRetry bool, newStatusCode int, newBody []byte, err error) {
+	newStatusCode, newBody, err = statusCode, responseBody, requestErr
 
-func (c *CollectionApi) requestWithRetry(ctx context.Context, method string, url string, body []byte) (statusCode int, responseBody []byte, err error) {
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	co := c.splunk.RetryPolicy.Start(ctx)
-
-	attempt := 1
-	for backoff.Continue(co) {
-		start := time.Now()
-		statusCode, responseBody, err = c.request(ctx, method, url, body)
-		tflog.Trace(ctx, fmt.Sprintf("%v %v (%v): %v %v [%s]", method, url,
-			attempt, statusCode, http.StatusText(statusCode),
-			time.Since(start).String()))
-		if err != nil {
-			if !c.shouldRetry(method, statusCode, err) {
-				tflog.Error(ctx, fmt.Sprintf("%v %v (%v) failed: %v",
-					attempt, method, url, statusCode))
-				responseBody = nil
-				return
-			}
-
-			if ctx.Err() == nil {
-				attempt++
-				continue
-			}
-		}
-		break
-	}
-
-	if err == nil {
-		err = ctx.Err()
-	}
-
-	if err != nil {
-		tflog.Error(ctx, fmt.Sprintf("%v %v (%v) failed: %s", method, url,
-			attempt, err.Error()))
-	}
-	return
-}
-
-func (c *CollectionApi) request(ctx context.Context, method string, u string, body []byte) (statusCode int, responseBody []byte, err error) {
-	client := clients.Get(c.splunk)
-	req, err := http.NewRequestWithContext(ctx, method, u, bytes.NewBuffer(body))
-	if err != nil {
-		return
-	}
-	if Verbose {
-		err = logRequest(req)
-		if err != nil {
-			return
-		}
-	}
-
-	if c.splunk.BearerToken != "" {
-		req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", c.splunk.BearerToken))
-	} else {
-		req.SetBasicAuth(c.splunk.User, c.splunk.Password)
-	}
-	if c.apiConfig.ContentType != "" {
-		req.Header.Add("Content-Type", c.apiConfig.ContentType)
-	} else if c.apiConfig.BodyFormat == "JSON" {
-		req.Header.Add("Content-Type", "application/json")
-	}
-
-	itsiLimiter.Acquire()
-	defer itsiLimiter.Release()
-
-	tflog.Debug(ctx, "COLLECTION: Created a request",
-		map[string]interface{}{"key": c.RESTKey, "method": method, "url": u})
-
-	tflog.Trace(ctx, "COLLECTION:   Request body",
-		map[string]interface{}{"key": c.RESTKey, "c": c, "body": string(body)})
-
-	resp, err := client.Do(req)
-	if resp != nil {
-		statusCode = resp.StatusCode
-	}
-	if err != nil {
-		tflog.Trace(ctx, "COLLECTION:   Request fail", map[string]interface{}{"key": c.RESTKey, "err": err})
-		return
-	}
-	defer resp.Body.Close()
-	tflog.Debug(ctx, "COLLECTION:   Response err code: "+resp.Status,
-		map[string]interface{}{"key": c.RESTKey, "content-length": resp.ContentLength})
-	if Verbose {
-		if err = logResponse(resp); err != nil {
-			return
-		}
-	}
-
-	responseBody, err = io.ReadAll(resp.Body)
-	if err != nil {
-		tflog.Trace(ctx, "COLLECTION:   Response read err",
-			map[string]interface{}{"key": c.RESTKey, "err": err})
-		return statusCode, nil, fmt.Errorf("%v error: %v", method, resp.Status)
-	}
-
-	success := false
-	switch method {
-	case http.MethodDelete:
-		if resp.StatusCode == 404 {
-			// Ignore 404 errors for DELETE requests, when
-			// we are trying to delete a nonexistent
-			// resource...
-			success = true
-			break
-		}
-		success = resp.StatusCode >= 200 && resp.StatusCode < 300
+	switch {
+	case statusCode == 400 || statusCode == 401 || statusCode == 403 || statusCode == 404 || statusCode == 409: //do not retry
 	default:
-		success = resp.StatusCode >= 200 && resp.StatusCode < 300
+		shouldRetry = true
 	}
 
-	if !success {
-		return statusCode, nil, fmt.Errorf("%v error: %v \n%s", method, resp.Status, responseBody)
-	}
 	return
 }
 
@@ -379,11 +247,8 @@ func (c *CollectionApi) Read(ctx context.Context) (*CollectionApi, error) {
 		method = http.MethodGet
 	}
 
-	statusCode, respBody, err := c.requestWithRetry(ctx, method, c.url(), body)
+	_, respBody, err := c.requestWithRetry(ctx, method, c.url(), body)
 	if err != nil {
-		if handleCode, ok := c.CustomBehaviourCodes[statusCode]; ok && handleCode == util.Ignore {
-			return nil, nil
-		}
 		return nil, err
 	}
 	if respBody == nil {

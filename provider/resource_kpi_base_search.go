@@ -125,8 +125,8 @@ func (kbs KpiBaseSearchState) title() string {
 	return kbs.Title.String()
 }
 
-func kpiBaseSearchBase(clientConfig models.ClientConfig, key string, title string) *models.Base {
-	base := models.NewBase(clientConfig, key, title, "kpi_base_search")
+func kpiBaseSearchBase(clientConfig models.ClientConfig, key string, title string) *models.ItsiObj {
+	base := models.NewItsiObj(clientConfig, key, title, "kpi_base_search")
 	return base
 }
 
@@ -147,7 +147,7 @@ func (r *resourceKpiBaseSearch) ModifyPlan(ctx context.Context, req resource.Mod
 	var state, plan KpiBaseSearchState
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 
-	base := models.NewBase(r.client, "", "", "service")
+	base := models.NewItsiObj(r.client, "", "", "service")
 	params := models.Parameters{
 		Fields: []string{
 			"_key",

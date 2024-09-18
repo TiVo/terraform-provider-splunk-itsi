@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"encoding/xml"
 	"fmt"
-	"net/http"
 	"net/url"
 	"regexp"
 	"strconv"
@@ -16,7 +15,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/tivo/terraform-provider-splunk-itsi/models"
-	"github.com/tivo/terraform-provider-splunk-itsi/provider/util"
 )
 
 /*
@@ -71,7 +69,6 @@ func (api *collectionAPI) Model(objectType string) *models.CollectionApi {
 
 func (api *collectionAPI) CollectionExists(ctx context.Context, require bool) (exists bool, diags diag.Diagnostics) {
 	collection := api.Model("collection_config_no_body")
-	collection.SetCodeHandle(http.StatusNotFound, util.Ignore)
 	collection_, err := collection.Read(ctx)
 	if err != nil {
 		diags.AddError(fmt.Sprintf("Unable to read %s collection config", api.Key()), err.Error())

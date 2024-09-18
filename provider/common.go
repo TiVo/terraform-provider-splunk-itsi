@@ -50,7 +50,7 @@ func newTemplate(resourcetpl *resourceTemplate) (*template.Template, error) {
 	return template.New("resource").Funcs(fmap).Parse(templateResourceSchema)
 }
 
-type TFFormatter func(*models.Base) (string, error)
+type TFFormatter func(*models.ItsiObj) (string, error)
 
 var Formatters map[string]TFFormatter = map[string]TFFormatter{
 	//"kpi_base_search": kpiBSTFFormat,
@@ -61,7 +61,7 @@ var Formatters map[string]TFFormatter = map[string]TFFormatter{
 	//"notable_event_aggregation_policy": notableEventAggregationPolicyTFFormat,
 }
 
-func JSONify(base *models.Base, formatter TFFormatter) (json.RawMessage, error) {
+func JSONify(base *models.ItsiObj, formatter TFFormatter) (json.RawMessage, error) {
 	b, err := formatter(base)
 	if err != nil {
 		return nil, err

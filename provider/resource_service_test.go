@@ -287,7 +287,7 @@ func EmulateUiDelete(t *testing.T, title string, object_type string) error {
 	ctx := context.Background()
 	t.Logf("Skip function, emulating removing from UI.")
 	client := configureTestClient()
-	base := models.NewBase(client, "", title, object_type)
+	base := models.NewItsiObj(client, "", title, object_type)
 	base, err := base.Find(ctx)
 	if err != nil {
 		t.Logf("%s %s not found: %s", object_type, title, err.Error())

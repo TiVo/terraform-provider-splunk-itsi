@@ -100,8 +100,8 @@ var (
 
 // (2) [ NEAP helper functions ] _______________________________________________
 
-func notableEventAggregationPolicyBase(clientConfig models.ClientConfig, key string, title string) *models.Base {
-	base := models.NewBase(clientConfig, key, title, itsiResourceTypeNEAP)
+func notableEventAggregationPolicyBase(clientConfig models.ClientConfig, key string, title string) *models.ItsiObj {
+	base := models.NewItsiObj(clientConfig, key, title, itsiResourceTypeNEAP)
 	return base
 }
 

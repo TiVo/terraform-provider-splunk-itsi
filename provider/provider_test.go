@@ -213,7 +213,7 @@ func collectionModelObjectExists(ctx context.Context, resourceType resourceName,
 }
 
 func baseModelObjectExists(ctx context.Context, resourcetype resourceName, resourceTitle string) (bool, error) {
-	base := models.NewBase(clientConfig, "", resourceTitle, string(resourcetype))
+	base := models.NewItsiObj(clientConfig, "", resourceTitle, string(resourcetype))
 	b, err := base.Find(ctx)
 	if err != nil {
 		return false, err
@@ -288,7 +288,7 @@ func sweeperLog(objecttype string, msg string, args ...any) {
 
 func sweepObjectType(ctx context.Context, objecttype string) (err error) {
 	log.Printf("Sweeping %s resources", objecttype)
-	base := models.NewBase(clientConfig, "", "", objecttype)
+	base := models.NewItsiObj(clientConfig, "", "", objecttype)
 
 	deleted := 0
 	var fields []string

@@ -80,7 +80,7 @@ func newAPIBuilder[T tfmodel](client models.ClientConfig, buildWorkflow apibuild
 	}
 }
 
-func (b *apibuilder[T]) build(ctx context.Context, obj T) (m *models.Base, diags diag.Diagnostics) {
+func (b *apibuilder[T]) build(ctx context.Context, obj T) (m *models.ItsiObj, diags diag.Diagnostics) {
 	body := make(map[string]any)
 	if version != "" {
 		body["mod_source"] = fmt.Sprintf("itsi-tf %s (%s #%s)", version, buildTime, commit)
@@ -94,7 +94,7 @@ func (b *apibuilder[T]) build(ctx context.Context, obj T) (m *models.Base, diags
 		maps.Copy(body, stepbody)
 	}
 	id := tfmodelID(&obj).ValueString()
-	m = models.NewBase(b.client, id, obj.title(), obj.objectype())
+	m = models.NewItsiObj(b.client, id, obj.title(), obj.objectype())
 	if err := m.PopulateRawJSON(ctx, body); err != nil {
 		diags.AddError(fmt.Sprintf("%s/%s: failed to populate api model", obj.objectype(), id), err.Error())
 	}
@@ -114,18 +114,18 @@ type apiparseWorkflow[T tfmodel] interface {
 // api model parser,
 // given an API (models.Base) model and a workflow, returns a tfmodel
 type apiparser[T tfmodel] struct {
-	base     *models.Base
+	base     *models.ItsiObj
 	workflow apiparseWorkflow[T]
 }
 
-func newAPIParser[T tfmodel](base *models.Base, parseWorkflow apiparseWorkflow[T]) *apiparser[T] {
+func newAPIParser[T tfmodel](base *models.ItsiObj, parseWorkflow apiparseWorkflow[T]) *apiparser[T] {
 	return &apiparser[T]{
 		base:     base,
 		workflow: parseWorkflow,
 	}
 }
 
-func (p *apiparser[T]) parse(ctx context.Context, base *models.Base) (obj T, diags diag.Diagnostics) {
+func (p *apiparser[T]) parse(ctx context.Context, base *models.ItsiObj) (obj T, diags diag.Diagnostics) {
 	if base == nil || base.RawJson == nil {
 		diags.AddError(fmt.Sprintf("Unable to populate %s tfmodel", base.ObjectType), "base object is nil or empty.")
 		return

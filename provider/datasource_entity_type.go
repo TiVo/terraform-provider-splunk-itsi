@@ -29,8 +29,8 @@ type dataSourceEntityTypeModel struct {
 	Timeouts timeouts.Value `tfsdk:"timeouts"`
 }
 
-func entityTypeBase(clientConfig models.ClientConfig, key string, title string) *models.Base {
-	base := models.NewBase(clientConfig, key, title, "entity_type")
+func entityTypeBase(clientConfig models.ClientConfig, key string, title string) *models.ItsiObj {
+	base := models.NewItsiObj(clientConfig, key, title, "entity_type")
 	return base
 }
 

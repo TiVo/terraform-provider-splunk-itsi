@@ -13,13 +13,13 @@ var cacheMu sync.Mutex
 // Cache Item
 
 type cacheItem struct {
-	base *Base
+	obj  *ItsiObj
 	once *sync.Once
 }
 
 func (ci *cacheItem) Reset() {
 	ci.once = new(sync.Once)
-	ci.base = nil
+	ci.obj = nil
 }
 
 // TF ID -> REST Key Mapping
@@ -70,24 +70,24 @@ func NewCache(size int) *resourceCache {
 	}
 }
 
-func (c *resourceCache) restkey(b *Base) string {
-	if b == nil || (b.RESTKey == "" && b.TFID == "") {
+func (c *resourceCache) restkey(obj *ItsiObj) string {
+	if obj == nil || (obj.RESTKey == "" && obj.TFID == "") {
 		return ""
 	}
 	restkey := ""
-	if b.RESTKey != "" {
-		restkey = b.RESTKey
-	} else if b.TFID != "" {
-		restkey = c.restKey.Get(b.RestInterface, b.ObjectType, b.TFID)
+	if obj.RESTKey != "" {
+		restkey = obj.RESTKey
+	} else if obj.TFID != "" {
+		restkey = c.restKey.Get(obj.RestInterface, obj.ObjectType, obj.TFID)
 	}
 	if restkey == "" {
 		return ""
 	}
-	return formatCacheKey(b.RestInterface, b.ObjectType, restkey)
+	return formatCacheKey(obj.RestInterface, obj.ObjectType, restkey)
 }
 
-func (c *resourceCache) Reset(b *Base) *cacheItem {
-	k := c.restkey(b)
+func (c *resourceCache) Reset(obj *ItsiObj) *cacheItem {
+	k := c.restkey(obj)
 	if k == "" {
 		return &cacheItem{once: new(sync.Once)}
 	}
@@ -103,23 +103,23 @@ func (c *resourceCache) Reset(b *Base) *cacheItem {
 	return item.(*cacheItem)
 }
 
-func (c *resourceCache) Add(b *Base) {
-	k := c.restkey(b)
+func (c *resourceCache) Add(obj *ItsiObj) {
+	k := c.restkey(obj)
 	if k == "" {
 		return
 	}
 
 	item, ok := c.baseByRESTKey.Get(k)
 	if ok {
-		item.(*cacheItem).base = b
+		item.(*cacheItem).obj = obj
 	} else {
-		item = &cacheItem{base: b}
+		item = &cacheItem{obj: obj}
 		c.baseByRESTKey.Add(k, item)
 	}
 }
 
-func (c *resourceCache) Get(b *Base) (item *cacheItem, ok bool) {
-	k := c.restkey(b)
+func (c *resourceCache) Get(obj *ItsiObj) (item *cacheItem, ok bool) {
+	k := c.restkey(obj)
 	if k == "" {
 		return nil, false
 	}
@@ -130,8 +130,8 @@ func (c *resourceCache) Get(b *Base) (item *cacheItem, ok bool) {
 	return
 }
 
-func (c *resourceCache) Remove(b *Base) {
-	k := c.restkey(b)
+func (c *resourceCache) Remove(obj *ItsiObj) {
+	k := c.restkey(obj)
 	if k == "" {
 		return
 	}
