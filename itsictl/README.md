@@ -29,10 +29,6 @@
 
 To install `itsictl`, you can download the binary for your platform from the releases page or build it from source.
 
-### Download Binary
-
-Download the appropriate binary for your operating system from the [releases page](https://github.com/TiVo/terraform-provider-splunk-itsi/releases/).
-
 ### Build from Source
 
 Ensure you have Go installed (version 1.23 or later).
