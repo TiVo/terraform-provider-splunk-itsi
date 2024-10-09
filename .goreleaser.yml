@@ -39,7 +39,7 @@ builds:
       - CGO_ENABLED=0
     mod_timestamp: "{{ .CommitTimestamp }}"
     ldflags:
-      - "-s -w -X main.version={{.Version}} -X main.commit={{.ShortCommit}} -X main.buildTime={{.Date}}"
+      - "-s -w -X github.com/tivo/terraform-provider-splunk-itsi/itsictl/cmd.version={{.Version}} -X github.com/tivo/terraform-provider-splunk-itsi/itsictl/cmd.commit={{.ShortCommit}} -X github.com/tivo/terraform-provider-splunk-itsi/itsictl/cmd.buildTime={{.Date}}"
     goos:
       - freebsd
       - windows

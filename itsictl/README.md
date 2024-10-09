@@ -27,14 +27,61 @@
 
 ## Installation
 
-To install `itsictl`, you can download the binary for your platform from the releases page or build it from source.
+You have two primary options to install `itsictl`:
 
-### Build from Source
+- **Build from Source Using Homebrew Formula (recommended)**
+- **Build from Source Manually**
+
+### Build from Source Using Homebrew Formula
+
+
+**Prerequisites:**
+
+- Homebrew installed on your system. If you don't have Homebrew, you can install it by following the instructions at [brew.sh](https://brew.sh/).
+
+**Installation Steps:**
+
+1. **Install `itsictl` Using Homebrew:**
+
+  Run the following command to install `itsictl` from the latest source:
+
+  ```bash
+  brew install --HEAD --build-from-source https://raw.githubusercontent.com/TiVo/terraform-provider-splunk-itsi/refs/heads/main/itsictl/brew/itsictl.rb
+  ```
+
+   This command will:
+
+   - Download the `itsictl` formula directly from the GitHub repository.
+   - Build `itsictl` from the latest source code.
+   - Install the binary into your system.
+   - Install manpages and shell completion scripts.
+
+**Note:** After installation or updating, you may need to refresh your shell's completion cache to enable autocompletion.
+
+2. **Verify Installation:**
+
+  ```bash
+  itsictl version
+  ```
+
+**Updating `itsictl`:**
+
+If `itsictl` is already installed and you want to update it to the latest version, run:
+
+```bash
+  brew uninstall itsictl
+  brew install --HEAD --build-from-source https://raw.githubusercontent.com/TiVo/terraform-provider-splunk-itsi/refs/heads/main/itsictl/brew/itsictl.rb
+```
+
+This will uninstall the existing version and install the latest version from the source.
+
+### Build from Source Manually
 
 Ensure you have Go installed (version 1.23 or later).
 
 ```bash
 git clone git@github.com:TiVo/terraform-provider-splunk-itsi.git
+cd terraform-provider-splunk-itsi
 make build
 ```
 
