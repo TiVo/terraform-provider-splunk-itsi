@@ -1,9 +1,6 @@
 package main
 
 import (
-	"fmt"
-	"runtime"
-
 	"github.com/tivo/terraform-provider-splunk-itsi/itsictl/cmd"
 )
 
@@ -14,11 +11,11 @@ var (
 	buildTime string
 )
 
-func printInfo() {
-	fmt.Printf("itsictl %s %s/%s (%s #%s)\n", version, runtime.GOOS, runtime.GOARCH, buildTime, commit)
-}
+// func printInfo() {
+// 	fmt.Printf("itsictl %s %s/%s (%s #%s)\n", version, runtime.GOOS, runtime.GOARCH, buildTime, commit)
+// }
 
 func main() {
-	printInfo()
+	//printInfo()
 	cmd.Execute()
 }
