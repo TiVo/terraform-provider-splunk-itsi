@@ -46,12 +46,13 @@ You have two primary options to install `itsictl`:
   Run the following command to install `itsictl` from the latest source:
 
   ```bash
-  brew install --HEAD --build-from-source https://raw.githubusercontent.com/TiVo/terraform-provider-splunk-itsi/refs/heads/main/itsictl/brew/itsictl.rb
+    git clone git@github.com:TiVo/terraform-provider-splunk-itsi.git
+    cd terraform-provider-splunk-itsi
+    brew install --HEAD --build-from-source ./itsictl/brew/itsictl.rb
   ```
 
    This command will:
 
-   - Download the `itsictl` formula directly from the GitHub repository.
    - Build `itsictl` from the latest source code.
    - Install the binary into your system.
    - Install manpages and shell completion scripts.
@@ -69,8 +70,8 @@ You have two primary options to install `itsictl`:
 If `itsictl` is already installed and you want to update it to the latest version, run:
 
 ```bash
-  brew uninstall itsictl
-  brew install --HEAD --build-from-source https://raw.githubusercontent.com/TiVo/terraform-provider-splunk-itsi/refs/heads/main/itsictl/brew/itsictl.rb
+    cd terraform-provider-splunk-itsi
+    brew reinstall --HEAD --build-from-source ./itsictl/brew/itsictl.rb
 ```
 
 This will uninstall the existing version and install the latest version from the source.
