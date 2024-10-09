@@ -43,35 +43,35 @@ You have two primary options to install `itsictl`:
 
 1. **Install `itsictl` Using Homebrew:**
 
-  Run the following command to install `itsictl` from the latest source:
+Run the following commands to install `itsictl` from the latest source:
 
-  ```bash
-    git clone git@github.com:TiVo/terraform-provider-splunk-itsi.git
-    cd terraform-provider-splunk-itsi
-    brew install --HEAD --build-from-source ./itsictl/brew/itsictl.rb
-  ```
+```bash
+git clone git@github.com:TiVo/terraform-provider-splunk-itsi.git
+cd terraform-provider-splunk-itsi
+brew install --HEAD --build-from-source ./itsictl/brew/itsictl.rb
+```
 
-   This command will:
+This command will:
 
-   - Build `itsictl` from the latest source code.
-   - Install the binary into your system.
-   - Install manpages and shell completion scripts.
+- Build `itsictl` from the latest source code.
+- Install the binary into your system.
+- Install manpages and shell completion scripts.
 
 **Note:** After installation or updating, you may need to refresh your shell's completion cache to enable autocompletion.
 
 2. **Verify Installation:**
 
-  ```bash
-  itsictl version
-  ```
+```bash
+itsictl version
+```
 
 **Updating `itsictl`:**
 
 If `itsictl` is already installed and you want to update it to the latest version, run:
 
 ```bash
-    cd terraform-provider-splunk-itsi
-    brew reinstall --HEAD --build-from-source ./itsictl/brew/itsictl.rb
+cd terraform-provider-splunk-itsi
+brew reinstall --HEAD --build-from-source ./itsictl/brew/itsictl.rb
 ```
 
 This will uninstall the existing version and install the latest version from the source.
