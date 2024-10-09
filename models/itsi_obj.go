@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"iter"
 	"log"
 	"net/http"
 	"net/url"
@@ -18,7 +19,7 @@ import (
 	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
-	"github.com/tivo/terraform-provider-splunk-itsi/provider/util"
+	"github.com/tivo/terraform-provider-splunk-itsi/util"
 	"gopkg.in/yaml.v3"
 )
 
@@ -535,20 +536,20 @@ type Parameters struct {
 	Filter string
 }
 
-func (obj *ItsiObj) Dump(ctx context.Context, query_params *Parameters) ([]*ItsiObj, error) {
+func (obj *ItsiObj) Dump(ctx context.Context, queryParams *Parameters) ([]*ItsiObj, error) {
 
 	params := url.Values{}
 	params.Add("sort_key", obj.restConfig.RestKeyField)
 	params.Add("sort_dir", "asc")
-	if query_params.Count > 0 && query_params.Offset >= 0 {
-		params.Add("count", strconv.Itoa(query_params.Count))
-		params.Add("offset", strconv.Itoa(query_params.Offset))
+	if queryParams.Count > 0 && queryParams.Offset >= 0 {
+		params.Add("count", strconv.Itoa(queryParams.Count))
+		params.Add("offset", strconv.Itoa(queryParams.Offset))
 	}
-	if len(query_params.Fields) > 0 {
-		params.Add("fields", strings.Join(query_params.Fields, ","))
+	if len(queryParams.Fields) > 0 {
+		params.Add("fields", strings.Join(queryParams.Fields, ","))
 	}
-	if query_params.Filter != "" {
-		params.Add("filter", query_params.Filter)
+	if queryParams.Filter != "" {
+		params.Add("filter", queryParams.Filter)
 	}
 
 	log.Printf("Requesting %s with params %s\n", obj.restConfig.ObjectType, params.Encode())
@@ -572,6 +573,38 @@ func (obj *ItsiObj) Dump(ctx context.Context, query_params *Parameters) ([]*Itsi
 		res = append(res, obj_)
 	}
 	return res, err
+}
+
+func (obj *ItsiObj) Iter(ctx context.Context, queryParams *Parameters) iter.Seq2[*ItsiObj, error] {
+	return func(yield func(*ItsiObj, error) bool) {
+		filter := ""
+		offset := 0
+		limit := obj.GetPageSize()
+		if queryParams != nil {
+			filter = queryParams.Filter
+			if queryParams.Count > 0 {
+				limit = queryParams.Count
+			}
+		}
+
+		for ; offset >= 0; offset += limit {
+			items, err := obj.Dump(ctx, &Parameters{Offset: offset, Count: limit, Filter: filter})
+			if err != nil {
+				yield(nil, err)
+				return
+			}
+
+			for _, item := range items {
+				if !yield(item, nil) {
+					return
+				}
+			}
+
+			if len(items) < limit {
+				return
+			}
+		}
+	}
 }
 
 func (obj *ItsiObj) Populate(raw []byte) error {

@@ -22,7 +22,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 	"github.com/tivo/terraform-provider-splunk-itsi/models"
-	"github.com/tivo/terraform-provider-splunk-itsi/provider/util"
+	"github.com/tivo/terraform-provider-splunk-itsi/util"
 )
 
 const (
@@ -656,7 +656,7 @@ func (w *entityTypeParseWorkflow) dashboardDrilldowns(ctx context.Context, field
 
 	dashboardDrilldowns := []entityTypeDashboardDrilldownModel{}
 
-	apiDrilldowns, err := unpackSlice[map[string]any](apiDrilldownList)
+	apiDrilldowns, err := UnpackSlice[map[string]any](apiDrilldownList)
 	if err != nil {
 		diags.AddError("Unable to populate entity type model", err.Error())
 		return
@@ -671,7 +671,7 @@ func (w *entityTypeParseWorkflow) dashboardDrilldowns(ctx context.Context, field
 
 		drilldownParams := map[string]string{}
 		if aliasParamMap, ok := apiParams["alias_param_map"]; ok {
-			aliasParamTuple, err := unpackSlice[map[string]any](aliasParamMap)
+			aliasParamTuple, err := UnpackSlice[map[string]any](aliasParamMap)
 			if err != nil {
 				diags.AddError("Unable to populate entity type model", err.Error())
 				return
@@ -707,7 +707,7 @@ func (w *entityTypeParseWorkflow) dataDrilldowns(ctx context.Context, fields map
 	}
 
 	dataDrilldowns := []entityTypeDataDrilldownModel{}
-	apiDrilldowns, err := unpackSlice[map[string]any](apiDrilldownList)
+	apiDrilldowns, err := UnpackSlice[map[string]any](apiDrilldownList)
 	if err != nil {
 		diags.AddError("Unable to populate entity type model", err.Error())
 		return
@@ -722,7 +722,7 @@ func (w *entityTypeParseWorkflow) dataDrilldowns(ctx context.Context, fields map
 			apiStaticFilters["filters"] = []any{apiStaticFilters}
 		}
 
-		apiStaticFiltersList, err := unpackSlice[map[string]any](apiStaticFilters["filters"])
+		apiStaticFiltersList, err := UnpackSlice[map[string]any](apiStaticFilters["filters"])
 		if err != nil {
 			diags.AddError("Unable to populate entity type model", err.Error())
 			return
@@ -731,7 +731,7 @@ func (w *entityTypeParseWorkflow) dataDrilldowns(ctx context.Context, fields map
 		staticFilters := map[string]string{}
 
 		for _, filter := range apiStaticFiltersList {
-			values, err := unpackSlice[string](filter["values"])
+			values, err := UnpackSlice[string](filter["values"])
 			if err != nil {
 				diags.AddError("Unable to populate entity type model", err.Error())
 				return
@@ -751,7 +751,7 @@ func (w *entityTypeParseWorkflow) dataDrilldowns(ctx context.Context, fields map
 			_entityFieldFilter := entityFieldFilter.(map[string]any)
 			var apiEntityFilters []map[string]any
 			if filters, ok := _entityFieldFilter["filters"]; ok {
-				apiEntityFilters, err = unpackSlice[map[string]any](filters)
+				apiEntityFilters, err = UnpackSlice[map[string]any](filters)
 				if err != nil {
 					diags.AddError("Unable to populate entity type model", err.Error())
 					return
@@ -787,7 +787,7 @@ func (w *entityTypeParseWorkflow) vitalMetrics(ctx context.Context, fields map[s
 	}
 
 	vitalMetrics := []entityTypeVitalMetricModel{}
-	apiVitalMetrics, err := unpackSlice[map[string]any](apiVitalMetricsList)
+	apiVitalMetrics, err := UnpackSlice[map[string]any](apiVitalMetricsList)
 	if err != nil {
 		diags.AddError("Unable to populate entity type model", err.Error())
 		return

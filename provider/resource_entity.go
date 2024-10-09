@@ -19,7 +19,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 	"github.com/tivo/terraform-provider-splunk-itsi/models"
-	"github.com/tivo/terraform-provider-splunk-itsi/provider/util"
+	"github.com/tivo/terraform-provider-splunk-itsi/util"
 )
 
 const (
@@ -215,7 +215,7 @@ func (w *entityParseWorkflow) basics(ctx context.Context, fields map[string]any,
 
 func (w *entityParseWorkflow) entityTypes(ctx context.Context, fields map[string]any, res *entityModel) (diags diag.Diagnostics) {
 	if v, ok := fields["entity_type_ids"]; ok && v != nil {
-		entityTypeIds, err := unpackSlice[string](v.([]interface{}))
+		entityTypeIds, err := UnpackSlice[string](v.([]interface{}))
 		if err != nil {
 			diags.AddError("Unable to populate entity model", err.Error())
 			return
@@ -250,7 +250,7 @@ func (w *entityParseWorkflow) fields(ctx context.Context, fields map[string]any,
 				diags.AddError("Unable to populate entity model", fmt.Sprintf("entity resource (%v): missing value for '%v/fields/%v' field", res.ID.ValueString(), itsiField, k.(string)))
 				return
 			}
-			values, err := unpackSlice[string](itsiValues)
+			values, err := UnpackSlice[string](itsiValues)
 			if err != nil {
 				diags.AddError("Unable to populate entity model", err.Error())
 				return

@@ -313,7 +313,7 @@ func (w *kpiBaseSearchParseWorkflow) basics(ctx context.Context, fields map[stri
 
 func (w *kpiBaseSearchParseWorkflow) metrics(ctx context.Context, fields map[string]any, res *KpiBaseSearchState) (diags diag.Diagnostics) {
 	if v, ok := fields["metrics"]; ok && v != nil {
-		metrics, err := unpackSlice[map[string]interface{}](v.([]interface{}))
+		metrics, err := UnpackSlice[map[string]interface{}](v.([]interface{}))
 		if err != nil {
 			diags.AddError("Unable to unpack metrics in the KPI BS model", err.Error())
 			return

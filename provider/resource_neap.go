@@ -31,7 +31,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/tivo/terraform-provider-splunk-itsi/models"
-	"github.com/tivo/terraform-provider-splunk-itsi/provider/util"
+	"github.com/tivo/terraform-provider-splunk-itsi/util"
 )
 
 /*
@@ -248,7 +248,7 @@ func newNEAPCriteriaFromAPIModel(c map[string]any) (criteria *neapCriteriaModel,
 		criteria.Condition = types.StringValue(condition.(string))
 	}
 
-	items, err := unpackSlice[map[string]any](c["items"])
+	items, err := UnpackSlice[map[string]any](c["items"])
 	if err != nil {
 		diags.AddError("NEAP: Invalid Criteria", fmt.Sprintf("Invalid criteria items: %s", err.Error()))
 		return
@@ -307,7 +307,7 @@ func newNEAPCriteriaFromAPIModel(c map[string]any) (criteria *neapCriteriaModel,
 				NotableEventField: []neapCriteriaClauseNotableEventFieldModel{},
 			}
 
-			configItems, err := unpackSlice[map[string]any](config["items"])
+			configItems, err := UnpackSlice[map[string]any](config["items"])
 			if err != nil {
 				diags.AddError("NEAP: Invalid Criteria", fmt.Sprintf("Invalid clause items: %s", err.Error()))
 				return
@@ -425,7 +425,7 @@ func NEAPRuleFromAPIModel(r map[string]any) (rule neapRuleModel, diags diag.Diag
 		return
 	}
 
-	itsiActions, err := unpackSlice[map[string]any](r["actions"])
+	itsiActions, err := UnpackSlice[map[string]any](r["actions"])
 	if err != nil {
 		diags.AddError("NEAP: Invalid Rule Actions", fmt.Sprintf("Invalid rule actions: %s", err.Error()))
 		return
@@ -477,7 +477,7 @@ func (a *neapRuleActionsModel) apiModel() (action map[string]any, diags diag.Dia
 }
 
 func NEAPRuleActionsFromAPIModel(a map[string]any) (actions neapRuleActionsModel, diags diag.Diagnostics) {
-	items, err := unpackSlice[map[string]any](a["items"])
+	items, err := UnpackSlice[map[string]any](a["items"])
 	if err != nil {
 		diags.AddError("NEAP: Invalid Rule Actions", fmt.Sprintf("Invalid rule actions items: %s", err.Error()))
 	}
@@ -1327,7 +1327,7 @@ func (w *neapParseWorkflow) criteria(ctx context.Context, fields map[string]inte
 }
 
 func (w *neapParseWorkflow) rules(ctx context.Context, fields map[string]interface{}, res *neapModel) (diags diag.Diagnostics) {
-	rules, err := unpackSlice[map[string]any](fields["rules"])
+	rules, err := UnpackSlice[map[string]any](fields["rules"])
 	if err != nil {
 		diags.AddError("NEAP: Unable to parse rules", err.Error())
 		return
