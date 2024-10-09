@@ -83,7 +83,7 @@ Ensure you have Go installed (version 1.23 or later).
 ```bash
 git clone git@github.com:TiVo/terraform-provider-splunk-itsi.git
 cd terraform-provider-splunk-itsi
-make build
+make itsictl
 ```
 
 

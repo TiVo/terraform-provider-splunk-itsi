@@ -24,6 +24,9 @@ release:
 testrelease:
 	goreleaser release --clean --snapshot --skip sign
 
+itsictl_release:
+	goreleaser release -f .goreleaser.itsictl.yml --clean --snapshot --skip sign
+
 clean:
 	go clean -testcache
 	rm -rf dist bin
@@ -32,9 +35,11 @@ fmt:
 	gofmt -s -l -w .
 	terraform fmt --recursive examples
 
-.PHONY: scraper docs
 scraper:
 	go build -o ./bin/scraper github.com/tivo/terraform-provider-splunk-itsi/scraper
+
+itsictl:
+	goreleaser build -f .goreleaser.itsictl.yml --single-target --snapshot --clean
 
 # Allows to run a specific test
 #
@@ -69,3 +74,5 @@ update: gomod docs build test
 gomod:
 	go get -u ./...
 	go mod tidy
+
+.PHONY: scraper docs itsictl

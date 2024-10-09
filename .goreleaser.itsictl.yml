@@ -1,0 +1,40 @@
+version: 2
+
+# Visit https://goreleaser.com for documentation on how to customize this
+# behavior.
+project_name: itsictl
+before:
+  hooks:
+    # this is just an example and not a requirement for provider building/publishing
+    - go mod tidy
+builds:
+  - dir: itsictl
+    id: itsictl
+    env:
+      - CGO_ENABLED=0
+    mod_timestamp: "{{ .CommitTimestamp }}"
+    ldflags:
+      - "-s -w -X github.com/tivo/terraform-provider-splunk-itsi/itsictl/cmd.version={{.Version}} -X github.com/tivo/terraform-provider-splunk-itsi/itsictl/cmd.commit={{.ShortCommit}} -X github.com/tivo/terraform-provider-splunk-itsi/itsictl/cmd.buildTime={{.Date}}"
+    goos:
+      - freebsd
+      - windows
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - "386"
+      - arm
+      - arm64
+    ignore:
+      - goos: darwin
+        goarch: "386"
+    binary: "itsictl_v{{ .Version }}"
+
+archives:
+  - id: itsictl
+    builds:
+      - itsictl
+    name_template: "{{ .Binary }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+
+changelog:
+  disable: true

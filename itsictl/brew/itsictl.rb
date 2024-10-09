@@ -16,7 +16,7 @@ class Itsictl < Formula
 
   def install
     system "mise", "install", "--yes"
-    system "mise", "exec", "--", "goreleaser", "build", "--single-target", "--snapshot", "--clean"
+    system "mise", "exec", "--", "goreleaser", "build", "-f", ".goreleaser.itsictl.yml", "--single-target", "--snapshot", "--clean"
     bin.install Dir["dist/itsictl*/itsictl*"].first => "itsictl"
 
     # Generate the manpages using the itsictl genman command
