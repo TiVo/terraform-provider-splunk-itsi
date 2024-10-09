@@ -60,6 +60,8 @@ var resetCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
+		initClient()
+
 		w := thld.NewThresholdResetWorkflow(cfg, services, kpis, thresholdCmdDryRun)
 		err := w.Execute(context.Background())
 		if err != nil {
@@ -114,6 +116,8 @@ var recommendCmd = &cobra.Command{
 			fmt.Println("Error: invalid value for '--insufficient-data-action'. Must be 'skip' or 'reset'.")
 			os.Exit(1)
 		}
+
+		initClient()
 
 		w := thld.NewThresholdRecommendationWorkflow(
 			cfg,

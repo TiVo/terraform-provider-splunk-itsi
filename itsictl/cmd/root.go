@@ -80,6 +80,9 @@ func initConfig() {
 		os.Exit(1)
 	}
 
+}
+
+func initClient() {
 	authentication := fmt.Sprintf("basic (%s)", cfg.User)
 
 	switch {
