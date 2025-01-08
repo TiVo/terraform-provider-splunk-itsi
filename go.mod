@@ -5,7 +5,7 @@ go 1.23
 require (
 	github.com/akamensky/argparse v1.4.0
 	github.com/aws/aws-sdk-go-v2/config v1.28.7
-	github.com/aws/aws-sdk-go-v2/service/ssm v1.56.2
+	github.com/aws/aws-sdk-go-v2/service/ssm v1.56.3
 	github.com/charmbracelet/log v0.4.0
 	github.com/google/uuid v1.6.0
 	github.com/hashicorp/go-uuid v1.0.3
