@@ -207,7 +207,7 @@ func TestAccResourceServiceTagsLifecycle(t *testing.T) {
 	})
 }
 
-func testCheckServiceDependsOnMatch(t *testing.T, child_name string, expected_overloaded_urgency ...int) resource.TestCheckFunc {
+func testCheckServiceDependsOnMatch(t *testing.T, child_name string, _ /* expected_overloaded_urgency */ ...int) resource.TestCheckFunc {
 	return func(s *terraform.State) error {
 		leafResource, ok := s.RootModule().Resources[child_name]
 		if !ok {
@@ -223,11 +223,17 @@ func testCheckServiceDependsOnMatch(t *testing.T, child_name string, expected_ov
 		if err != nil {
 			return fmt.Errorf("Kpi depends on length not found")
 		}
-		for i := 0; i < kpiLength; i++ {
+		for i := range kpiLength {
 			parentKPIID := parentResource.Primary.Attributes["service_depends_on.0.kpis."+strconv.Itoa(i)]
 			if leafKPIID == parentKPIID {
 				t.Logf("PASSED: Leaf shkpi_id %s, Parent's dependent kpis %s", leafKPIID, parentResource.Primary.Attributes["service_depends_on.0.kpis"])
-				// Success case - found matching KPI
+				// if len(expected_overloaded_urgency) > 0 {
+				// 	if urgency, ok := parentResource.Primary.Attributes["service_depends_on.0.kpis."+strconv.Itoa(i)+
+				// 		".overload_urgencies."+leafKPIID]; !ok || urgency != strconv.Itoa(expected_overloaded_urgency[0]) {
+				// 		return fmt.Errorf("%s mismatch: Missing expected overloaded_urgency %s\n", leafKPIID,
+				// 			parentResource.Primary.Attributes["service_depends_on.0.kpis."+strconv.Itoa(i)])
+				// 	}
+				// }
 				return nil
 			}
 		}
@@ -671,7 +677,7 @@ func SaveKpiIds(t *testing.T) resource.TestCheckFunc {
 		if err != nil {
 			return fmt.Errorf("Kpi depends on length not found")
 		}
-		for i := 0; i < kpiLength; i++ {
+		for i := range kpiLength {
 			kpiId := resource.Primary.Attributes["kpi."+strconv.Itoa(i)+".id"]
 			PREV_KPI_IDS = append(PREV_KPI_IDS, kpiId)
 			t.Logf("Saving Prev State: Adding id %s", kpiId)

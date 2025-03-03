@@ -104,8 +104,7 @@ func UnpackSlice[T any](in any) ([]T, error) {
 func marshalBasicTypesByTag(tag string, in any, out map[string]any) (diags diag.Diagnostics) {
 	t := reflect.TypeOf(in).Elem()
 	v := reflect.ValueOf(in).Elem()
-
-	for i := 0; i < v.NumField(); i++ {
+	for i := range v.NumField() {
 		field := v.Field(i)
 		_tag := t.Field(i).Tag.Get(tag)
 		if _tag == "" {
@@ -133,8 +132,7 @@ func unmarshalBasicTypesByTag(tag string, in map[string]any, out any) (diags dia
 
 	t := reflect.TypeOf(out).Elem()
 	v := reflect.ValueOf(out).Elem()
-
-	for i := 0; i < v.NumField(); i++ {
+	for i := range v.NumField() {
 		field := v.Field(i)
 		_tag := t.Field(i).Tag.Get(tag)
 		if value, ok := in[_tag]; ok && value != nil {

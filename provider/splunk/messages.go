@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
-	"time"
 )
 
 type MessageSeverity string
@@ -17,11 +16,6 @@ type Message struct {
 type MessageContent struct {
 	Message  string          `json:"message"`
 	Severity MessageSeverity `json:"severity"`
-	created  int64           `json:"timeCreated_epochSecs"`
-}
-
-func (mc *MessageContent) Content() time.Time {
-	return time.Unix(mc.created, 0)
 }
 
 type Messages struct {

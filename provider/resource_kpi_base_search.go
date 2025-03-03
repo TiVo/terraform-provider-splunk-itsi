@@ -264,7 +264,7 @@ func (w *kpiBaseSearchBuildWorkflow) buildSteps() []apibuildWorkflowStepFunc[Kpi
 
 func (w *kpiBaseSearchBuildWorkflow) basics(ctx context.Context, obj KpiBaseSearchState) (map[string]any, diag.Diagnostics) {
 
-	body := map[string]interface{}{}
+	body := map[string]any{}
 	diags := marshalBasicTypesByTag("json", &obj, body)
 
 	body["objectType"] = itsiResourceKpiBaseSearch
@@ -273,11 +273,11 @@ func (w *kpiBaseSearchBuildWorkflow) basics(ctx context.Context, obj KpiBaseSear
 
 func (w *kpiBaseSearchBuildWorkflow) metrics(ctx context.Context, obj KpiBaseSearchState) (map[string]any, diag.Diagnostics) {
 
-	body := map[string]interface{}{}
-	metrics := []map[string]interface{}{}
+	body := map[string]any{}
+	metrics := []map[string]any{}
 
 	for _, metricState := range obj.Metrics {
-		metric := map[string]interface{}{}
+		metric := map[string]any{}
 		if metricState.ID.IsUnknown() {
 			id, _ := uuid.GenerateUUID()
 			metricState.ID = types.StringValue(id)
@@ -313,7 +313,7 @@ func (w *kpiBaseSearchParseWorkflow) basics(ctx context.Context, fields map[stri
 
 func (w *kpiBaseSearchParseWorkflow) metrics(ctx context.Context, fields map[string]any, res *KpiBaseSearchState) (diags diag.Diagnostics) {
 	if v, ok := fields["metrics"]; ok && v != nil {
-		metrics, err := UnpackSlice[map[string]interface{}](v.([]interface{}))
+		metrics, err := UnpackSlice[map[string]any](v.([]any))
 		if err != nil {
 			diags.AddError("Unable to unpack metrics in the KPI BS model", err.Error())
 			return

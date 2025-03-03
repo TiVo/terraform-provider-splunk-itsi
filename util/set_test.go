@@ -23,7 +23,7 @@ func TestSet_Add(t *testing.T) {
 }
 
 func TestSet_Contains(t *testing.T) {
-	s := NewSet[string]("apple", "banana", "orange")
+	s := NewSet("apple", "banana", "orange")
 
 	if !s.Contains("apple") {
 		t.Errorf("Expected set to contain 'apple'")
@@ -43,7 +43,7 @@ func TestSet_Contains(t *testing.T) {
 }
 
 func TestSet_ToSlice(t *testing.T) {
-	s := NewSet[int](1, 2, 3)
+	s := NewSet(1, 2, 3)
 	list := s.ToSlice()
 
 	if len(list) != 3 {

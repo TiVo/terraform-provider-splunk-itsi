@@ -19,10 +19,9 @@ import (
 const (
 	bufferDefaultSize = 32 * 1024   // 32KB
 	bufferMaxSize     = 1024 * 1024 // 1MB
-
 )
 
-type Value interface{}
+type Value any
 
 type Row struct {
 	Preview bool             `json:"preview"`
@@ -83,7 +82,7 @@ func (conn SplunkConnection) Search(ctx context.Context, boPolicy backoff.Policy
 			return
 		}()
 		status := http.StatusText(statusCode)
-		tflog.Trace(ctx, fmt.Sprintf("POST %v (%v): %v %v [%s]", url, attempt, statusCode, status, time.Since(start).String()), map[string]interface{}{"splunk_search": searchString, "params": params})
+		tflog.Trace(ctx, fmt.Sprintf("POST %v (%v): %v %v [%s]", url, attempt, statusCode, status, time.Since(start).String()), map[string]any{"splunk_search": searchString, "params": params})
 		if err != nil {
 			if statusCode == 400 || statusCode == 401 || statusCode == 403 || statusCode == 404 {
 				return nil, nil, fmt.Errorf("splunk search error: %v", status)

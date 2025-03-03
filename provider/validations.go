@@ -96,7 +96,7 @@ func (v jsonStringValidator) ValidateJSON(data string) (diags diag.Diagnostics) 
 	}
 
 	allowedTypes := v.AllowedTypes()
-	var obj interface{}
+	var obj any
 	if err := json.Unmarshal([]byte(data), &obj); err != nil {
 		diags.AddError(
 			jsonStringValidationError,
@@ -110,12 +110,12 @@ func (v jsonStringValidator) ValidateJSON(data string) (diags diag.Diagnostics) 
 		return
 	}
 
-	if _, ok := obj.(map[string]interface{}); ok && v.t&jsonStringTypeObject == 0 {
+	if _, ok := obj.(map[string]any); ok && v.t&jsonStringTypeObject == 0 {
 		diags.AddError(jsonStringValidationError, fmt.Sprintf("JSON cannot be an object, allowed types: %v", allowedTypes))
 		return
 	}
 
-	if _, ok := obj.([]interface{}); ok && v.t&jsonStringTypeArray == 0 {
+	if _, ok := obj.([]any); ok && v.t&jsonStringTypeArray == 0 {
 		diags.AddError(jsonStringValidationError, fmt.Sprintf("JSON cannot be an array, allowed types: %v", allowedTypes))
 		return
 	}

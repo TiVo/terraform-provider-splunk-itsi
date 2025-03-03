@@ -153,12 +153,12 @@ func getKpiThresholdSettingsBlocksAttrs() (map[string]schema.Block, map[string]s
 		}
 }
 
-func kpiThresholdSettingsToModel(attrName string, apiThresholdSetting map[string]interface{}, tfthresholdSettingModel *ThresholdSettingModel, settingType string) (diags diag.Diagnostics) {
+func kpiThresholdSettingsToModel(_ string, apiThresholdSetting map[string]any, tfthresholdSettingModel *ThresholdSettingModel, settingType string) (diags diag.Diagnostics) {
 	diags.Append(unmarshalBasicTypesByTag("json", apiThresholdSetting, tfthresholdSettingModel)...)
 
 	thresholdLevels := []KpiThresholdLevelModel{}
-	for _, tData_ := range apiThresholdSetting["thresholdLevels"].([]interface{}) {
-		tData := tData_.(map[string]interface{})
+	for _, tData_ := range apiThresholdSetting["thresholdLevels"].([]any) {
+		tData := tData_.(map[string]any)
 		thresholdLevel := &KpiThresholdLevelModel{}
 		switch tData["dynamicParam"] {
 		case "":
@@ -175,9 +175,9 @@ func kpiThresholdSettingsToModel(attrName string, apiThresholdSetting map[string
 	return
 }
 
-func kpiThresholdThresholdSettingsAttributesToPayload(_ context.Context, source ThresholdSettingModel) (interface{}, diag.Diagnostics) {
+func kpiThresholdThresholdSettingsAttributesToPayload(_ context.Context, source ThresholdSettingModel) (any, diag.Diagnostics) {
 	var diags diag.Diagnostics
-	thresholdSetting := map[string]interface{}{}
+	thresholdSetting := map[string]any{}
 	diags.Append(marshalBasicTypesByTag("json", &source, thresholdSetting)...)
 
 	if severity, ok := util.SeverityMap[source.BaseSeverityLabel.ValueString()]; ok {
@@ -189,10 +189,10 @@ func kpiThresholdThresholdSettingsAttributesToPayload(_ context.Context, source 
 		diags.AddError("failed to convert threshold setting model to payload", fmt.Sprintf("schema Validation broken. Unknown severity %s", source.BaseSeverityLabel.ValueString()))
 		return nil, diags
 	}
-	thresholdLevels := []interface{}{}
+	thresholdLevels := []any{}
 
 	for _, tfThresholdLevel := range source.ThresholdLevels {
-		thresholdLevel := map[string]interface{}{}
+		thresholdLevel := map[string]any{}
 		thresholdLevel["dynamicParam"] = tfThresholdLevel.DynamicParam.ValueFloat64()
 		if severity, ok := util.SeverityMap[tfThresholdLevel.SeverityLabel.ValueString()]; ok {
 			thresholdLevel["severityColor"] = severity.SeverityColor
@@ -577,7 +577,7 @@ func (r *resourceKpiThresholdTemplate) Delete(ctx context.Context, req resource.
 }
 
 func kpiThresholdTemplate(ctx context.Context, tfKpiThresholdTemplate modelKpiThresholdTemplate, clientConfig models.ClientConfig) (config *models.ItsiObj, diags diag.Diagnostics) {
-	body := map[string]interface{}{}
+	body := map[string]any{}
 	diags = append(diags, marshalBasicTypesByTag("json", &tfKpiThresholdTemplate, body)...)
 	body["objectType"] = "kpi_threshold_template"
 
@@ -593,16 +593,16 @@ func kpiThresholdTemplate(ctx context.Context, tfKpiThresholdTemplate modelKpiTh
 		body["outlier_detection_algo"] = outlierExclusionAlgo
 	}
 
-	policies := map[string]interface{}{}
+	policies := map[string]any{}
 	if tfKpiThresholdTemplate.TimeVariateThresholdsSpecification != nil {
 		for _, tfpolicy := range tfKpiThresholdTemplate.TimeVariateThresholdsSpecification.Policies {
-			policy := map[string]interface{}{}
+			policy := map[string]any{}
 			policy["title"] = tfpolicy.Title.ValueString()
 			policy["policy_type"] = tfpolicy.PolicyType.ValueString()
-			timeBlocks := [][]interface{}{}
+			timeBlocks := [][]any{}
 
 			for _, tfTimeBlock := range tfpolicy.TimeBlocks {
-				block := []interface{}{}
+				block := []any{}
 				block = append(block, tfTimeBlock.Cron.ValueString())
 				block = append(block, tfTimeBlock.Interval.ValueInt64())
 
@@ -626,10 +626,9 @@ func kpiThresholdTemplate(ctx context.Context, tfKpiThresholdTemplate modelKpiTh
 
 			policies[tfpolicy.PolicyName.ValueString()] = policy
 		}
-		body["time_variate_thresholds_specification"] = map[string]interface{}{
+		body["time_variate_thresholds_specification"] = map[string]any{
 			"policies": policies,
 		}
-
 	}
 
 	base := kpiThresholdTemplateBase(clientConfig, tfKpiThresholdTemplate.ID.ValueString(), tfKpiThresholdTemplate.Title.ValueString())
@@ -660,9 +659,10 @@ func populateKpiThresholdTemplateModel(_ context.Context, b *models.ItsiObj, tfM
 		tfModelKpiThresholdTemplate.AdaptiveThresholdingOutlierExclusionSensitivity = types.Float64Null()
 	}
 
-	timeVariateThresholdsSpecificationData := interfaceMap["time_variate_thresholds_specification"].(map[string]interface{})
-	for policyName, pData := range timeVariateThresholdsSpecificationData["policies"].(map[string]interface{}) {
-		policyData := pData.(map[string]interface{})
+	timeVariateThresholdsSpecificationData := interfaceMap["time_variate_thresholds_specification"].(map[string]any)
+
+	for policyName, pData := range timeVariateThresholdsSpecificationData["policies"].(map[string]any) {
+		policyData := pData.(map[string]any)
 
 		tfPolicy := PolicyModel{
 			PolicyName: types.StringValue(policyName),
@@ -671,8 +671,8 @@ func populateKpiThresholdTemplateModel(_ context.Context, b *models.ItsiObj, tfM
 		}
 
 		tfTimeBlocks := []TimeBlockModel{}
-		for _, timeBlock := range policyData["time_blocks"].([]interface{}) {
-			_timeBlock := timeBlock.([]interface{})
+		for _, timeBlock := range policyData["time_blocks"].([]any) {
+			_timeBlock := timeBlock.([]any)
 			tfTimeBlock := TimeBlockModel{
 				Cron:     types.StringValue(_timeBlock[0].(string)),
 				Interval: types.Int64Value(int64(_timeBlock[1].(float64))),
@@ -684,12 +684,12 @@ func populateKpiThresholdTemplateModel(_ context.Context, b *models.ItsiObj, tfM
 		diags.Append(diags_...)
 		tfAggregatedThresholds := ThresholdSettingModel{}
 		diags.Append(kpiThresholdSettingsToModel("aggregate_thresholds",
-			policyData["aggregate_thresholds"].(map[string]interface{}), &tfAggregatedThresholds, policyData["policy_type"].(string))...)
+			policyData["aggregate_thresholds"].(map[string]any), &tfAggregatedThresholds, policyData["policy_type"].(string))...)
 
 		tfPolicy.AggregateThresholds = tfAggregatedThresholds
 
 		tfEntityThresholds := ThresholdSettingModel{}
-		diags.Append(kpiThresholdSettingsToModel("entity_thresholds", policyData["entity_thresholds"].(map[string]interface{}),
+		diags.Append(kpiThresholdSettingsToModel("entity_thresholds", policyData["entity_thresholds"].(map[string]any),
 			&tfEntityThresholds, policyData["policy_type"].(string))...)
 		tfPolicy.EntityThresholds = tfEntityThresholds
 		tfPolicies = append(tfPolicies, tfPolicy)

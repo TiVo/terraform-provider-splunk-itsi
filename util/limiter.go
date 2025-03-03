@@ -4,7 +4,7 @@ type Limiter chan struct{}
 
 func NewLimiter(n int) *Limiter {
 	l := make(Limiter, n)
-	for i := 0; i < n; i++ {
+	for range n {
 		l <- struct{}{}
 	}
 	return &l

@@ -47,7 +47,7 @@ staticcheck:
 
 gopls:
 	@echo "Running gopls check..."
-	gopls check */*.go
+	find . -name "*.go" -not -path "./vendor/*" | xargs gopls check
 
 lint: staticcheck gopls
 

@@ -375,14 +375,14 @@ func auditLog(items []*models.ItsiObj, objectType, format string, formatter prov
 			return &[]error{err}
 		}
 	case "yaml":
-		objects := []interface{}{}
+		objects := []any{}
 		for _, item := range items {
 			by, err := json.Marshal(item.RawJson)
 			if err != nil {
 				errors = append(errors, err)
 				continue
 			}
-			var i interface{}
+			var i any
 			err = json.Unmarshal(by, &i)
 			if err != nil {
 				errors = append(errors, err)

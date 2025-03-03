@@ -449,7 +449,7 @@ func (w *entityTypeBuildWorkflow) basics(ctx context.Context, obj entityTypeMode
 
 func (w *entityTypeBuildWorkflow) dashboardDrilldowns(ctx context.Context, obj entityTypeModel) (map[string]any, diag.Diagnostics) {
 	drilldowns := obj.DashboardDrilldown
-	drilldownsAPI := make([]map[string]interface{}, len(drilldowns))
+	drilldownsAPI := make([]map[string]any, len(drilldowns))
 	for i, drilldown := range drilldowns {
 		params, _ := drilldown.getParams(ctx)
 
@@ -464,21 +464,21 @@ func (w *entityTypeBuildWorkflow) dashboardDrilldowns(ctx context.Context, obj e
 			dashboardID = dashboardDrilldownTitle
 		}
 
-		bodyParams := []interface{}{}
+		bodyParams := []any{}
 		for alias, param := range params {
-			bodyParams = append(bodyParams, map[string]interface{}{
+			bodyParams = append(bodyParams, map[string]any{
 				"alias": alias,
 				"param": param,
 			})
 		}
 
-		drilldownsAPI[i] = map[string]interface{}{
+		drilldownsAPI[i] = map[string]any{
 			"title":          drilldown.Title.ValueString(),
 			"base_url":       dashboardBaseURL,
 			"dashboard_id":   dashboardID,
 			"dashboard_type": dashboardType,
-			"params": map[string]interface{}{
-				"static_params":   map[string]interface{}{},
+			"params": map[string]any{
+				"static_params":   map[string]any{},
 				"alias_param_map": bodyParams,
 			},
 		}
@@ -492,7 +492,7 @@ func (w *entityTypeBuildWorkflow) dashboardDrilldowns(ctx context.Context, obj e
 func (w *entityTypeBuildWorkflow) dataDrilldowns(ctx context.Context, obj entityTypeModel) (res map[string]any, diags diag.Diagnostics) {
 	drilldowns := obj.DataDrilldown
 
-	drilldownsAPI := make([]map[string]interface{}, len(drilldowns))
+	drilldownsAPI := make([]map[string]any, len(drilldowns))
 	for i, drilldown := range drilldowns {
 		staticFilters, d := drilldown.getStaticFilters(ctx)
 		diags = append(diags, d...)
@@ -501,43 +501,43 @@ func (w *entityTypeBuildWorkflow) dataDrilldowns(ctx context.Context, obj entity
 		}
 		entityFieldFilters := drilldown.EntityFieldFilter
 
-		staticFiltersItems := []interface{}{}
+		staticFiltersItems := []any{}
 		for k, v := range staticFilters {
-			staticFiltersItems = append(staticFiltersItems, map[string]interface{}{
+			staticFiltersItems = append(staticFiltersItems, map[string]any{
 				"type":   "include",
 				"field":  k,
 				"values": []string{v},
 			})
 		}
-		var staticFiltersAPI interface{}
+		var staticFiltersAPI any
 		if len(staticFiltersItems) == 1 {
 			staticFiltersAPI = staticFiltersItems[0]
 		} else {
-			staticFiltersAPI = map[string]interface{}{
+			staticFiltersAPI = map[string]any{
 				"type":    "and",
 				"filters": staticFiltersItems,
 			}
 		}
 
-		entityFieldFilterItems := make([]map[string]interface{}, len(entityFieldFilters))
+		entityFieldFilterItems := make([]map[string]any, len(entityFieldFilters))
 		for i, filter := range entityFieldFilters {
-			entityFieldFilterItems[i] = map[string]interface{}{
+			entityFieldFilterItems[i] = map[string]any{
 				"type":         "entity",
 				"data_field":   filter.DataField.ValueString(),
 				"entity_field": filter.EntityField.ValueString(),
 			}
 		}
-		var entityFieldFiltersAPI interface{}
+		var entityFieldFiltersAPI any
 		if len(entityFieldFilterItems) == 1 {
 			entityFieldFiltersAPI = entityFieldFilterItems[0]
 		} else {
-			entityFieldFiltersAPI = map[string]interface{}{
+			entityFieldFiltersAPI = map[string]any{
 				"type":    "and",
 				"filters": entityFieldFilterItems,
 			}
 		}
 
-		drilldownsAPI[i] = map[string]interface{}{
+		drilldownsAPI[i] = map[string]any{
 			"title":               drilldown.Title.ValueString(),
 			"type":                drilldown.Type.ValueString(),
 			"static_filter":       staticFiltersAPI,
@@ -554,10 +554,10 @@ func (w *entityTypeBuildWorkflow) dataDrilldowns(ctx context.Context, obj entity
 func (w *entityTypeBuildWorkflow) vitalMetrics(ctx context.Context, obj entityTypeModel) (res map[string]any, diags diag.Diagnostics) {
 	vitalMetrics := obj.VitalMetric
 
-	vitalMetricsAPI := make([]map[string]interface{}, len(vitalMetrics))
+	vitalMetricsAPI := make([]map[string]any, len(vitalMetrics))
 
 	for i, vm := range vitalMetrics {
-		vmAPI := make(map[string]interface{})
+		vmAPI := make(map[string]any)
 		metricName := vm.MetricName.ValueString()
 		vmAPI["metric_name"] = metricName
 		vmAPI["search"] = vm.Search.ValueString()
@@ -581,7 +581,7 @@ func (w *entityTypeBuildWorkflow) vitalMetrics(ctx context.Context, obj entityTy
 				diags.AddError("Only one alert rule is supported", fmt.Sprintf("more than one alert rule is passed in metric %s", metricName))
 				return
 			}
-			alertRuleAPI := map[string]interface{}{}
+			alertRuleAPI := map[string]any{}
 
 			alertRuleAPI["suppress_time"] = rule.SuppressTime.ValueString()
 			alertRuleAPI["cron_schedule"] = rule.CronSchedule.ValueString()
@@ -757,7 +757,7 @@ func (w *entityTypeParseWorkflow) dataDrilldowns(ctx context.Context, fields map
 					return
 				}
 			} else {
-				apiEntityFilters = []map[string]interface{}{_entityFieldFilter}
+				apiEntityFilters = []map[string]any{_entityFieldFilter}
 			}
 			for _, apiEntityFilter := range apiEntityFilters {
 				tfEntityFilters = append(tfEntityFilters, entityTypeDataDrilldownEntityFieldFilterModel{

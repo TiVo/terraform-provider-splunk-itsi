@@ -282,7 +282,7 @@ func (api *collectionConfigAPI) Model(ctx context.Context, objectType string) (m
 		}
 	}
 
-	model.Data = map[string]interface{}{
+	model.Data = map[string]any{
 		"field_types":   fieldTypes,
 		"accelerations": accelerations,
 		"name":          api.config.Name.ValueString(),
@@ -323,7 +323,7 @@ func collectionConfigModelFromAPIModel(ctx context.Context, c *models.Collection
 	}
 	keys := feed.Content[0].Dicts[0].Keys
 	tflog.Trace(ctx, "RSRC COLLECTION:   content",
-		map[string]interface{}{"num": len(keys), "keys": fmt.Sprintf("%+v", keys)})
+		map[string]any{"num": len(keys), "keys": fmt.Sprintf("%+v", keys)})
 
 	// Iterate through the feed finding fieldTypes and
 	// accelerations...
@@ -357,8 +357,8 @@ func collectionConfigModelFromAPIModel(ctx context.Context, c *models.Collection
 	diags.Append(diag...)
 	model.Accelerations = accelerationsList
 
-	tflog.Trace(ctx, "RSRC COLLECTION:   field types", map[string]interface{}{"field_types": fieldTypes, "len": len(fieldTypes)})
-	tflog.Trace(ctx, "RSRC COLLECTION:   accelerations", map[string]interface{}{"accelerations": accelerations, "len": len(accelerations)})
+	tflog.Trace(ctx, "RSRC COLLECTION:   field types", map[string]any{"field_types": fieldTypes, "len": len(fieldTypes)})
+	tflog.Trace(ctx, "RSRC COLLECTION:   accelerations", map[string]any{"accelerations": accelerations, "len": len(accelerations)})
 
 	return
 }
@@ -439,7 +439,7 @@ func NewCollectionDataAPI(m collectionDataModel, c models.ClientConfig) *collect
 }
 
 func (api *collectionDataAPI) Model(ctx context.Context, includeData bool) (model *models.CollectionApi, diags diag.Diagnostics) {
-	data := map[string]interface{}{
+	data := map[string]any{
 		"collection_name": api.Collection.Name.ValueString(),
 		"scope":           api.Scope.ValueString(),
 		"generation":      api.Generation.ValueInt64(),
@@ -452,7 +452,7 @@ func (api *collectionDataAPI) Model(ctx context.Context, includeData bool) (mode
 			return
 		}
 
-		rows := make([]map[string]interface{}, len(entries))
+		rows := make([]map[string]any, len(entries))
 
 		for i, entry := range entries {
 			rowMap, diags_ := entry.Unpack()
@@ -520,21 +520,21 @@ func (api *collectionDataAPI) Read(ctx context.Context) (data []collectionEntryM
 	for i, item := range arr {
 		var entry collectionEntryModel
 
-		item_, ok := item.(map[string]interface{})
+		item_, ok := item.(map[string]any)
 		if !ok {
 			diags.AddError(fmt.Sprintf("Unable to read %s collection data", api.Key()), "expected map in array body return type")
 		}
-		row := map[string]interface{}{}
+		row := map[string]any{}
 
 		for k, v := range item_ {
 			if k == "_key" {
 				entry.ID = types.StringValue(v.(string))
 			} else if !strings.HasPrefix(k, "_") {
 				switch val := v.(type) {
-				case []interface{}:
+				case []any:
 					row[k] = val
 				default:
-					row[k] = []interface{}{val}
+					row[k] = []any{val}
 				}
 			}
 		}

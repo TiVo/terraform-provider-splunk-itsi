@@ -81,7 +81,7 @@ func (w *thresholdWorkflow) buildKeyFilter(keys []string) (string, error) {
 		}
 	}
 
-	filterMap := map[string]interface{}{
+	filterMap := map[string]any{
 		"$or": orConditions,
 	}
 

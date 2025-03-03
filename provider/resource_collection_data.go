@@ -58,7 +58,7 @@ func (e *collectionEntryModel) DataHash() string {
 	return util.Sha256([]byte(e.Data.ValueString()))
 }
 
-func (e *collectionEntryModel) Pack(data map[string]interface{}) (diags diag.Diagnostics) {
+func (e *collectionEntryModel) Pack(data map[string]any) (diags diag.Diagnostics) {
 	b, err := json.Marshal(data)
 	if err != nil {
 		diags.AddError("Failed to marshal collection entry data", err.Error())
@@ -68,9 +68,9 @@ func (e *collectionEntryModel) Pack(data map[string]interface{}) (diags diag.Dia
 	return
 }
 
-func (e *collectionEntryModel) Unpack() (data map[string]interface{}, diags diag.Diagnostics) {
-	data = make(map[string]interface{})
-	rowMap := make(map[string]interface{})
+func (e *collectionEntryModel) Unpack() (data map[string]any, diags diag.Diagnostics) {
+	data = make(map[string]any)
+	rowMap := make(map[string]any)
 	err := json.Unmarshal([]byte(e.Data.ValueString()), &rowMap)
 	if err != nil {
 		diags.AddError("Wrong collection entry data",
@@ -78,10 +78,10 @@ func (e *collectionEntryModel) Unpack() (data map[string]interface{}, diags diag
 		return
 	}
 	for k, v := range rowMap {
-		if slice, ok := v.([]interface{}); ok {
+		if slice, ok := v.([]any); ok {
 			switch {
 			case len(slice) == 1:
-				_, onlyElementIsSlice := slice[0].([]interface{})
+				_, onlyElementIsSlice := slice[0].([]any)
 				if !onlyElementIsSlice {
 					data[k] = slice[0]
 					break
@@ -157,7 +157,7 @@ func (v entryDataValidator) MarkdownDescription(ctx context.Context) string {
 }
 
 func (v entryDataValidator) ValidateEntry(data string) (diags diag.Diagnostics) {
-	var obj interface{}
+	var obj any
 	if err := json.Unmarshal([]byte(data), &obj); err != nil {
 		diags.AddError(
 			collectionEntryInvalidError,
@@ -165,7 +165,7 @@ func (v entryDataValidator) ValidateEntry(data string) (diags diag.Diagnostics) 
 		)
 		return
 	}
-	objMap, ok := obj.(map[string]interface{})
+	objMap, ok := obj.(map[string]any)
 	if !ok {
 		diags.AddError(
 			collectionEntryInvalidError,
@@ -364,7 +364,7 @@ func (r *resourceCollectionData) ModifyPlan(ctx context.Context, req resource.Mo
 	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 
-	tflog.Trace(ctx, "collection_data ModifyPlan - Parsed req config", map[string]interface{}{"config": config, "plan": plan, "state": state})
+	tflog.Trace(ctx, "collection_data ModifyPlan - Parsed req config", map[string]any{"config": config, "plan": plan, "state": state})
 
 	if plan.Entries.IsUnknown() {
 		resp.Diagnostics.AddWarning("unknown entries", "collection_data entries are known only after apply")
@@ -388,15 +388,15 @@ func (r *resourceCollectionData) ModifyPlan(ctx context.Context, req resource.Mo
 	for i := range stateEntries {
 		idByDataHash[stateEntries[i].DataHash()] = stateEntries[i].ID.ValueString()
 	}
-	tflog.Trace(ctx, "collection_data ModifyPlan - idByDataHash", map[string]interface{}{"idByDataHash": idByDataHash})
+	tflog.Trace(ctx, "collection_data ModifyPlan - idByDataHash", map[string]any{"idByDataHash": idByDataHash})
 
 	for i := range planEntries {
 		if planEntries[i].ID.IsUnknown() && configEntries[i].ID.IsNull() {
 			if id, ok := idByDataHash[planEntries[i].DataHash()]; ok {
 				planEntries[i].ID = types.StringValue(id)
-				tflog.Trace(ctx, "collection_data ModifyPlan - Entry found", map[string]interface{}{"id": id})
+				tflog.Trace(ctx, "collection_data ModifyPlan - Entry found", map[string]any{"id": id})
 			} else {
-				tflog.Trace(ctx, "collection_data ModifyPlan - Entry not found", map[string]interface{}{"data": planEntries[i].Data.ValueString()})
+				tflog.Trace(ctx, "collection_data ModifyPlan - Entry not found", map[string]any{"data": planEntries[i].Data.ValueString()})
 			}
 		}
 	}
@@ -464,7 +464,7 @@ func (r *resourceCollectionData) Read(ctx context.Context, req resource.ReadRequ
 		return
 	}
 
-	tflog.Trace(ctx, "collection_data READ - Read successfull", map[string]interface{}{"entries": entries})
+	tflog.Trace(ctx, "collection_data READ - Read successfull", map[string]any{"entries": entries})
 
 	state.Entries, diags = types.SetValueFrom(ctx, state.Entries.ElementType(ctx), entries)
 	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
@@ -526,9 +526,9 @@ func (r *resourceCollectionData) validateCollectionKeyUniqueness(ctx context.Con
 	for i, entry := range entries {
 		keyList[i] = map[string]string{"_key": entry.ID.ValueString()}
 	}
-	keyCond := map[string]interface{}{"$or": keyList}
-	scopeCond := map[string]interface{}{"_scope": map[string]string{"$ne": scope}}
-	queryMap := map[string]interface{}{"$and": []interface{}{keyCond, scopeCond}}
+	keyCond := map[string]any{"$or": keyList}
+	scopeCond := map[string]any{"_scope": map[string]string{"$ne": scope}}
+	queryMap := map[string]any{"$and": []any{keyCond, scopeCond}}
 
 	query, err := json.Marshal(queryMap)
 	if err != nil {
@@ -625,7 +625,7 @@ func (r *resourceCollectionData) Create(ctx context.Context, req resource.Create
 	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 
-	tflog.Trace(ctx, "collection_data Create - Parsed req config", map[string]interface{}{"config": config, "plan": plan})
+	tflog.Trace(ctx, "collection_data Create - Parsed req config", map[string]any{"config": config, "plan": plan})
 
 	createTimeout, diags := plan.Timeouts.Create(ctx, tftimeout.Create)
 	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
@@ -653,7 +653,7 @@ func (r *resourceCollectionData) Update(ctx context.Context, req resource.Update
 	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
-	tflog.Trace(ctx, "collection_data Update - Parsed req config", map[string]interface{}{"config": config, "plan": plan, "state": state})
+	tflog.Trace(ctx, "collection_data Update - Parsed req config", map[string]any{"config": config, "plan": plan, "state": state})
 
 	updateTimeout, diags := plan.Timeouts.Update(ctx, tftimeout.Update)
 	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
@@ -676,7 +676,7 @@ func (r *resourceCollectionData) Delete(ctx context.Context, req resource.Delete
 	var state collectionDataModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 
-	tflog.Trace(ctx, "collection_data Delete - Parsed req config", map[string]interface{}{"state": state})
+	tflog.Trace(ctx, "collection_data Delete - Parsed req config", map[string]any{"state": state})
 
 	deleteTimeout, diags := state.Timeouts.Delete(ctx, tftimeout.Delete)
 	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
