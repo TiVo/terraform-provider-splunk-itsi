@@ -41,8 +41,15 @@ scraper:
 itsictl:
 	goreleaser build -f .goreleaser.itsictl.yml --single-target --snapshot --clean
 
-lint:
+staticcheck:
+	@echo "Running staticcheck..."
 	staticcheck ./...
+
+gopls:
+	@echo "Running gopls check..."
+	gopls check */*.go
+
+lint: staticcheck gopls
 
 # Allows to run a specific test
 #
