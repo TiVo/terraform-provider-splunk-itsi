@@ -227,20 +227,12 @@ func testCheckServiceDependsOnMatch(t *testing.T, child_name string, expected_ov
 			parentKPIID := parentResource.Primary.Attributes["service_depends_on.0.kpis."+strconv.Itoa(i)]
 			if leafKPIID == parentKPIID {
 				t.Logf("PASSED: Leaf shkpi_id %s, Parent's dependent kpis %s", leafKPIID, parentResource.Primary.Attributes["service_depends_on.0.kpis"])
-
-				// if len(expected_overloaded_urgency) > 0 {
-				// 	if urgency, ok := parentResource.Primary.Attributes["service_depends_on.0.kpis."+strconv.Itoa(i)+
-				// 		".overload_urgencies."+leafKPIID]; !ok || urgency != strconv.Itoa(expected_overloaded_urgency[0]) {
-				// 		return fmt.Errorf("%s mismatch: Missing expected overloaded_urgency %s\n", leafKPIID,
-				// 			parentResource.Primary.Attributes["service_depends_on.0.kpis."+strconv.Itoa(i)])
-				// 	}
-				// }
+				// Success case - found matching KPI
+				return nil
 			}
-			return nil
 		}
-		return fmt.Errorf("shkpi_id mismatch: Missing shkpi_id %s\n", leafKPIID)
+		return fmt.Errorf("shkpi_id mismatch: Missing shkpi_id %s", leafKPIID)
 	}
-
 }
 
 func TestAccResourceServiceDeletedInUI(t *testing.T) {

@@ -231,8 +231,6 @@ func runGenerateCommand(clientConfig models.ClientConfig, objectType string, log
 
 	versions_fn := fmt.Sprintf("%s/versions.tf", folder)
 	versionsF, err := os.OpenFile(versions_fn, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
-	defer versionsF.Close()
-
 	if err != nil {
 		logsCh <- Logs{
 			ObjectType: objectType,
@@ -240,6 +238,7 @@ func runGenerateCommand(clientConfig models.ClientConfig, objectType string, log
 		}
 		return
 	}
+	defer versionsF.Close()
 
 	err = initT.Execute(versionsF, clientConfig)
 	if err != nil {
@@ -252,8 +251,6 @@ func runGenerateCommand(clientConfig models.ClientConfig, objectType string, log
 
 	import_fn := fmt.Sprintf("%s/import.tf", folder)
 	importF, err := os.OpenFile(import_fn, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
-	defer importF.Close()
-
 	if err != nil {
 		logsCh <- Logs{
 			ObjectType: objectType,
@@ -261,6 +258,7 @@ func runGenerateCommand(clientConfig models.ClientConfig, objectType string, log
 		}
 		return
 	}
+	defer importF.Close()
 
 	errs = append(errs, runTerraformCommand(folder, "init")...)
 
