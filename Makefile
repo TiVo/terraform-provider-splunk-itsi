@@ -43,11 +43,11 @@ itsictl:
 
 staticcheck:
 	@echo "Running staticcheck..."
-	staticcheck ./...
+	go tool honnef.co/go/tools/cmd/staticcheck ./...
 
 gopls:
 	@echo "Running gopls check..."
-	find . -name "*.go" -not -path "./vendor/*" | xargs gopls check
+	find . -name "*.go" -not -path "./vendor/*" | xargs go tool golang.org/x/tools/gopls check
 
 lint: staticcheck gopls
 

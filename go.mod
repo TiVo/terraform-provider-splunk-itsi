@@ -11,7 +11,6 @@ require (
 	github.com/hashicorp/go-uuid v1.0.3
 	github.com/hashicorp/golang-lru v1.0.2
 	github.com/hashicorp/hcl/v2 v2.23.0
-	github.com/hashicorp/terraform-plugin-docs v0.20.1
 	github.com/hashicorp/terraform-plugin-framework v1.14.1
 	github.com/hashicorp/terraform-plugin-framework-validators v0.17.0
 	github.com/hashicorp/terraform-plugin-go v0.26.0
@@ -30,7 +29,7 @@ require (
 require (
 	github.com/BurntSushi/toml v1.4.1-0.20240526193622-a339e1f7089c // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
-	github.com/bmatcuk/doublestar/v4 v4.7.1 // indirect
+	github.com/bmatcuk/doublestar/v4 v4.8.1 // indirect
 	github.com/charmbracelet/lipgloss v1.0.0 // indirect
 	github.com/charmbracelet/x/ansi v0.8.0 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.6 // indirect
@@ -38,6 +37,7 @@ require (
 	github.com/go-logfmt/logfmt v0.6.0 // indirect
 	github.com/hashicorp/go-retryablehttp v0.7.7 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
+	github.com/hashicorp/terraform-plugin-docs v0.21.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/lucasb-eyer/go-colorful v1.2.0 // indirect
 	github.com/magiconair/properties v1.8.9 // indirect
@@ -53,7 +53,14 @@ require (
 	github.com/subosito/gotenv v1.6.0 // indirect
 	go.abhg.dev/goldmark/frontmatter v0.2.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
+	golang.org/x/exp/typeparams v0.0.0-20241210194714-1829a127f884 // indirect
+	golang.org/x/telemetry v0.0.0-20241220003058-cc96b6e0d3d9 // indirect
+	golang.org/x/tools/gopls v0.18.1 // indirect
+	golang.org/x/vuln v1.1.3 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
+	honnef.co/go/tools v0.6.0 // indirect
+	mvdan.cc/gofumpt v0.7.0 // indirect
+	mvdan.cc/xurls/v2 v2.5.0 // indirect
 )
 
 require (
@@ -82,7 +89,7 @@ require (
 	github.com/fatih/color v1.18.0 // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
-	github.com/hashicorp/cli v1.1.6 // indirect
+	github.com/hashicorp/cli v1.1.7 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-checkpoint v0.5.0 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
@@ -134,4 +141,10 @@ require (
 	google.golang.org/grpc v1.70.0 // indirect
 	google.golang.org/protobuf v1.36.5 // indirect
 	gopkg.in/yaml.v2 v2.3.0 // indirect
+)
+
+tool (
+	github.com/hashicorp/terraform-plugin-docs/cmd/tfplugindocs
+	golang.org/x/tools/gopls
+	honnef.co/go/tools/cmd/staticcheck
 )
