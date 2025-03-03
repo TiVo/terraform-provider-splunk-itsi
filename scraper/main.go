@@ -191,16 +191,17 @@ type Logs struct {
 	Errors     []error
 }
 
-func runTerraformCommand(folder string, args ...string) (errors []error) {
+func runTerraformCommand(folder string, args ...string) (errs []error) {
 	cmd := exec.Command("terraform", args...)
 	var b bytes.Buffer
 	cmd.Stderr = &b
 	cmd.Stdout = os.Stdout
 	cmd.Dir = folder
 	err := cmd.Run()
-	errors = append(errors, fmt.Errorf(b.String()))
+	errs = append(errs, errors.New(b.String()))
+
 	if err != nil {
-		errors = append(errors, err)
+		errs = append(errs, err)
 	}
 	return
 }

@@ -41,6 +41,9 @@ scraper:
 itsictl:
 	goreleaser build -f .goreleaser.itsictl.yml --single-target --snapshot --clean
 
+lint:
+	staticcheck ./...
+
 # Allows to run a specific test
 #
 # E.g.:

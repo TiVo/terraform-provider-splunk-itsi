@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"testing"
@@ -298,7 +299,7 @@ func EmulateUiDelete(t *testing.T, title string, object_type string) error {
 	diags := base.Delete(ctx)
 	if diags.HasError() {
 		t.Logf("%s %s failed to delete: %s", object_type, title, diags[0].Summary())
-		return fmt.Errorf(diags[0].Summary())
+		return errors.New(diags[0].Summary())
 	}
 	t.Logf("%s %s was deleted successfully", object_type, title)
 	return nil
