@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -206,7 +207,7 @@ func runTerraformCommand(folder string, args ...string) (errors []error) {
 
 func runGenerateCommand(clientConfig models.ClientConfig, objectType string, logsCh chan Logs, wg *sync.WaitGroup) {
 	defer wg.Done()
-	errors := []error{}
+	errs := []error{}
 
 	base := models.NewItsiObj(clientConfig, "", "", objectType)
 
@@ -260,7 +261,7 @@ func runGenerateCommand(clientConfig models.ClientConfig, objectType string, log
 		return
 	}
 
-	errors = append(errors, runTerraformCommand(folder, "init")...)
+	errs = append(errs, runTerraformCommand(folder, "init")...)
 
 	for count, offset := base.GetPageSize(), 0; offset >= 0; offset += count {
 		ctx := context.Background()
@@ -270,7 +271,7 @@ func runGenerateCommand(clientConfig models.ClientConfig, objectType string, log
 		}
 		items, err := base.Dump(ctx, &models.Parameters{Offset: offset, Count: count, Fields: fields, Filter: ""})
 		if err != nil {
-			errors = append(errors, err)
+			errs = append(errs, err)
 			break
 		}
 		for _, item := range items {
@@ -280,7 +281,7 @@ func runGenerateCommand(clientConfig models.ClientConfig, objectType string, log
 				"ObjectType": "itsi_" + objectType,
 			})
 			if err != nil {
-				errors = append(errors, err)
+				errs = append(errs, err)
 			}
 		}
 
@@ -288,18 +289,18 @@ func runGenerateCommand(clientConfig models.ClientConfig, objectType string, log
 			break
 		}
 	}
-	errors = append(errors, runTerraformCommand(folder, "plan", "-generate-config-out=generated.tf")...)
+	errs = append(errs, runTerraformCommand(folder, "plan", "-generate-config-out=generated.tf")...)
 	diags := NewFmtCommand([]string{folder + "/generated.tf"}, false).Run()
 
 	if diags.HasError() {
 		for _, diag := range diags {
-			errors = append(errors, fmt.Errorf(diag.Detail))
+			errs = append(errs, errors.New(diag.Detail()))
 		}
 	}
 
 	logsCh <- Logs{
 		ObjectType: objectType,
-		Errors:     errors,
+		Errors:     errs,
 	}
 
 }
