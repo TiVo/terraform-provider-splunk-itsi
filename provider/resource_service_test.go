@@ -208,8 +208,7 @@ func TestAccResourceServiceTagsLifecycle(t *testing.T) {
 }
 
 func testCheckServiceDependsOnMatch(t *testing.T, child_name string, _ /* expected_overloaded_urgency */ ...int) resource.TestCheckFunc {
-	return func(s *terraform.State) error {
-		leafResource, ok := s.RootModule().Resources[child_name]
+	return func(s *terraform.State) error {''		leafResource, ok := s.RootModule().Resources[child_name]
 		if !ok {
 			return fmt.Errorf("Not found: itsi_service.service_create_leaf")
 		}
@@ -224,7 +223,7 @@ func testCheckServiceDependsOnMatch(t *testing.T, child_name string, _ /* expect
 			return fmt.Errorf("Kpi depends on length not found")
 		}
 		for i := range kpiLength {
-			parentKPIID := parentResource.Primary.Attributes["service_depends_on.0.kpis."+strconv.Itoa(i)]
+			parentKPIID := parentResource.Primary.Attributes["service_depends_on."+strconv.Itoa(i)+".kpis.0"]
 			if leafKPIID == parentKPIID {
 				t.Logf("PASSED: Leaf shkpi_id %s, Parent's dependent kpis %s", leafKPIID, parentResource.Primary.Attributes["service_depends_on.0.kpis"])
 				// if len(expected_overloaded_urgency) > 0 {
