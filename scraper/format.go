@@ -14,7 +14,7 @@ import (
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/hashicorp/hcl/v2/hclwrite"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 )
 
 // FmtCommand is a Command implementation that rewrites Terraform config
@@ -65,7 +65,7 @@ func (c *FmtCommand) Run() diag.Diagnostics {
 		if ok {
 			return nil
 		} else {
-			diags = append(diags, diag.Errorf(output.String())...)
+			diags.AddError("formatting error", output.String())
 		}
 	}
 
@@ -82,7 +82,7 @@ func (c *FmtCommand) fmt(paths []string, stdout io.Writer) diag.Diagnostics {
 	for _, path := range paths {
 		info, err := os.Stat(path)
 		if err != nil {
-			diags = append(diags, diag.Errorf("No file or directory at %s", path)...)
+			diags.AddError(fmt.Sprintf("No file or directory at %s", path), err.Error())
 			return diags
 		}
 		if info.IsDir() {
@@ -95,7 +95,7 @@ func (c *FmtCommand) fmt(paths []string, stdout io.Writer) diag.Diagnostics {
 				if err != nil {
 					// Open does not produce error messages that are end-user-appropriate,
 					// so we'll need to simplify here.
-					diags = append(diags, diag.Errorf("Failed to read file %s", path)...)
+					diags.AddError(fmt.Sprintf("Failed to read file %s", path), err.Error())
 					continue
 				}
 
@@ -103,7 +103,7 @@ func (c *FmtCommand) fmt(paths []string, stdout io.Writer) diag.Diagnostics {
 				diags = append(diags, fileDiags...)
 				f.Close()
 			default:
-				diags = append(diags, diag.Errorf("Only .tf and .tfvars files can be processed with terraform fmt")...)
+				diags.AddError("unhandled file type", "Only .tf and .tfvars files can be processed with terraform fmt")
 				continue
 			}
 		}
@@ -119,7 +119,7 @@ func (c *FmtCommand) processFile(path string, r io.Reader, w io.Writer, isStdout
 
 	src, err := io.ReadAll(r)
 	if err != nil {
-		diags = append(diags, diag.Errorf("Failed to read %s", path)...)
+		diags.AddError(fmt.Sprintf("Failed to read %s", path), err.Error())
 		return diags
 	}
 
@@ -133,7 +133,7 @@ func (c *FmtCommand) processFile(path string, r io.Reader, w io.Writer, isStdout
 	_, syntaxDiags := hclsyntax.ParseConfig(src, path, hcl.Pos{Line: 1, Column: 1})
 	if syntaxDiags.HasErrors() {
 		for _, err := range syntaxDiags.Errs() {
-			diags = append(diags, diag.FromErr(err)...)
+			diags.AddError("syntax error", err.Error())
 		}
 		return diags
 	}
@@ -148,14 +148,14 @@ func (c *FmtCommand) processFile(path string, r io.Reader, w io.Writer, isStdout
 		if c.write {
 			err := os.WriteFile(path, result, 0644)
 			if err != nil {
-				diags = append(diags, diag.Errorf("Failed to write %s", path)...)
+				diags.AddError(fmt.Sprintf("Failed to write %s", path), err.Error())
 				return diags
 			}
 		}
 		if c.diff {
 			diff, err := bytesDiff(src, result, path)
 			if err != nil {
-				diags = append(diags, diag.Errorf("Failed to generate diff for %s: %s", path, err)...)
+				diags.AddError(fmt.Sprintf("Failed to generate diff for %s", path), err.Error())
 				return diags
 			}
 			w.Write(diff)
@@ -165,7 +165,7 @@ func (c *FmtCommand) processFile(path string, r io.Reader, w io.Writer, isStdout
 	if !c.list && !c.write && !c.diff {
 		_, err = w.Write(result)
 		if err != nil {
-			diags = append(diags, diag.Errorf("Failed to write result")...)
+			diags.AddError("Failed to write result", err.Error())
 		}
 	}
 
@@ -181,11 +181,11 @@ func (c *FmtCommand) processDir(path string, stdout io.Writer) diag.Diagnostics 
 	if err != nil {
 		switch {
 		case os.IsNotExist(err):
-			diags = append(diags, diag.Errorf("There is no configuration directory at %s", path)...)
+			diags.AddError(fmt.Sprintf("There is no configuration directory at %s", path), err.Error())
 		default:
 			// ReadDir does not produce error messages that are end-user-appropriate,
 			// so we'll need to simplify here.
-			diags = append(diags, diag.Errorf("Cannot read directory %s", path)...)
+			diags.AddError(fmt.Sprintf("Cannot read directory %s", path), err.Error())
 		}
 		return diags
 	}
@@ -215,7 +215,7 @@ func (c *FmtCommand) processDir(path string, stdout io.Writer) diag.Diagnostics 
 			if err != nil {
 				// Open does not produce error messages that are end-user-appropriate,
 				// so we'll need to simplify here.
-				diags = append(diags, diag.Errorf("Failed to read file %s", subPath)...)
+				diags.AddError(fmt.Sprintf("Failed to read file %s", subPath), err.Error())
 				continue
 			}
 
