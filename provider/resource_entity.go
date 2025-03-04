@@ -17,7 +17,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	"github.com/hashicorp/terraform-plugin-go/tftypes"
 	"github.com/tivo/terraform-provider-splunk-itsi/models"
 	"github.com/tivo/terraform-provider-splunk-itsi/util"
 )
@@ -289,7 +288,7 @@ func (r *resourceEntity) Read(ctx context.Context, req resource.ReadRequest, res
 		return
 	}
 	if b == nil || b.RawJson == nil {
-		resp.State.Raw = tftypes.Value{}
+		resp.State.RemoveResource(ctx)
 		return
 	}
 

@@ -19,7 +19,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	"github.com/hashicorp/terraform-plugin-go/tftypes"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/tivo/terraform-provider-splunk-itsi/models"
 )
@@ -557,7 +556,7 @@ func (r *resourceKpiBaseSearch) Read(ctx context.Context, req resource.ReadReque
 		return
 	}
 	if b == nil || b.RawJson == nil {
-		resp.State.Raw = tftypes.Value{}
+		resp.State.RemoveResource(ctx)
 		return
 	}
 
