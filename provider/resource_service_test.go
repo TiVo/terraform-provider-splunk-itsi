@@ -224,7 +224,7 @@ func testCheckServiceDependsOnMatch(t *testing.T, child_name string, _ /* expect
 			return fmt.Errorf("Kpi depends on length not found")
 		}
 		for i := range kpiLength {
-			parentKPIID := parentResource.Primary.Attributes["service_depends_on.0.kpis."+strconv.Itoa(i)]
+			parentKPIID := parentResource.Primary.Attributes["service_depends_on."+strconv.Itoa(i)+".kpis.0"]
 			if leafKPIID == parentKPIID {
 				t.Logf("PASSED: Leaf shkpi_id %s, Parent's dependent kpis %s", leafKPIID, parentResource.Primary.Attributes["service_depends_on.0.kpis"])
 				// if len(expected_overloaded_urgency) > 0 {
