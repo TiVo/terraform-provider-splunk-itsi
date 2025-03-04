@@ -219,14 +219,14 @@ func testCheckServiceDependsOnMatch(t *testing.T, child_name string, _ /* expect
 		if !ok {
 			return fmt.Errorf("Not found: itsi_service.service_create_parent")
 		}
-		kpiLength, err := strconv.Atoi(parentResource.Primary.Attributes["service_depends_on.0.kpis.#"])
+		kpiLength, err := strconv.Atoi(parentResource.Primary.Attributes["service_depends_on.#"])
 		if err != nil {
 			return fmt.Errorf("Kpi depends on length not found")
 		}
 		for i := range kpiLength {
 			parentKPIID := parentResource.Primary.Attributes["service_depends_on."+strconv.Itoa(i)+".kpis.0"]
 			if leafKPIID == parentKPIID {
-				t.Logf("PASSED: Leaf shkpi_id %s, Parent's dependent kpis %s", leafKPIID, parentResource.Primary.Attributes["service_depends_on.0.kpis"])
+				t.Logf("PASSED: Leaf shkpi_id %s, Parent's dependent kpis %s", leafKPIID, parentResource.Primary.Attributes["service_depends_on."+strconv.Itoa(i)+".kpis.0"])
 				// if len(expected_overloaded_urgency) > 0 {
 				// 	if urgency, ok := parentResource.Primary.Attributes["service_depends_on.0.kpis."+strconv.Itoa(i)+
 				// 		".overload_urgencies."+leafKPIID]; !ok || urgency != strconv.Itoa(expected_overloaded_urgency[0]) {
