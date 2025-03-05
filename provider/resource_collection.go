@@ -281,7 +281,7 @@ func (r *resourceCollection) Create(ctx context.Context, req resource.CreateRequ
 	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 
-	tflog.Trace(ctx, "collection_resource Create - Parsed req config", map[string]interface{}{"config": config, "plan": plan})
+	tflog.Trace(ctx, "collection_resource Create - Parsed req config", map[string]any{"config": config, "plan": plan})
 
 	createTimeout, diags := plan.Timeouts.Create(ctx, tftimeout.Create)
 	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
@@ -306,7 +306,7 @@ func (r *resourceCollection) Update(ctx context.Context, req resource.UpdateRequ
 	var config, plan collectionConfigModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
-	tflog.Trace(ctx, "collection_resource Update - Parsed req config", map[string]interface{}{"config": config, "plan": plan})
+	tflog.Trace(ctx, "collection_resource Update - Parsed req config", map[string]any{"config": config, "plan": plan})
 
 	updateTimeout, diags := plan.Timeouts.Update(ctx, tftimeout.Update)
 	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
@@ -328,7 +328,7 @@ func (r *resourceCollection) Delete(ctx context.Context, req resource.DeleteRequ
 	tflog.Trace(ctx, "Preparing to delete collection resource")
 	var state collectionConfigModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
-	tflog.Trace(ctx, "collection_resource Delete - Parsed req state", map[string]interface{}{"state": state})
+	tflog.Trace(ctx, "collection_resource Delete - Parsed req state", map[string]any{"state": state})
 
 	deleteTimeout, diags := state.Timeouts.Delete(ctx, tftimeout.Delete)
 	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {

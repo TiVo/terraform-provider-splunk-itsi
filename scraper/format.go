@@ -99,7 +99,7 @@ func (c *FmtCommand) fmt(paths []string, stdout io.Writer) diag.Diagnostics {
 					continue
 				}
 
-				fileDiags := c.processFile(path, f, stdout, false)
+				fileDiags := c.processFile(path, f, stdout)
 				diags = append(diags, fileDiags...)
 				f.Close()
 			default:
@@ -112,7 +112,7 @@ func (c *FmtCommand) fmt(paths []string, stdout io.Writer) diag.Diagnostics {
 	return diags
 }
 
-func (c *FmtCommand) processFile(path string, r io.Reader, w io.Writer, isStdout bool) diag.Diagnostics {
+func (c *FmtCommand) processFile(path string, r io.Reader, w io.Writer) diag.Diagnostics {
 	var diags diag.Diagnostics
 
 	log.Printf("[TRACE] terraform fmt: Formatting %s", path)
@@ -219,7 +219,7 @@ func (c *FmtCommand) processDir(path string, stdout io.Writer) diag.Diagnostics 
 				continue
 			}
 
-			fileDiags := c.processFile(subPath, f, stdout, false)
+			fileDiags := c.processFile(subPath, f, stdout)
 			diags = append(diags, fileDiags...)
 			f.Close()
 		}
@@ -513,7 +513,7 @@ func (c *FmtCommand) trimNewlines(tokens hclwrite.Tokens) hclwrite.Tokens {
 		return nil
 	}
 	var start, end int
-	for start = 0; start < len(tokens); start++ {
+	for start = range tokens {
 		if tokens[start].Type != hclsyntax.TokenNewline {
 			break
 		}

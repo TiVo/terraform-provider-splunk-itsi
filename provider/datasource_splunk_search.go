@@ -19,6 +19,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 
+	"maps"
+
 	"github.com/tivo/terraform-provider-splunk-itsi/models"
 	"github.com/tivo/terraform-provider-splunk-itsi/provider/splunk"
 	"github.com/tivo/terraform-provider-splunk-itsi/util"
@@ -164,7 +166,7 @@ func (d *dataSourceSplunkSearch) Read(ctx context.Context, req datasource.ReadRe
 
 	var state dataSourceSplunkSearchModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &state)...)
-	tflog.Debug(ctx, "Finished reading splunk_search datasource", map[string]interface{}{"state": state})
+	tflog.Debug(ctx, "Finished reading splunk_search datasource", map[string]any{"state": state})
 
 	readTimeout, diags := state.Timeouts.Read(ctx, tftimeout.Read)
 	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
@@ -406,9 +408,7 @@ func (sr *SplunkRequest) Search(ctx context.Context, s SplunkSearch) (results []
 	results = make([]map[string]splunk.Value, len(rows))
 	for i, r := range rows {
 		resultRow := make(map[string]splunk.Value)
-		for k, v := range r.Result {
-			resultRow[k] = v
-		}
+		maps.Copy(resultRow, r.Result)
 
 		results[i] = resultRow
 	}

@@ -191,16 +191,17 @@ type Logs struct {
 	Errors     []error
 }
 
-func runTerraformCommand(folder string, args ...string) (errors []error) {
+func runTerraformCommand(folder string, args ...string) (errs []error) {
 	cmd := exec.Command("terraform", args...)
 	var b bytes.Buffer
 	cmd.Stderr = &b
 	cmd.Stdout = os.Stdout
 	cmd.Dir = folder
 	err := cmd.Run()
-	errors = append(errors, fmt.Errorf(b.String()))
+	errs = append(errs, errors.New(b.String()))
+
 	if err != nil {
-		errors = append(errors, err)
+		errs = append(errs, err)
 	}
 	return
 }
@@ -230,8 +231,6 @@ func runGenerateCommand(clientConfig models.ClientConfig, objectType string, log
 
 	versions_fn := fmt.Sprintf("%s/versions.tf", folder)
 	versionsF, err := os.OpenFile(versions_fn, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
-	defer versionsF.Close()
-
 	if err != nil {
 		logsCh <- Logs{
 			ObjectType: objectType,
@@ -239,6 +238,7 @@ func runGenerateCommand(clientConfig models.ClientConfig, objectType string, log
 		}
 		return
 	}
+	defer versionsF.Close()
 
 	err = initT.Execute(versionsF, clientConfig)
 	if err != nil {
@@ -251,8 +251,6 @@ func runGenerateCommand(clientConfig models.ClientConfig, objectType string, log
 
 	import_fn := fmt.Sprintf("%s/import.tf", folder)
 	importF, err := os.OpenFile(import_fn, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
-	defer importF.Close()
-
 	if err != nil {
 		logsCh <- Logs{
 			ObjectType: objectType,
@@ -260,6 +258,7 @@ func runGenerateCommand(clientConfig models.ClientConfig, objectType string, log
 		}
 		return
 	}
+	defer importF.Close()
 
 	errs = append(errs, runTerraformCommand(folder, "init")...)
 
@@ -376,14 +375,14 @@ func auditLog(items []*models.ItsiObj, objectType, format string, formatter prov
 			return &[]error{err}
 		}
 	case "yaml":
-		objects := []interface{}{}
+		objects := []any{}
 		for _, item := range items {
 			by, err := json.Marshal(item.RawJson)
 			if err != nil {
 				errors = append(errors, err)
 				continue
 			}
-			var i interface{}
+			var i any
 			err = json.Unmarshal(by, &i)
 			if err != nil {
 				errors = append(errors, err)

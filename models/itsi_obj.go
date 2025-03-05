@@ -33,7 +33,7 @@ var RestConfigs map[string]restConfig
 
 type RawJson json.RawMessage
 
-func (rj RawJson) ToInterfaceMap() (m map[string]interface{}, err error) {
+func (rj RawJson) ToInterfaceMap() (m map[string]any, err error) {
 	var by []byte
 	if by, err = json.RawMessage(rj).MarshalJSON(); err != nil {
 		return
@@ -142,7 +142,7 @@ func (obj *ItsiObj) handleConflictOnCreate(ctx context.Context) (responseBody []
 	}
 
 	if obj.RESTKey == obj_.RESTKey {
-		responseBody = []byte(fmt.Sprintf(`{"%s": "%s"}`, obj.RestKeyField, obj.RESTKey))
+		responseBody = fmt.Appendf(nil, `{"%s": "%s"}`, obj.RestKeyField, obj.RESTKey)
 	} else {
 		err = fmt.Errorf("409 Conflict response for create %s request", obj.ObjectType)
 	}
@@ -187,7 +187,7 @@ func (obj *ItsiObj) IsFilterSupported() bool {
 	return !obj.restConfig.UnimplementedFiltering
 }
 
-func (obj *ItsiObj) PopulateRawJSON(ctx context.Context, body map[string]interface{}) error {
+func (obj *ItsiObj) PopulateRawJSON(ctx context.Context, body map[string]any) error {
 	if obj.GenerateKey && obj.RESTKey == "" {
 		key, err := GenerateResourceKey()
 		if err != nil {

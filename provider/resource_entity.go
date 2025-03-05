@@ -17,7 +17,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	"github.com/hashicorp/terraform-plugin-go/tftypes"
 	"github.com/tivo/terraform-provider-splunk-itsi/models"
 	"github.com/tivo/terraform-provider-splunk-itsi/util"
 )
@@ -215,7 +214,7 @@ func (w *entityParseWorkflow) basics(ctx context.Context, fields map[string]any,
 
 func (w *entityParseWorkflow) entityTypes(ctx context.Context, fields map[string]any, res *entityModel) (diags diag.Diagnostics) {
 	if v, ok := fields["entity_type_ids"]; ok && v != nil {
-		entityTypeIds, err := UnpackSlice[string](v.([]interface{}))
+		entityTypeIds, err := UnpackSlice[string](v.([]any))
 		if err != nil {
 			diags.AddError("Unable to populate entity model", err.Error())
 			return
@@ -230,7 +229,7 @@ func (w *entityParseWorkflow) entityTypes(ctx context.Context, fields map[string
 
 func (w *entityParseWorkflow) fields(ctx context.Context, fields map[string]any, res *entityModel) (diags diag.Diagnostics) {
 	var d diag.Diagnostics
-	fieldsMap, err := unpackMap[map[string]interface{}](mapSubset[string](fields, []string{"identifier", "informational"}))
+	fieldsMap, err := unpackMap[map[string]any](mapSubset(fields, []string{"identifier", "informational"}))
 	if err != nil {
 		diags.AddError("Unable to populate entity model", err.Error())
 		return
@@ -240,8 +239,8 @@ func (w *entityParseWorkflow) fields(ctx context.Context, fields map[string]any,
 		tfMap := map[string]string{}
 
 		itsiObject := fieldsMap[itsiField]
-		for _, k := range itsiObject["fields"].([]interface{}) {
-			itsiValues, ok := fields[k.(string)].([]interface{})
+		for _, k := range itsiObject["fields"].([]any) {
+			itsiValues, ok := fields[k.(string)].([]any)
 			if !ok {
 				diags.AddError("Unable to populate entity model", fmt.Sprintf("entity resource (%v): type assertion failed for '%v/fields' field", res.ID.ValueString(), itsiField))
 				return
@@ -289,7 +288,7 @@ func (r *resourceEntity) Read(ctx context.Context, req resource.ReadRequest, res
 		return
 	}
 	if b == nil || b.RawJson == nil {
-		resp.State.Raw = tftypes.Value{}
+		resp.State.RemoveResource(ctx)
 		return
 	}
 

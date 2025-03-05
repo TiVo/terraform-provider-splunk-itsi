@@ -11,7 +11,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework-timeouts/resource/timeouts"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
-	"github.com/hashicorp/terraform-plugin-go/tftypes"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
@@ -1126,8 +1125,8 @@ func (w *neapBuildWorkflow) buildSteps() []apibuildWorkflowStepFunc[neapModel] {
 	return []apibuildWorkflowStepFunc[neapModel]{w.basics, w.episodeInfo, w.criteria, w.rules}
 }
 
-func (w *neapBuildWorkflow) basics(ctx context.Context, obj neapModel) (map[string]interface{}, diag.Diagnostics) {
-	return map[string]interface{}{
+func (w *neapBuildWorkflow) basics(ctx context.Context, obj neapModel) (map[string]any, diag.Diagnostics) {
+	return map[string]any{
 		"object_type": obj.objectype(),
 		"title":       obj.Title.ValueString(),
 		"description": obj.Description.ValueString(),
@@ -1142,7 +1141,7 @@ func (w *neapBuildWorkflow) basics(ctx context.Context, obj neapModel) (map[stri
 	}, nil
 }
 
-func (w *neapBuildWorkflow) episodeInfo(ctx context.Context, obj neapModel) (map[string]interface{}, diag.Diagnostics) {
+func (w *neapBuildWorkflow) episodeInfo(ctx context.Context, obj neapModel) (map[string]any, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
 	episodeSeverity := obj.GroupSeverity.ValueString()
@@ -1161,7 +1160,7 @@ func (w *neapBuildWorkflow) episodeInfo(ctx context.Context, obj neapModel) (map
 		}
 	}
 
-	return map[string]interface{}{
+	return map[string]any{
 		"group_title":              obj.GroupTitle.ValueString(),
 		"group_description":        obj.GroupDescription.ValueString(),
 		"group_severity":           episodeSeverity,
@@ -1174,7 +1173,7 @@ func (w *neapBuildWorkflow) episodeInfo(ctx context.Context, obj neapModel) (map
 	}, diags
 }
 
-func (w *neapBuildWorkflow) criteria(ctx context.Context, obj neapModel) (map[string]interface{}, diag.Diagnostics) {
+func (w *neapBuildWorkflow) criteria(ctx context.Context, obj neapModel) (map[string]any, diag.Diagnostics) {
 	diags := diag.Diagnostics{}
 
 	var splitByFields []string
@@ -1190,14 +1189,14 @@ func (w *neapBuildWorkflow) criteria(ctx context.Context, obj neapModel) (map[st
 		return nil, diags
 	}
 
-	return map[string]interface{}{
+	return map[string]any{
 		"split_by_field":    strings.Join(splitByFields, ","),
 		"filter_criteria":   filterCriteria,
 		"breaking_criteria": breakingCriteria,
 	}, diags
 }
 
-func (w *neapBuildWorkflow) rules(ctx context.Context, obj neapModel) (map[string]interface{}, diag.Diagnostics) {
+func (w *neapBuildWorkflow) rules(ctx context.Context, obj neapModel) (map[string]any, diag.Diagnostics) {
 	var d, diags diag.Diagnostics
 	rules := make([]map[string]any, len(obj.Rules))
 
@@ -1206,7 +1205,7 @@ func (w *neapBuildWorkflow) rules(ctx context.Context, obj neapModel) (map[strin
 		diags.Append(d...)
 	}
 
-	return map[string]interface{}{
+	return map[string]any{
 		"rules": rules,
 	}, diags
 }
@@ -1222,7 +1221,7 @@ func (w *neapParseWorkflow) parseSteps() []apiparseWorkflowStepFunc[neapModel] {
 	return []apiparseWorkflowStepFunc[neapModel]{w.basics, w.episodeInfo, w.criteria, w.rules}
 }
 
-func (w *neapParseWorkflow) basics(ctx context.Context, fields map[string]interface{}, res *neapModel) (diags diag.Diagnostics) {
+func (w *neapParseWorkflow) basics(ctx context.Context, fields map[string]any, res *neapModel) (diags diag.Diagnostics) {
 	unexpectedErrorMsg := "NEAP: Unexpected error while populating basic fields of a NEAP model"
 	strFields, err := unpackMap[string](mapSubset(fields, []string{"title", "description"}))
 	if err != nil {
@@ -1246,7 +1245,7 @@ func (w *neapParseWorkflow) basics(ctx context.Context, fields map[string]interf
 	return
 }
 
-func (w *neapParseWorkflow) episodeInfo(ctx context.Context, fields map[string]interface{}, res *neapModel) (diags diag.Diagnostics) {
+func (w *neapParseWorkflow) episodeInfo(ctx context.Context, fields map[string]any, res *neapModel) (diags diag.Diagnostics) {
 	strFields, err := unpackMap[string](mapSubset(fields, []string{
 		"group_title",
 		"group_description",
@@ -1291,7 +1290,7 @@ func (w *neapParseWorkflow) episodeInfo(ctx context.Context, fields map[string]i
 	return nil
 }
 
-func (w *neapParseWorkflow) criteria(ctx context.Context, fields map[string]interface{}, res *neapModel) (diags diag.Diagnostics) {
+func (w *neapParseWorkflow) criteria(ctx context.Context, fields map[string]any, res *neapModel) (diags diag.Diagnostics) {
 	splitByFields := []string{}
 	if splitByField, ok := fields["split_by_field"]; ok && splitByField != "" {
 		splitByFields = strings.Split(splitByField.(string), ",")
@@ -1301,7 +1300,7 @@ func (w *neapParseWorkflow) criteria(ctx context.Context, fields map[string]inte
 		return
 	}
 
-	itsiFilterCriteria, ok := fields["filter_criteria"].(map[string]interface{})
+	itsiFilterCriteria, ok := fields["filter_criteria"].(map[string]any)
 	if !ok {
 		diags.AddError("NEAP: Unable to parse filter criteria", "filter_criteria is missing or not in the expected format")
 		return
@@ -1311,7 +1310,7 @@ func (w *neapParseWorkflow) criteria(ctx context.Context, fields map[string]inte
 	res.FilterCriteria, d = newNEAPCriteriaFromAPIModel(itsiFilterCriteria)
 	diags.Append(d...)
 
-	itsiBreakingCriteria, ok := fields["breaking_criteria"].(map[string]interface{})
+	itsiBreakingCriteria, ok := fields["breaking_criteria"].(map[string]any)
 	if !ok {
 		diags.AddError("NEAP: Unable to parse breaking criteria", "breaking_criteria is missing or not in the expected format")
 		return
@@ -1326,7 +1325,7 @@ func (w *neapParseWorkflow) criteria(ctx context.Context, fields map[string]inte
 	return nil
 }
 
-func (w *neapParseWorkflow) rules(ctx context.Context, fields map[string]interface{}, res *neapModel) (diags diag.Diagnostics) {
+func (w *neapParseWorkflow) rules(ctx context.Context, fields map[string]any, res *neapModel) (diags diag.Diagnostics) {
 	rules, err := UnpackSlice[map[string]any](fields["rules"])
 	if err != nil {
 		diags.AddError("NEAP: Unable to parse rules", err.Error())
@@ -1367,7 +1366,7 @@ func (r *resourceNEAP) Read(ctx context.Context, req resource.ReadRequest, resp 
 		return
 	}
 	if b == nil || b.RawJson == nil {
-		resp.State.Raw = tftypes.Value{}
+		resp.State.RemoveResource(ctx)
 		return
 	}
 

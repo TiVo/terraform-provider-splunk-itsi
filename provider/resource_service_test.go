@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"testing"
@@ -206,7 +207,7 @@ func TestAccResourceServiceTagsLifecycle(t *testing.T) {
 	})
 }
 
-func testCheckServiceDependsOnMatch(t *testing.T, child_name string, expected_overloaded_urgency ...int) resource.TestCheckFunc {
+func testCheckServiceDependsOnMatch(t *testing.T, child_name string, _ /* expected_overloaded_urgency */ ...int) resource.TestCheckFunc {
 	return func(s *terraform.State) error {
 		leafResource, ok := s.RootModule().Resources[child_name]
 		if !ok {
@@ -218,15 +219,14 @@ func testCheckServiceDependsOnMatch(t *testing.T, child_name string, expected_ov
 		if !ok {
 			return fmt.Errorf("Not found: itsi_service.service_create_parent")
 		}
-		kpiLength, err := strconv.Atoi(parentResource.Primary.Attributes["service_depends_on.0.kpis.#"])
+		kpiLength, err := strconv.Atoi(parentResource.Primary.Attributes["service_depends_on.#"])
 		if err != nil {
 			return fmt.Errorf("Kpi depends on length not found")
 		}
-		for i := 0; i < kpiLength; i++ {
-			parentKPIID := parentResource.Primary.Attributes["service_depends_on.0.kpis."+strconv.Itoa(i)]
+		for i := range kpiLength {
+			parentKPIID := parentResource.Primary.Attributes["service_depends_on."+strconv.Itoa(i)+".kpis.0"]
 			if leafKPIID == parentKPIID {
-				t.Logf("PASSED: Leaf shkpi_id %s, Parent's dependent kpis %s", leafKPIID, parentResource.Primary.Attributes["service_depends_on.0.kpis"])
-
+				t.Logf("PASSED: Leaf shkpi_id %s, Parent's dependent kpis %s", leafKPIID, parentResource.Primary.Attributes["service_depends_on."+strconv.Itoa(i)+".kpis.0"])
 				// if len(expected_overloaded_urgency) > 0 {
 				// 	if urgency, ok := parentResource.Primary.Attributes["service_depends_on.0.kpis."+strconv.Itoa(i)+
 				// 		".overload_urgencies."+leafKPIID]; !ok || urgency != strconv.Itoa(expected_overloaded_urgency[0]) {
@@ -234,12 +234,11 @@ func testCheckServiceDependsOnMatch(t *testing.T, child_name string, expected_ov
 				// 			parentResource.Primary.Attributes["service_depends_on.0.kpis."+strconv.Itoa(i)])
 				// 	}
 				// }
+				return nil
 			}
-			return nil
 		}
-		return fmt.Errorf("shkpi_id mismatch: Missing shkpi_id %s\n", leafKPIID)
+		return fmt.Errorf("shkpi_id mismatch: Missing shkpi_id %s", leafKPIID)
 	}
-
 }
 
 func TestAccResourceServiceDeletedInUI(t *testing.T) {
@@ -298,7 +297,7 @@ func EmulateUiDelete(t *testing.T, title string, object_type string) error {
 	diags := base.Delete(ctx)
 	if diags.HasError() {
 		t.Logf("%s %s failed to delete: %s", object_type, title, diags[0].Summary())
-		return fmt.Errorf(diags[0].Summary())
+		return errors.New(diags[0].Summary())
 	}
 	t.Logf("%s %s was deleted successfully", object_type, title)
 	return nil
@@ -678,7 +677,7 @@ func SaveKpiIds(t *testing.T) resource.TestCheckFunc {
 		if err != nil {
 			return fmt.Errorf("Kpi depends on length not found")
 		}
-		for i := 0; i < kpiLength; i++ {
+		for i := range kpiLength {
 			kpiId := resource.Primary.Attributes["kpi."+strconv.Itoa(i)+".id"]
 			PREV_KPI_IDS = append(PREV_KPI_IDS, kpiId)
 			t.Logf("Saving Prev State: Adding id %s", kpiId)

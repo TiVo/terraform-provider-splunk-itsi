@@ -130,7 +130,7 @@ func (d *dataSourceCollection) Read(ctx context.Context, req datasource.ReadRequ
 	fields := util.NewSet[string]()
 	for _, item := range arr {
 
-		item_, ok := item.(map[string]interface{})
+		item_, ok := item.(map[string]any)
 		if !ok {
 			diags.AddError(fmt.Sprintf("Unable to read %s collection data", api.Key()), "expected map in array body return type")
 		}

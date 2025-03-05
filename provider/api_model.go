@@ -47,7 +47,7 @@ func tfmodelID(m any) *types.String {
 	val = val.Elem()
 	typ = typ.Elem()
 
-	for i := 0; i < typ.NumField(); i++ {
+	for i := range typ.NumField() {
 		field := typ.Field(i)
 		tag := field.Tag.Get(`tfsdk`)
 		if tag == "id" {

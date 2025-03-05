@@ -41,6 +41,16 @@ scraper:
 itsictl:
 	goreleaser build -f .goreleaser.itsictl.yml --single-target --snapshot --clean
 
+staticcheck:
+	@echo "Running staticcheck..."
+	go tool honnef.co/go/tools/cmd/staticcheck ./...
+
+gopls:
+	@echo "Running gopls check..."
+	find . -name "*.go" -not -path "./vendor/*" | xargs go tool golang.org/x/tools/gopls check
+
+lint: staticcheck gopls
+
 # Allows to run a specific test
 #
 # E.g.:

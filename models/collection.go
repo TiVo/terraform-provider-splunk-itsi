@@ -135,12 +135,12 @@ type CollectionApi struct {
 	Base
 	RESTKey    string // key used to collect this resource via the REST API
 	apiConfig  collectionApiConfig
-	Collection string                 // Collection name
-	App        string                 // Collection App
-	Owner      string                 // Collection owner
-	Data       map[string]interface{} // Data for this object
-	Params     string                 // URL query string, iff provided
-	Body       []byte                 // Body used for this API call
+	Collection string         // Collection name
+	App        string         // Collection App
+	Owner      string         // Collection owner
+	Data       map[string]any // Data for this object
+	Params     string         // URL query string, iff provided
+	Body       []byte         // Body used for this API call
 }
 
 func NewCollection(clientConfig ClientConfig, collection, app, owner, key, objectType string) *CollectionApi {
@@ -209,7 +209,7 @@ func (c *CollectionApi) handleRequestError(ctx context.Context, method string, s
 }
 
 func (c *CollectionApi) Create(ctx context.Context) (*CollectionApi, error) {
-	tflog.Trace(ctx, "COLLECTION CREATE: Create", map[string]interface{}{"c": c})
+	tflog.Trace(ctx, "COLLECTION CREATE: Create", map[string]any{"c": c})
 	reqBody, err := c.body()
 	if err != nil {
 		return nil, err
@@ -232,7 +232,7 @@ func (c *CollectionApi) Create(ctx context.Context) (*CollectionApi, error) {
 }
 
 func (c *CollectionApi) Read(ctx context.Context) (*CollectionApi, error) {
-	tflog.Trace(ctx, "COLLECTION READ: Read", map[string]interface{}{"c": c})
+	tflog.Trace(ctx, "COLLECTION READ: Read", map[string]any{"c": c})
 
 	var method string
 	var body []byte = nil
@@ -262,7 +262,7 @@ func (c *CollectionApi) Read(ctx context.Context) (*CollectionApi, error) {
 }
 
 func (c *CollectionApi) Update(ctx context.Context) (*CollectionApi, error) {
-	tflog.Trace(ctx, "COLLECTION UPDATE: Update", map[string]interface{}{"c": c})
+	tflog.Trace(ctx, "COLLECTION UPDATE: Update", map[string]any{"c": c})
 
 	reqBody, err := c.body()
 	if err != nil {
@@ -277,7 +277,7 @@ func (c *CollectionApi) Update(ctx context.Context) (*CollectionApi, error) {
 }
 
 func (c *CollectionApi) Delete(ctx context.Context) (*CollectionApi, error) {
-	tflog.Trace(ctx, "COLLECTION DELETE: Delete", map[string]interface{}{"c": c})
+	tflog.Trace(ctx, "COLLECTION DELETE: Delete", map[string]any{"c": c})
 
 	_, _, err := c.requestWithRetry(ctx, http.MethodDelete, c.url(), nil)
 	if err != nil {
@@ -286,7 +286,7 @@ func (c *CollectionApi) Delete(ctx context.Context) (*CollectionApi, error) {
 	return c, nil
 }
 
-func (c *CollectionApi) Marshal(obj interface{}) (bytes []byte, err error) {
+func (c *CollectionApi) Marshal(obj any) (bytes []byte, err error) {
 	switch c.apiConfig.BodyFormat {
 	case "JSON":
 		bytes, err = json.Marshal(obj)
@@ -298,7 +298,7 @@ func (c *CollectionApi) Marshal(obj interface{}) (bytes []byte, err error) {
 	return
 }
 
-func (c *CollectionApi) Unmarshal(bytes []byte) (res interface{}, err error) {
+func (c *CollectionApi) Unmarshal(bytes []byte) (res any, err error) {
 	switch c.apiConfig.BodyFormat {
 	case "JSON":
 		err = json.Unmarshal(bytes, &res)

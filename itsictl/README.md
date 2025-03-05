@@ -4,17 +4,26 @@
 
 ## Table of Contents
 
-- [Features](#features)
-- [Installation](#installation)
-- [Configuration](#configuration)
-- [Usage](#usage)
-  - [General Options](#general-options)
-  - [Authentication Options](#authentication-options)
-  - [Commands](#commands)
-    - [threshold](#threshold-command)
-      - [reset](#reset-command)
-      - [recommend](#recommend-command)
-- [Examples](#examples)
+- [itsictl](#itsictl)
+  - [Table of Contents](#table-of-contents)
+  - [Features](#features)
+  - [Installation](#installation)
+    - [Build from Source Using Homebrew Formula](#build-from-source-using-homebrew-formula)
+    - [Build from Source Manually](#build-from-source-manually)
+  - [Configuration](#configuration)
+    - [Configuration File](#configuration-file)
+    - [Environment Variables](#environment-variables)
+    - [Command-Line Flags](#command-line-flags)
+  - [Usage](#usage)
+    - [General Options](#general-options)
+    - [Authentication Options](#authentication-options)
+    - [Commands](#commands)
+      - [`threshold` Command](#threshold-command)
+        - [`reset` Command](#reset-command)
+        - [`recommend` Command](#recommend-command)
+  - [Examples](#examples)
+    - [Reset Thresholds](#reset-thresholds)
+    - [Apply ML-Assisted Thresholds](#apply-ml-assisted-thresholds)
 
 ---
 
@@ -78,7 +87,7 @@ This will uninstall the existing version and install the latest version from the
 
 ### Build from Source Manually
 
-Ensure you have Go installed (version 1.23 or later).
+Ensure you have Go installed (version 1.24 or later).
 
 ```bash
 git clone git@github.com:TiVo/terraform-provider-splunk-itsi.git
