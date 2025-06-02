@@ -80,9 +80,9 @@ func collectionIDModelFromString(key string) (c collectionIDModel, diags diag.Di
 
 func collectionIDModelAndScopeFromString(key string) (c collectionIDModel, scope string, diags diag.Diagnostics) {
 	cleanKey := strings.TrimSpace(key)
-	parts := strings.Split(cleanKey, ":")
+	parts := strings.SplitN(cleanKey, ":", 2)
 
-	if len(cleanKey) == 0 || len(parts) > 2 {
+	if len(cleanKey) == 0 {
 		errorDetails := util.Dedent(fmt.Sprintf(`
 			Collection scope key must be in the format '[collection_owner/][collection_app/]<collection_name>[:scope]'.
 			E.g. '%[1]s/%[2]s/example:%[3]s', '%[1]s/%[2]s/example', '%[2]s/example', 'example', are valid values for a collection scope and all refer to the same collection scope.
