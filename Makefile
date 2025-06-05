@@ -47,7 +47,8 @@ staticcheck:
 
 gopls:
 	@echo "Running gopls check..."
-	find . -name "*.go" -not -path "./vendor/*" | xargs go tool golang.org/x/tools/gopls check
+	@which gopls > /dev/null || go install golang.org/x/tools/gopls@latest
+	find . -name "*.go" -not -path "./vendor/*" | xargs gopls check
 
 lint: staticcheck gopls
 

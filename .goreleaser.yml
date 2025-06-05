@@ -35,9 +35,9 @@ builds:
     binary: "{{ .ProjectName }}_v{{ .Version }}"
 
 archives:
-  - builds:
+  - ids:
       - terraform-provider-splunk-itsi
-    formats: [ 'zip' ]
+    formats: ["zip"]
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
   # - id: itsictl
   #   builds:
