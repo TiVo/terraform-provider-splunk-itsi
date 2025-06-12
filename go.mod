@@ -16,7 +16,7 @@ require (
 	github.com/hashicorp/terraform-plugin-go v0.28.0
 	github.com/hashicorp/terraform-plugin-log v0.9.0
 	github.com/hashicorp/terraform-plugin-mux v0.20.0
-	github.com/hashicorp/terraform-plugin-testing v1.13.1
+	github.com/hashicorp/terraform-plugin-testing v1.13.2
 	github.com/lestrrat-go/backoff/v2 v2.0.9-0.20211111113235-51026d9f5dca
 	github.com/spf13/cobra v1.9.1
 	github.com/spf13/viper v1.20.1
@@ -81,7 +81,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sts v1.33.20 // indirect
 	github.com/aws/smithy-go v1.22.3 // indirect
 	github.com/bgentry/speakeasy v0.1.0 // indirect
-	github.com/cloudflare/circl v1.6.0 // indirect
+	github.com/cloudflare/circl v1.6.1 // indirect
 	github.com/fatih/color v1.18.0 // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
@@ -124,7 +124,7 @@ require (
 	github.com/yuin/goldmark v1.7.7 // indirect
 	github.com/yuin/goldmark-meta v1.1.0 // indirect
 	github.com/zclconf/go-cty v1.16.3 // indirect
-	golang.org/x/crypto v0.38.0 // indirect
+	golang.org/x/crypto v0.39.0 // indirect
 	golang.org/x/exp v0.0.0-20250531010427-b6e5de432a8b // indirect
 	golang.org/x/mod v0.25.0 // indirect
 	golang.org/x/net v0.40.0 // indirect
