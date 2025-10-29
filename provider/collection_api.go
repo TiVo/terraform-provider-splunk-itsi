@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/url"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -15,6 +16,11 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/tivo/terraform-provider-splunk-itsi/models"
+)
+
+const (
+	// defaultCollectionDataBatchSize is the default number of rows to save in a single API request
+	defaultCollectionDataBatchSize = 250
 )
 
 /*
@@ -438,6 +444,42 @@ func NewCollectionDataAPI(m collectionDataModel, c models.ClientConfig) *collect
 	return &collectionDataAPI{NewCollectionAPI(m.Collection, c), m}
 }
 
+// buildBatchModel creates a CollectionApi model for saving a batch of entries
+func (api *collectionDataAPI) buildBatchModel(entries []collectionEntryModel) (model *models.CollectionApi, diags diag.Diagnostics) {
+	model = api.collectionAPI.Model("collection_batchsave")
+
+	rows := make([]map[string]any, len(entries))
+	for i, entry := range entries {
+		rowMap, diags_ := entry.Unpack()
+		if diags.Append(diags_...); diags.HasError() {
+			return nil, diags
+		}
+		rowMap["_instance"] = api.ID.ValueString()
+		rowMap["_gen"] = api.Generation.ValueInt64()
+		rowMap["_scope"] = api.Scope.ValueString()
+		rowMap["_key"] = entry.ID.ValueString()
+		rows[i] = rowMap
+	}
+
+	var err error
+	model.Body, err = json.Marshal(rows)
+	if err != nil {
+		diags.AddError(fmt.Sprintf("Unable to marshal %s collection data", api.Key()), err.Error())
+		return nil, diags
+	}
+
+	data := map[string]any{
+		"collection_name": api.Collection.Name.ValueString(),
+		"scope":           api.Scope.ValueString(),
+		"generation":      api.Generation.ValueInt64(),
+		"instance":        api.ID.ValueString(),
+		"data":            rows,
+	}
+	model.Data = data
+
+	return model, diags
+}
+
 func (api *collectionDataAPI) Model(ctx context.Context, includeData bool) (model *models.CollectionApi, diags diag.Diagnostics) {
 	data := map[string]any{
 		"collection_name": api.Collection.Name.ValueString(),
@@ -446,30 +488,11 @@ func (api *collectionDataAPI) Model(ctx context.Context, includeData bool) (mode
 		"instance":        api.ID.ValueString(),
 	}
 	if includeData {
-		model = api.collectionAPI.Model("collection_batchsave")
 		var entries []collectionEntryModel
 		if diags = api.Entries.ElementsAs(ctx, &entries, false); diags.HasError() {
 			return
 		}
-
-		rows := make([]map[string]any, len(entries))
-
-		for i, entry := range entries {
-			rowMap, diags_ := entry.Unpack()
-			diags.Append(diags_...)
-			rowMap["_instance"] = api.ID.ValueString()
-			rowMap["_gen"] = api.Generation.ValueInt64()
-			rowMap["_scope"] = api.Scope.ValueString()
-			rowMap["_key"] = entry.ID.ValueString()
-			rows[i] = rowMap
-		}
-		data["data"] = rows
-		var err error
-		model.Body, err = json.Marshal(rows)
-		if err != nil {
-			diags.AddError(fmt.Sprintf("Unable to marshal %s collection data", api.Key()), err.Error())
-			return nil, diags
-		}
+		return api.buildBatchModel(entries)
 	} else {
 		model = api.collectionAPI.Model("collection_data")
 	}
@@ -481,14 +504,56 @@ func (api *collectionDataAPI) Save(ctx context.Context) (diags diag.Diagnostics)
 	if len(api.Entries.Elements()) == 0 {
 		return
 	}
-	model, diags := api.Model(ctx, true)
-	if diags.HasError() {
+
+	var entries []collectionEntryModel
+	if diags = api.Entries.ElementsAs(ctx, &entries, false); diags.HasError() {
 		return
 	}
-	_, err := model.Create(ctx)
-	if err != nil {
-		diags.AddError(fmt.Sprintf("Unable to save %s collection data", api.Key()), err.Error())
+
+	// Process entries in batches
+	totalEntries := len(entries)
+	batchSize := defaultCollectionDataBatchSize
+	totalBatches := (totalEntries + batchSize - 1) / batchSize
+
+	tflog.Debug(ctx, "Saving collection data in batches", map[string]any{
+		"total_entries": totalEntries,
+		"batch_size":    batchSize,
+		"total_batches": totalBatches,
+	})
+
+	batchNum := 0
+	for batch := range slices.Chunk(entries, batchSize) {
+		batchNum++
+
+		tflog.Debug(ctx, "Processing batch", map[string]any{
+			"batch":         batchNum,
+			"total_batches": totalBatches,
+			"batch_size":    len(batch),
+		})
+
+		model, batchDiags := api.buildBatchModel(batch)
+		if diags.Append(batchDiags...); diags.HasError() {
+			return
+		}
+
+		_, err := model.Create(ctx)
+		if err != nil {
+			diags.AddError(
+				fmt.Sprintf("Unable to save %s collection data (batch %d of %d)", api.Key(), batchNum, totalBatches),
+				err.Error(),
+			)
+			return
+		}
+
+		tflog.Debug(ctx, "Batch saved successfully", map[string]any{
+			"batch": batchNum,
+		})
 	}
+
+	tflog.Debug(ctx, "All batches saved successfully", map[string]any{
+		"total_batches": totalBatches,
+	})
+
 	return
 }
 
