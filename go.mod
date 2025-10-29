@@ -1,6 +1,6 @@
 module github.com/tivo/terraform-provider-splunk-itsi
 
-go 1.24
+go 1.25
 
 require (
 	github.com/akamensky/argparse v1.4.0

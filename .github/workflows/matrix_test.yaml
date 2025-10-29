@@ -29,14 +29,14 @@ jobs:
       matrix:
         # list whatever Terraform versions here you would like to support
         terraform:
-          - "1.10.*"
           - "1.11.*"
           - "1.12.*"
+          - "1.13.*"
     steps:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.24"
+          go-version: "1.25"
         id: go
 
       - uses: hashicorp/setup-terraform@v3
