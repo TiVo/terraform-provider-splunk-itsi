@@ -87,7 +87,7 @@ This will uninstall the existing version and install the latest version from the
 
 ### Build from Source Manually
 
-Ensure you have Go installed (version 1.24 or later).
+Ensure you have Go installed (version 1.25 or later).
 
 ```bash
 git clone git@github.com:TiVo/terraform-provider-splunk-itsi.git
