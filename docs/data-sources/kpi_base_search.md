@@ -41,15 +41,15 @@ Optional:
 
 Read-Only:
 
-- `aggregate_statop` (String) Statistical operation used to combine data for the aggregate alert_value.
-- `entity_statop` (String) Statistical operation used to combine data for alert_values on a per entity basis.
-- `fill_gaps` (String) How to fill missing data.
+- `aggregate_statop` (String) Statistical operation (avg, max, median, stdev, and so on) used to combine data for the aggregate alert_value (used for all KPI).
+- `entity_statop` (String) Statistical operation (avg, max, mean, and so on) used to combine data for alert_values on a per entity basis (used if entity_breakdown is true).
+- `fill_gaps` (String) How to fill missing data
 - `gap_custom_alert_value` (Number) Custom value to fill data gaps.
-- `gap_severity` (String) Severity level assigned for data gaps.
+- `gap_severity` (String) Severity level assigned for data gaps (info, normal, low, medium, high, critical, or unknown).
 - `gap_severity_color` (String) Severity color assigned for data gaps.
 - `gap_severity_color_light` (String) Severity light color assigned for data gaps.
 - `gap_severity_value` (String) Severity value assigned for data gaps.
 - `id` (String) Generated metric _key
-- `threshold_field` (String) The field on which the statistical operation runs.
-- `title` (String) Name of this metric.
+- `threshold_field` (String) The field on which the statistical operation runs
+- `title` (String) Name of this metric
 - `unit` (String) User-defined units for the values in threshold field.
