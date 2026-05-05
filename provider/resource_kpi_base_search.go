@@ -340,86 +340,90 @@ func (r *resourceKpiBaseSearch) Metadata(ctx context.Context, req resource.Metad
 	configureResourceMetadata(req, resp, resourceNameKPIBaseSearch)
 }
 
+func kpiBaseSearchMetricsBlock() schema.SetNestedBlock {
+	return schema.SetNestedBlock{
+		NestedObject: schema.NestedBlockObject{
+			Attributes: map[string]schema.Attribute{
+				"id": schema.StringAttribute{
+					Computed:    true,
+					Description: "Generated metric _key",
+				},
+				"aggregate_statop": schema.StringAttribute{
+					Required:    true,
+					Description: "Statistical operation (avg, max, median, stdev, and so on) used to combine data for the aggregate alert_value (used for all KPI).",
+					Validators: []validator.String{
+						stringvalidator.RegexMatches(regexp.MustCompile("(avg|count|dc|earliest|latest|max|median|min|stdev|sum|perc*)"), ""),
+					},
+				},
+				"entity_statop": schema.StringAttribute{
+					Required:    true,
+					Description: "Statistical operation (avg, max, mean, and so on) used to combine data for alert_values on a per entity basis (used if entity_breakdown is true).",
+					Validators: []validator.String{
+						stringvalidator.RegexMatches(regexp.MustCompile("(avg|count|dc|earliest|latest|max|median|min|stdev|sum|perc*)"), ""),
+					},
+				},
+				"fill_gaps": schema.StringAttribute{
+					Required:    true,
+					Description: "How to fill missing data",
+					Validators: []validator.String{
+						stringvalidator.OneOf("null_value", "last_available_value", "custom_value"),
+					},
+				},
+				"gap_custom_alert_value": schema.Float64Attribute{
+					Optional:    true,
+					Computed:    true,
+					Description: "Custom value to fill data gaps.",
+					//Default:     float64default.StaticFloat64(0),
+				},
+				"gap_severity": schema.StringAttribute{
+					Optional:    true,
+					Computed:    true,
+					Description: "Severity level assigned for data gaps (info, normal, low, medium, high, critical, or unknown).",
+					Validators: []validator.String{
+						stringvalidator.OneOf("info", "critical", "high", "medium", "low", "normal", "unknown"),
+					},
+					//Default: stringdefault.StaticString("unknown"),
+				},
+				"unit": schema.StringAttribute{
+					Required:    true,
+					Description: "User-defined units for the values in threshold field.",
+				},
+				"threshold_field": schema.StringAttribute{
+					Required:    true,
+					Description: "The field on which the statistical operation runs",
+				},
+				"title": schema.StringAttribute{
+					Required:    true,
+					Description: "Name of this metric",
+				},
+				"gap_severity_color": schema.StringAttribute{
+					Computed:    true,
+					Optional:    true,
+					Description: "Severity color assigned for data gaps.",
+					//Default:     stringdefault.StaticString("#CCCCCC"),
+				},
+				"gap_severity_color_light": schema.StringAttribute{
+					Computed:    true,
+					Optional:    true,
+					Description: "Severity light color assigned for data gaps.",
+					//Default:     stringdefault.StaticString("#EEEEEE"),
+				},
+				"gap_severity_value": schema.StringAttribute{
+					Optional:    true,
+					Description: "Severity value assigned for data gaps.",
+					Computed:    true,
+					//Default:     stringdefault.StaticString("-1"),
+				},
+			},
+		},
+	}
+}
+
 func (r *resourceKpiBaseSearch) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Blocks: map[string]schema.Block{
 			"timeouts": timeouts.BlockAll(ctx),
-			"metrics": schema.SetNestedBlock{
-				NestedObject: schema.NestedBlockObject{
-					Attributes: map[string]schema.Attribute{
-						"id": schema.StringAttribute{
-							Computed:    true,
-							Description: "Generated metric _key",
-						},
-						"aggregate_statop": schema.StringAttribute{
-							Required:    true,
-							Description: "Statistical operation (avg, max, median, stdev, and so on) used to combine data for the aggregate alert_value (used for all KPI).",
-							Validators: []validator.String{
-								stringvalidator.RegexMatches(regexp.MustCompile("(avg|count|dc|earliest|latest|max|median|min|stdev|sum|perc*)"), ""),
-							},
-						},
-						"entity_statop": schema.StringAttribute{
-							Required:    true,
-							Description: "Statistical operation (avg, max, mean, and so on) used to combine data for alert_values on a per entity basis (used if entity_breakdown is true).",
-							Validators: []validator.String{
-								stringvalidator.RegexMatches(regexp.MustCompile("(avg|count|dc|earliest|latest|max|median|min|stdev|sum|perc*)"), ""),
-							},
-						},
-						"fill_gaps": schema.StringAttribute{
-							Required:    true,
-							Description: "How to fill missing data",
-							Validators: []validator.String{
-								stringvalidator.OneOf("null_value", "last_available_value", "custom_value"),
-							},
-						},
-						"gap_custom_alert_value": schema.Float64Attribute{
-							Optional:    true,
-							Computed:    true,
-							Description: "Custom value to fill data gaps.",
-							//Default:     float64default.StaticFloat64(0),
-						},
-						"gap_severity": schema.StringAttribute{
-							Optional:    true,
-							Computed:    true,
-							Description: "Severity level assigned for data gaps (info, normal, low, medium, high, critical, or unknown).",
-							Validators: []validator.String{
-								stringvalidator.OneOf("info", "critical", "high", "medium", "low", "normal", "unknown"),
-							},
-							//Default: stringdefault.StaticString("unknown"),
-						},
-						"unit": schema.StringAttribute{
-							Required:    true,
-							Description: "User-defined units for the values in threshold field.",
-						},
-						"threshold_field": schema.StringAttribute{
-							Required:    true,
-							Description: "The field on which the statistical operation runs",
-						},
-						"title": schema.StringAttribute{
-							Required:    true,
-							Description: "Name of this metric",
-						},
-						"gap_severity_color": schema.StringAttribute{
-							Computed:    true,
-							Optional:    true,
-							Description: "Severity color assigned for data gaps.",
-							//Default:     stringdefault.StaticString("#CCCCCC"),
-						},
-						"gap_severity_color_light": schema.StringAttribute{
-							Computed:    true,
-							Optional:    true,
-							Description: "Severity light color assigned for data gaps.",
-							//Default:     stringdefault.StaticString("#EEEEEE"),
-						},
-						"gap_severity_value": schema.StringAttribute{
-							Optional:    true,
-							Description: "Severity value assigned for data gaps.",
-							Computed:    true,
-							//Default:     stringdefault.StaticString("-1"),
-						},
-					},
-				},
-			},
+			"metrics":  kpiBaseSearchMetricsBlock(),
 		},
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
