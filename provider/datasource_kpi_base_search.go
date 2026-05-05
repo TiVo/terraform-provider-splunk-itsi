@@ -25,6 +25,8 @@ type dataSourceKpiBaseSearchState struct {
 	ID    types.String `tfsdk:"id" json:"_key"`
 	Title types.String `tfsdk:"title" json:"title"`
 
+	Metrics []Metric `tfsdk:"metrics"`
+
 	Timeouts timeouts.Value `tfsdk:"timeouts"`
 }
 
@@ -46,6 +48,60 @@ func (d *dataSourceKpiBaseSearch) Schema(ctx context.Context, req datasource.Sch
 		MarkdownDescription: "Use this data source to get the ID of an available KPI Base Search.",
 		Blocks: map[string]schema.Block{
 			"timeouts": timeouts.Block(ctx),
+			"metrics": schema.SetNestedBlock{
+				NestedObject: schema.NestedBlockObject{
+					Attributes: map[string]schema.Attribute{
+						"id": schema.StringAttribute{
+							Computed:    true,
+							Description: "Generated metric _key",
+						},
+						"aggregate_statop": schema.StringAttribute{
+							Computed:    true,
+							Description: "Statistical operation used to combine data for the aggregate alert_value.",
+						},
+						"entity_statop": schema.StringAttribute{
+							Computed:    true,
+							Description: "Statistical operation used to combine data for alert_values on a per entity basis.",
+						},
+						"fill_gaps": schema.StringAttribute{
+							Computed:    true,
+							Description: "How to fill missing data.",
+						},
+						"gap_custom_alert_value": schema.Float64Attribute{
+							Computed:    true,
+							Description: "Custom value to fill data gaps.",
+						},
+						"gap_severity": schema.StringAttribute{
+							Computed:    true,
+							Description: "Severity level assigned for data gaps.",
+						},
+						"gap_severity_value": schema.StringAttribute{
+							Computed:    true,
+							Description: "Severity value assigned for data gaps.",
+						},
+						"threshold_field": schema.StringAttribute{
+							Computed:    true,
+							Description: "The field on which the statistical operation runs.",
+						},
+						"title": schema.StringAttribute{
+							Computed:    true,
+							Description: "Name of this metric.",
+						},
+						"unit": schema.StringAttribute{
+							Computed:    true,
+							Description: "User-defined units for the values in threshold field.",
+						},
+						"gap_severity_color": schema.StringAttribute{
+							Computed:    true,
+							Description: "Severity color assigned for data gaps.",
+						},
+						"gap_severity_color_light": schema.StringAttribute{
+							Computed:    true,
+							Description: "Severity light color assigned for data gaps.",
+						},
+					},
+				},
+			},
 		},
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
@@ -90,16 +146,20 @@ func (d *dataSourceKpiBaseSearch) Read(ctx context.Context, req datasource.ReadR
 			fmt.Sprintf("KPI BS %q not found", title))
 		return
 	}
-	json, err := b.RawJson.ToInterfaceMap()
-	if err != nil {
-		resp.Diagnostics.AddError("Unable to read KPI JSON object", err.Error())
+
+	kbsState, diags := newAPIParser(b, new(kpiBaseSearchParseWorkflow)).parse(ctx, b)
+	if resp.Diagnostics.Append(diags...); resp.Diagnostics.HasError() {
 		return
 	}
 
-	state := &dataSourceKpiBaseSearchState{Timeouts: timeouts}
+	state := &dataSourceKpiBaseSearchState{
+		ID:       kbsState.ID,
+		Title:    kbsState.Title,
+		Metrics:  kbsState.Metrics,
+		Timeouts: timeouts,
+	}
 
-	resp.Diagnostics.Append(unmarshalBasicTypesByTag("json", json, state)...)
-	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 
 	tflog.Debug(ctx, "Finished reading KPI BS data source", map[string]any{"success": true})
 }
