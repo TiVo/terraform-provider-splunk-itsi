@@ -1,4 +1,4 @@
 [tools]
 claude = "latest"
-go = "latest"
+go = "1.25"
 goreleaser = "2.15"
