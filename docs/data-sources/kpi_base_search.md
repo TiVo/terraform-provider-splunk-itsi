@@ -26,6 +26,7 @@ Use this data source to get the ID of an available KPI Base Search.
 ### Read-Only
 
 - `id` (String) The ID of this resource.
+- `metrics` (Block Set) (see [below for nested schema](#nestedblock--metrics))
 
 <a id="nestedblock--timeouts"></a>
 ### Nested Schema for `timeouts`
@@ -33,3 +34,22 @@ Use this data source to get the ID of an available KPI Base Search.
 Optional:
 
 - `read` (String) A string that can be [parsed as a duration](https://pkg.go.dev/time#ParseDuration) consisting of numbers and unit suffixes, such as "30s" or "2h45m". Valid time units are "s" (seconds), "m" (minutes), "h" (hours).
+
+
+<a id="nestedblock--metrics"></a>
+### Nested Schema for `metrics`
+
+Read-Only:
+
+- `aggregate_statop` (String) Statistical operation (avg, max, median, stdev, and so on) used to combine data for the aggregate alert_value (used for all KPI).
+- `entity_statop` (String) Statistical operation (avg, max, mean, and so on) used to combine data for alert_values on a per entity basis (used if entity_breakdown is true).
+- `fill_gaps` (String) How to fill missing data
+- `gap_custom_alert_value` (Number) Custom value to fill data gaps.
+- `gap_severity` (String) Severity level assigned for data gaps (info, normal, low, medium, high, critical, or unknown).
+- `gap_severity_color` (String) Severity color assigned for data gaps.
+- `gap_severity_color_light` (String) Severity light color assigned for data gaps.
+- `gap_severity_value` (String) Severity value assigned for data gaps.
+- `id` (String) Generated metric _key
+- `threshold_field` (String) The field on which the statistical operation runs
+- `title` (String) Name of this metric
+- `unit` (String) User-defined units for the values in threshold field.
