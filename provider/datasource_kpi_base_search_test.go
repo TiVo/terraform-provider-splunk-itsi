@@ -13,26 +13,36 @@ func TestDataSourceKPIBaseSearchSchema(t *testing.T) {
 	testDataSourceSchema(t, new(dataSourceKpiBaseSearch))
 }
 
-// TestDataSourceKPIBaseSearchValidation verifies that omitting both id and title
-// produces a schema-level validation error without requiring a live server.
+// TestDataSourceKPIBaseSearchValidation verifies schema-level validation errors
+// without requiring a live server.
 func TestDataSourceKPIBaseSearchValidation(t *testing.T) {
+	providerBlock := `
+		provider "itsi" {
+			host     = "itsi.example.com"
+			user     = "user"
+			password = "password"
+			port     = 8089
+			timeout  = 20
+		}`
+
 	resource.Test(t, resource.TestCase{
 		IsUnitTest:               true,
 		ProtoV6ProviderFactories: providerFactories,
 		Steps: []resource.TestStep{
 			{
-				Config: util.Dedent(`
-					provider "itsi" {
-						host     = "itsi.example.com"
-						user     = "user"
-						password = "password"
-						port     = 8089
-						timeout  = 20
-					}
-
+				Config: util.Dedent(providerBlock + `
 					data "itsi_kpi_base_search" "test" {}
 				`),
-				ExpectError: regexp.MustCompile(`At least one attribute out of \[id,title\] must be specified`),
+				ExpectError: regexp.MustCompile(`No attribute specified when one \(and only one\) of \[id\] is required`),
+			},
+			{
+				Config: util.Dedent(providerBlock + `
+					data "itsi_kpi_base_search" "test" {
+						id    = "some_id"
+						title = "some_title"
+					}
+				`),
+				ExpectError: regexp.MustCompile(`2 attributes specified when one \(and only one\) of \[id\] is required`),
 			},
 		},
 	})

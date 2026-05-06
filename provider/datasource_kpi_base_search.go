@@ -78,7 +78,7 @@ func (d *dataSourceKpiBaseSearch) Schema(ctx context.Context, req datasource.Sch
 				Optional:            true,
 				Computed:            true,
 				Validators: []validator.String{
-					stringvalidator.AtLeastOneOf(path.MatchRoot("title")),
+					stringvalidator.ExactlyOneOf(path.MatchRoot("title")),
 				},
 			},
 			"title": schema.StringAttribute{
@@ -86,7 +86,7 @@ func (d *dataSourceKpiBaseSearch) Schema(ctx context.Context, req datasource.Sch
 				Computed:    true,
 				Description: "The title of the KPI Base Search.",
 				Validators: []validator.String{
-					stringvalidator.AtLeastOneOf(path.MatchRoot("id")),
+					stringvalidator.ExactlyOneOf(path.MatchRoot("id")),
 				},
 			},
 		},
