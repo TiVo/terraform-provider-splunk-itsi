@@ -5,10 +5,12 @@ import (
 	"fmt"
 
 	"github.com/hashicorp/terraform-plugin-framework-timeouts/datasource/timeouts"
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	rsschema "github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/tivo/terraform-provider-splunk-itsi/models"
@@ -73,11 +75,19 @@ func (d *dataSourceKpiBaseSearch) Schema(ctx context.Context, req datasource.Sch
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				MarkdownDescription: "The ID of this resource.",
+				Optional:            true,
 				Computed:            true,
+				Validators: []validator.String{
+					stringvalidator.AtLeastOneOf(path.MatchRoot("title")),
+				},
 			},
 			"title": schema.StringAttribute{
-				Required:    true,
+				Optional:    true,
+				Computed:    true,
 				Description: "The title of the KPI Base Search.",
+				Validators: []validator.String{
+					stringvalidator.AtLeastOneOf(path.MatchRoot("id")),
+				},
 			},
 		},
 	}
@@ -98,19 +108,33 @@ func (d *dataSourceKpiBaseSearch) Read(ctx context.Context, req datasource.ReadR
 
 	ctx, cancel := context.WithTimeout(ctx, readTimeout)
 	defer cancel()
-
 	title := config.Title.ValueString()
-	base := kpiBaseSearchBase(d.client, config.ID.ValueString(), title)
+	id := config.ID.ValueString()
+
+	var base *models.ItsiObj
+	if title != "" {
+		base = kpiBaseSearchBase(d.client, id, title)
+	} else {
+		base = kpiBaseSearchBase(d.client, id, "")
+	}
+
 	b, err := base.Find(ctx)
 	if err != nil {
 		resp.Diagnostics.AddError("Unable to read KPI BS object", err.Error())
 		return
 	}
 	if b == nil {
-		resp.Diagnostics.AddAttributeError(
-			path.Root("title"),
-			"KPI BS not found",
-			fmt.Sprintf("KPI BS %q not found", title))
+		if title != "" {
+			resp.Diagnostics.AddAttributeError(
+				path.Root("title"),
+				"KPI BS not found",
+				fmt.Sprintf("KPI BS with title %q not found", title))
+		} else {
+			resp.Diagnostics.AddAttributeError(
+				path.Root("id"),
+				"KPI BS not found",
+				fmt.Sprintf("KPI BS with id %q not found", id))
+		}
 		return
 	}
 
